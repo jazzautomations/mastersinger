@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/store';
 import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
-import { playChord, playNote, playSequence, ensureAudioStarted, playDrone, stopDrone } from '../services/audioService';
+import { playChord, playNote, ensureAudioStarted, stopAll } from '../services/audioService';
 import { CHORD_TYPES, midiToNoteName, NOTE_NAMES_SHARP } from '../services/theoryService';
 import type { PitchFrame } from '../types';
 
@@ -117,18 +117,22 @@ function ProgressionsExplorer({ lang, a4 }: TriadsProps) {
 
   const [selected, setSelected] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; stopAll(); }, []);
 
   const playProgression = async () => {
     setPlaying(true);
     await ensureAudioStarted();
     const prog = progressions[selected];
     for (let i = 0; i < prog.chords.length; i++) {
+      if (!mountedRef.current) return;
       const c = prog.chords[i];
       const midis = CHORD_TYPES[c.type].intervals.map(int => 60 + c.root + int);
       playChord(midis, 1200, a4);
       await new Promise(r => setTimeout(r, 1300));
+      if (!mountedRef.current) return;
     }
-    setPlaying(false);
+    if (mountedRef.current) setPlaying(false);
   };
 
   return (
@@ -178,6 +182,12 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile }: Si
   const [userCents, setUserCents] = useState(0);
   const [score, setScore] = useState<number | null>(null);
   const [tries, setTries] = useState(0);
+  const timersRef = useRef<number[]>([]);
+
+  useEffect(() => () => {
+    timersRef.current.forEach(id => clearTimeout(id));
+    stopAll();
+  }, []);
 
   const pitch = usePitchDetection({
     a4,
@@ -209,7 +219,8 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile }: Si
   const playReference = async () => {
     await ensureAudioStarted();
     playNote(targetMidi, 1500, 0, a4);
-    setTimeout(() => playNote(expectedMidi, 800, 0, a4), 1600);
+    const id = window.setTimeout(() => playNote(expectedMidi, 800, 0, a4), 1600);
+    timersRef.current.push(id);
   };
 
   const checkAnswer = () => {
@@ -221,7 +232,8 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile }: Si
     if (correct && accuracy > 70) {
       addXp(30);
       if (!profile.badges.includes('first-lesson')) unlockBadge('first-lesson');
-      setTimeout(() => newTarget(), 1500);
+      const id = window.setTimeout(() => newTarget(), 1500);
+      timersRef.current.push(id);
     }
   };
 

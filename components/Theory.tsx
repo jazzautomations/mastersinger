@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
-import { playNote, playChord, playSequence, ensureAudioStarted } from '../services/audioService';
+import { playNote, playChord, playSequence, ensureAudioStarted, stopAll } from '../services/audioService';
 import { SCALES, INTERVALS, NOTE_NAMES_SHARP, buildScale, midiToNoteName } from '../services/theoryService';
 
 type Topic = 'notes' | 'intervals' | 'scales' | 'rhythm' | 'keys';
@@ -11,6 +11,12 @@ export function Theory() {
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
   const [topic, setTopic] = useState<Topic | null>(null);
+  const timersRef = useRef<number[]>([]);
+
+  useEffect(() => () => {
+    timersRef.current.forEach(id => clearTimeout(id));
+    stopAll();
+  }, []);
 
   const topics: { id: Topic; icon: string; titleKey: string }[] = [
     { id: 'notes',     icon: '🎵', titleKey: 'theory.notes' },
@@ -133,7 +139,7 @@ function IntervalsTopic({ lang, a4 }: TopicProps) {
           {Object.values(INTERVALS).map(int => (
             <button
               key={int.name}
-              onClick={async () => { await ensureAudioStarted(); playNote(60, 600, 0, a4); setTimeout(() => playNote(60 + int.semitones, 800, 0, a4), 650); }}
+              onClick={async () => { await ensureAudioStarted(); playNote(60, 600, 0, a4); const id = window.setTimeout(() => playNote(60 + int.semitones, 800, 0, a4), 650); timersRef.current.push(id); }}
               className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all"
             >
               <span className="text-sm font-bold">{int.name}</span>
@@ -156,7 +162,8 @@ function ScalesTopic({ lang, a4 }: TopicProps) {
     const root = 60;
     const scale = SCALES[selectedScale];
     scale.intervals.forEach((interval, i) => {
-      setTimeout(() => playNote(root + interval, 350, 0, a4), i * 400);
+      const id = window.setTimeout(() => playNote(root + interval, 350, 0, a4), i * 400);
+      timersRef.current.push(id);
     });
   };
 

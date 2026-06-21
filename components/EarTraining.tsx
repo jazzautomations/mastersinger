@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
 import { makeEarQuestion } from '../data/earQuestions';
-import { playNote, playChord, playSequence, ensureAudioStarted } from '../services/audioService';
+import { playNote, playChord, playSequence, ensureAudioStarted, stopAll } from '../services/audioService';
 import type { EarQuestion, EarQuestionType } from '../types';
 
 export function EarTraining() {
@@ -16,6 +16,17 @@ export function EarTraining() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [streak, setStreak] = useState(0);
+  const noteTimersRef = useRef<number[]>([]);
+
+  const clearTimers = () => {
+    noteTimersRef.current.forEach(id => clearTimeout(id));
+    noteTimersRef.current = [];
+  };
+
+  // cleanup on unmount — stop any lingering audio + clear pending note timers
+  useEffect(() => {
+    return () => { clearTimers(); stopAll(); };
+  }, []);
 
   const types: { type: EarQuestionType; icon: string; titleKey: string }[] = [
     { type: 'interval-melodic', icon: '🎵', titleKey: 'ear.intervalMelodic' },
@@ -47,10 +58,12 @@ export function EarTraining() {
       const midis = seq.map(s => s.midi);
       playChord(midis, seq[0].durationMs, a4);
     } else {
-      playSequence(seq.map(s => s.midi), s => seq[0].durationMs, a4);
-      // simpler: just play each note in turn
+      // play each note in turn — track timers for cleanup
+      clearTimers();
       seq.forEach((s, i) => {
-        setTimeout(() => playNote(s.midi, s.durationMs * 0.9, 0, a4), seq.slice(0, i).reduce((a, b) => a + b.durationMs, 0));
+        const delay = seq.slice(0, i).reduce((a, b) => a + b.durationMs, 0);
+        const id = window.setTimeout(() => playNote(s.midi, s.durationMs * 0.9, 0, a4), delay);
+        noteTimersRef.current.push(id);
       });
     }
   }, [question, a4]);

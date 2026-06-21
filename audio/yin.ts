@@ -108,7 +108,7 @@ export function detectPitchYin(
   let sum = 0;
   for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
   const rms = Math.sqrt(sum / buffer.length);
-  if (rms < 0.005) {
+  if (rms < 0.003) {
     return { frequency: 0, confidence: 0, rms };
   }
 
