@@ -87,6 +87,23 @@ export function Home({ onNavigate }: HomeProps) {
         </div>
       </button>
 
+      {/* ── Guided warmup ── */}
+      <button
+        onClick={() => onNavigate('warmup', { routineId: 'quick' })}
+        className="card p-6 w-full text-left space-y-2 hover:border-cyan-500/40 transition-all"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🔥</span>
+            <div>
+              <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'warmup.cta') || (lang === 'pt-BR' ? 'Aquecimento guiado' : 'Guided warmup')}</div>
+              <div className="text-lg font-bold">{lang === 'pt-BR' ? 'Aqueça a voz em 5 min' : 'Warm up your voice in 5 min'}</div>
+            </div>
+          </div>
+          <span className="text-cyan-400"><i className="fas fa-chevron-right"></i></span>
+        </div>
+      </button>
+
       {/* ── Quick actions ── */}
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => onNavigate('tuner')} className="card p-5 text-left hover:border-cyan-500/40 transition-all">

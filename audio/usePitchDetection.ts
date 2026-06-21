@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { detectPitchYin } from '../audio/yin';
+import { PitchSmoother } from '../audio/pitchSmoothing';
 import { frequencyToMidi, midiToNoteName, midiToCents } from '../services/theoryService';
 import type { PitchFrame } from '../types';
 
 interface UsePitchDetectionOptions {
   a4?: number;
-  bufferSize?: number;       // analysis window size (samples)
+  bufferSize?: number;       // analysis window size (samples, must be power of 2)
   minFreq?: number;
   maxFreq?: number;
   threshold?: number;        // YIN threshold
+  smoothing?: boolean;       // apply temporal smoothing (default true)
   onFrame?: (frame: PitchFrame) => void;
 }
 
@@ -22,7 +24,9 @@ interface UsePitchDetectionReturn {
   audioContext: AudioContext | null;
 }
 
-const DEFAULT_BUFFER_SIZE = 2048;
+// 4096 gives YIN a comfortable window for low male voices (~80 Hz) and
+// better SNR than 2048, at ~93 ms latency — fine for a tuner / practice.
+const DEFAULT_BUFFER_SIZE = 4096;
 
 export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePitchDetectionReturn {
   const {
@@ -31,6 +35,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     minFreq = 70,
     maxFreq = 1200,
     threshold = 0.12,
+    smoothing = true,
     onFrame,
   } = options;
 
@@ -46,8 +51,14 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const rafRef = useRef<number | null>(null);
   const bufferRef = useRef<Float32Array>(new Float32Array(bufferSize));
   const startTimeRef = useRef<number>(0);
+  const smootherRef = useRef<PitchSmoother>(new PitchSmoother({ a4 }));
   const onFrameRef = useRef(onFrame);
   onFrameRef.current = onFrame;
+
+  // keep smoother a4 in sync if the user changes tuning reference
+  useEffect(() => {
+    if (smoothing) smootherRef.current = new PitchSmoother({ a4 });
+  }, [a4, smoothing]);
 
   const processFrame = useCallback(() => {
     if (!analyserRef.current) return;
@@ -64,27 +75,57 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
 
     setMicLevel(result.rms);
 
-    if (result.frequency > 0 && result.confidence > 0.5) {
-      const midi = frequencyToMidi(result.frequency, a4);
-      const nearestMidi = Math.round(midi);
-      const cents = midiToCents(result.frequency, a4);
-      const frame: PitchFrame = {
+    const ts = performance.now() - startTimeRef.current;
+
+    if (smoothing) {
+      const smooth = smootherRef.current.push({
         frequency: result.frequency,
         confidence: result.confidence,
-        cents,
-        midi,
-        noteName: midiToNoteName(nearestMidi),
-        octave: Math.floor(nearestMidi / 12) - 1,
-        timestamp: performance.now() - startTimeRef.current,
-      };
-      setCurrentFrame(frame);
-      onFrameRef.current?.(frame);
+      });
+      if (smooth.voiced) {
+        const nearestMidi = Math.round(smooth.midi);
+        const frame: PitchFrame = {
+          frequency: smooth.frequency,
+          confidence: smooth.confidence,
+          cents: smooth.cents,
+          midi: smooth.midi,
+          noteName: midiToNoteName(nearestMidi),
+          octave: Math.floor(nearestMidi / 12) - 1,
+          timestamp: ts,
+        };
+        setCurrentFrame(frame);
+        onFrameRef.current?.(frame);
+      } else {
+        setCurrentFrame(prev => prev
+          ? { ...prev, frequency: 0, confidence: 0, cents: 0, midi: 0, timestamp: ts }
+          : null);
+      }
     } else {
-      setCurrentFrame(prev => prev ? { ...prev, frequency: 0, confidence: 0, timestamp: performance.now() - startTimeRef.current } : null);
+      // raw path (kept for tests / opt-out)
+      if (result.frequency > 0 && result.confidence > 0.5) {
+        const midi = frequencyToMidi(result.frequency, a4);
+        const nearestMidi = Math.round(midi);
+        const cents = midiToCents(result.frequency, a4);
+        const frame: PitchFrame = {
+          frequency: result.frequency,
+          confidence: result.confidence,
+          cents,
+          midi,
+          noteName: midiToNoteName(nearestMidi),
+          octave: Math.floor(nearestMidi / 12) - 1,
+          timestamp: ts,
+        };
+        setCurrentFrame(frame);
+        onFrameRef.current?.(frame);
+      } else {
+        setCurrentFrame(prev => prev
+          ? { ...prev, frequency: 0, confidence: 0, cents: 0, midi: 0, timestamp: ts }
+          : null);
+      }
     }
 
     rafRef.current = requestAnimationFrame(processFrame);
-  }, [a4, threshold, minFreq, maxFreq]);
+  }, [a4, threshold, minFreq, maxFreq, smoothing]);
 
   const start = useCallback(async () => {
     if (isListening) return;
@@ -116,6 +157,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       source.connect(analyser);
       analyserRef.current = analyser;
 
+      if (smoothing) smootherRef.current.reset();
       startTimeRef.current = performance.now();
       setIsListening(true);
       rafRef.current = requestAnimationFrame(processFrame);
@@ -130,7 +172,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       }
       setIsListening(false);
     }
-  }, [isListening, bufferSize, processFrame]);
+  }, [isListening, bufferSize, processFrame, smoothing]);
 
   const stop = useCallback(() => {
     if (rafRef.current) {
@@ -153,10 +195,11 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
+    if (smoothing) smootherRef.current.reset();
     setIsListening(false);
     setCurrentFrame(null);
     setMicLevel(0);
-  }, []);
+  }, [smoothing]);
 
   useEffect(() => {
     return () => stop();

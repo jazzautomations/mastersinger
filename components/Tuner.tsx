@@ -1,9 +1,18 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
 import { NOTE_NAMES_SHARP, midiToFrequency } from '../services/theoryService';
+import { playDrone, stopDrone, ensureAudioStarted } from '../services/audioService';
 import { unlockBadge } from '../store/store';
+
+// Reference tones offered in the tuner (C4..A4 span — comfortable singing range).
+const REFERENCE_NOTES = [
+  { midi: 60, label: 'C4' },
+  { midi: 64, label: 'E4' },
+  { midi: 67, label: 'G4' },
+  { midi: 69, label: 'A4' },
+];
 
 export function Tuner() {
   const { profile, unlockBadge: unlock } = useStore();
@@ -14,6 +23,29 @@ export function Tuner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[]>([]);
   const lockedSinceRef = useRef<number>(0);
+
+  const [refMidi, setRefMidi] = useState<number>(69);
+  const [refPlaying, setRefPlaying] = useState<boolean>(false);
+
+  const toggleRef = async () => {
+    if (refPlaying) {
+      stopDrone();
+      setRefPlaying(false);
+    } else {
+      await ensureAudioStarted();
+      playDrone(refMidi, a4);
+      setRefPlaying(true);
+    }
+  };
+
+  // stop the drone if the note changes or the component unmounts
+  useEffect(() => {
+    if (!refPlaying) return;
+    stopDrone();
+    playDrone(refMidi, a4);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refMidi, a4]);
+  useEffect(() => () => { stopDrone(); }, []);
 
   useEffect(() => {
     if (pitch.isListening && !profile.badges.includes('first-tuner')) {
@@ -158,6 +190,30 @@ export function Tuner() {
           {lang === 'pt-BR' ? 'Histórico de afinação' : 'Pitch history'}
         </div>
         <canvas ref={canvasRef} className="w-full h-32" />
+      </div>
+
+      {/* Reference tone — tune against a selectable sustained note */}
+      <div className="card p-5 space-y-3">
+        <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">
+          {lang === 'pt-BR' ? 'Tom de referência' : 'Reference tone'}
+        </div>
+        <div className="flex gap-2">
+          {REFERENCE_NOTES.map(n => (
+            <button
+              key={n.midi}
+              onClick={() => setRefMidi(n.midi)}
+              className={`flex-1 py-2 rounded-lg text-sm font-bold font-mono transition-all ${refMidi === n.midi ? 'bg-violet-500 text-white' : 'bg-white/5 text-slate-300'}`}
+            >
+              {n.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={toggleRef} className={`btn-ghost w-full ${refPlaying ? '!bg-cyan-500/20 !border-cyan-400/40 !text-cyan-200' : ''}`}>
+          <i className={`fas ${refPlaying ? 'fa-stop' : 'fa-volume-high'} mr-2`}></i>
+          {refPlaying
+            ? (lang === 'pt-BR' ? `Tocando ${midiToFrequency(refMidi, a4).toFixed(1)} Hz — parar` : `Playing ${midiToFrequency(refMidi, a4).toFixed(1)} Hz — stop`)
+            : (lang === 'pt-BR' ? 'Tocar referência' : 'Play reference')}
+        </button>
       </div>
 
       {/* Confidence / Mic level */}

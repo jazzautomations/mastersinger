@@ -31,6 +31,10 @@ export const BADGES: Badge[] = [
   { id: 'course-intervals',name: 'Interval Scholar',   description: 'Completed the Intervals course.',             icon: '📐' },
   { id: 'course-scales',   name: 'Scale Sage',         description: 'Completed the Scales & Modes course.',        icon: '🪜' },
   { id: 'course-harmony',  name: 'Harmony Healer',     description: 'Completed the Harmony course.',               icon: '🎼' },
+  { id: 'course-anatomy',  name: 'Know Your Voice',    description: 'Completed the Vocal Anatomy course.',         icon: '🫁' },
+  { id: 'course-health',   name: 'Voice Guardian',     description: 'Completed the Vocal Health course.',          icon: '💧' },
+  { id: 'course-technique',name: 'Vocal Technique',    description: 'Completed the Singing Technique course.',     icon: '🎤' },
+  { id: 'first-warmup',    name: 'Warmed Up',          description: 'Completed a guided vocal warmup.',            icon: '🔥' },
   { id: 'all-courses',     name: 'Polymath',           description: 'Completed every Academy course.',             icon: '👑' },
 
   // ── Levels ──

@@ -14,7 +14,8 @@ export type View =
   | 'harmony'
   | 'academy'
   | 'progress'
-  | 'settings';
+  | 'settings'
+  | 'warmup';     // guided interactive vocal warmup
 
 export type Language = 'pt-BR' | 'en';
 
@@ -173,4 +174,41 @@ export interface UserProfile {
     exerciseIds: string[];
     completed: boolean;
   };
+}
+
+// ── Guided warmup ──
+export type WarmupStepKind = 'info' | 'breath' | 'glide' | 'scale' | 'sustain' | 'siren';
+
+export interface WarmupGuide {
+  type: 'tone' | 'sequence' | 'glide';
+  midi?: number;                       // sustained reference (tone)
+  midis?: number[];                    // ascending/descending pattern (sequence)
+  beatMs?: number;                     // per-note duration for sequence
+  fromMidi?: number; toMidi?: number;  // glide endpoints
+}
+
+export interface WarmupTarget {
+  midi: number;
+  startMs: number;
+  durationMs: number;
+}
+
+export interface WarmupStep {
+  id: string;
+  kind: WarmupStepKind;
+  title: string;
+  instructions: string;
+  durationMs: number;        // total step length
+  guide?: WarmupGuide;       // reference audio the user sings along with
+  targets?: WarmupTarget[];  // pitch curve to track against (for feedback)
+  tracksPitch?: boolean;     // show live pitch overlay
+  tip?: string;
+}
+
+export interface WarmupRoutine {
+  id: string;
+  title: string;
+  description: string;
+  totalMinutes: number;
+  steps: WarmupStep[];
 }

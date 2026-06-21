@@ -40,11 +40,13 @@ function difference(buffer: Float32Array, maxTau: number): Float32Array {
 }
 
 /**
- * Step 3: Absolute threshold. Find the smallest tau where yin[tau] < threshold,
- * and yin stays below threshold for a small window after.
+ * Step 3: Absolute threshold. Find the smallest tau >= minTau where
+ * yin[tau] < threshold, and yin stays below threshold for a small window
+ * after. Starting at minTau (instead of 2) prevents the algorithm from
+ * locking onto a harmonic above maxFreq and then reporting "no pitch".
  */
-function absoluteThreshold(yin: Float32Array, threshold: number): number {
-  let tau = 2;
+function absoluteThreshold(yin: Float32Array, threshold: number, minTau: number): number {
+  let tau = Math.max(2, minTau);
   while (tau < yin.length - 1) {
     if (yin[tau] < threshold) {
       // descend to local minimum
@@ -55,17 +57,17 @@ function absoluteThreshold(yin: Float32Array, threshold: number): number {
     }
     tau++;
   }
-  // No tau below threshold — return global min as fallback
-  let minTau = 2;
-  let minVal = yin[2];
-  for (let i = 3; i < yin.length; i++) {
+  // No tau below threshold — return global min (within the valid range) as fallback
+  let minTauFound = Math.max(2, minTau);
+  let minVal = yin[minTauFound];
+  for (let i = minTauFound + 1; i < yin.length; i++) {
     if (yin[i] < minVal) {
       minVal = yin[i];
-      minTau = i;
+      minTauFound = i;
     }
   }
   // if even the global min is very high, signal no pitch
-  return minVal > 0.6 ? -1 : minTau;
+  return minVal > 0.6 ? -1 : minTauFound;
 }
 
 /**
@@ -119,7 +121,7 @@ export function detectPitchYin(
   const window = buffer.subarray(0, Math.min(windowSize, buffer.length));
   const yin = difference(window, maxTau);
 
-  const tauEstimate = absoluteThreshold(yin, threshold);
+  const tauEstimate = absoluteThreshold(yin, threshold, minTau);
   if (tauEstimate === -1) {
     return { frequency: 0, confidence: 0, rms };
   }

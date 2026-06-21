@@ -112,71 +112,110 @@ export function framesToNotes(
   frames: FrameLite[],
   a4 = 440,
   minConfidence = 0.5,
-  minNoteMs = 80,
-  gapMs = 60,
+  minNoteMs = 90,
+  gapMs = 70,
 ): Note[] {
   if (frames.length === 0) return [];
 
-  const notes: Note[] = [];
-  let currentNote: Note | null = null;
-  let lastVoicedTs = 0;
   const midiFreq = (f: number) => 69 + 12 * Math.log2(f / a4);
   const centsOf  = (f: number) => {
     const m = midiFreq(f);
     return Math.round((m - Math.round(m)) * 100);
   };
 
-  for (const f of frames) {
-    const voiced = f.frequency > 0 && f.confidence >= minConfidence;
-    if (!voiced) {
-      // close current note if gap is big enough
-      if (currentNote && f.timestamp - lastVoicedTs > gapMs) {
-        currentNote.endTime = lastVoicedTs;
-        if (currentNote.endTime - currentNote.startTime >= minNoteMs) {
-          notes.push(currentNote);
-        }
-        currentNote = null;
-      }
+  // ── Pre-smooth with a short median window so a single jittery frame can't
+  //    fragment a sustained note or invent a pitch blip. Frames arrive ~every
+  //    16ms (rAF); a 5-frame window ≈ 80ms of context. ──
+  const WIN = 5;
+  const voiced: { ts: number; midi: number; freq: number; conf: number }[] = [];
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    if (f.frequency <= 0 || f.confidence < minConfidence) continue;
+    const slice: number[] = [];
+    for (let j = Math.max(0, i - 2); j <= Math.min(frames.length - 1, i + 2); j++) {
+      if (frames[j].frequency > 0 && frames[j].confidence >= minConfidence) slice.push(frames[j].frequency);
+    }
+    if (slice.length === 0) continue;
+    const sorted = [...slice].sort((a, b) => a - b);
+    const med = sorted.length % 2
+      ? sorted[(sorted.length - 1) / 2]
+      : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+    voiced.push({ ts: f.timestamp, midi: Math.round(midiFreq(med)), freq: med, conf: f.confidence });
+  }
+  if (voiced.length === 0) return [];
+
+  // ── Greedy segmentation with a debounce. A brief pitch excursion (< 60ms)
+  //    on a different note is absorbed into the current note; a sustained
+  //    change (>= 60ms) splits, with the split point where the new note began.
+  //    This stops a one-frame wobble from carving a sustained note to pieces. ──
+  const DEBOUNCE_MS = 60;
+  const notes: Note[] = [];
+
+  let cur: { midi: number; start: number; end: number; freqs: number[]; confs: number[] } | null = null;
+  let cand: { midi: number; start: number; freqs: number[]; confs: number[] } | null = null;
+  let lastTs = voiced[0].ts;
+
+  const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  const closeCurrent = (endTs: number) => {
+    if (!cur) return;
+    if (endTs - cur.start >= minNoteMs) {
+      notes.push({
+        startTime: cur.start, endTime: endTs,
+        frequency: avg(cur.freqs), midi: cur.midi,
+        cents: centsOf(avg(cur.freqs)),
+        velocity: 90, confidence: avg(cur.confs),
+      });
+    }
+    cur = null;
+  };
+
+  for (const v of voiced) {
+    lastTs = v.ts;
+    if (!cur) {
+      cur = { midi: v.midi, start: v.ts, end: v.ts, freqs: [v.freq], confs: [v.conf] };
+      cand = null;
       continue;
     }
-    lastVoicedTs = f.timestamp;
-    const midi = Math.round(midiFreq(f.frequency));
-    if (!currentNote) {
-      currentNote = {
-        startTime: f.timestamp,
-        endTime: f.timestamp,
-        frequency: f.frequency,
-        midi,
-        cents: centsOf(f.frequency),
-        velocity: 90,
-        confidence: f.confidence,
-      };
-    } else if (Math.abs(midi - currentNote.midi) <= 0 && Math.abs(centsOf(f.frequency) - currentNote.cents) <= 30) {
-      // same note — extend
-      currentNote.endTime = f.timestamp;
-      // running average of frequency
-      currentNote.frequency = (currentNote.frequency + f.frequency) / 2;
-      currentNote.confidence = (currentNote.confidence + f.confidence) / 2;
-    } else {
-      // new note — close current, start new
-      currentNote.endTime = f.timestamp;
-      if (currentNote.endTime - currentNote.startTime >= minNoteMs) {
-        notes.push(currentNote);
+    if (v.midi === cur.midi) {
+      if (cand) {
+        // the excursion ended — absorb it back into the current note
+        cur.freqs.push(...cand.freqs, v.freq);
+        cur.confs.push(...cand.confs, v.conf);
+        cur.end = v.ts;
+        cand = null;
+      } else {
+        cur.freqs.push(v.freq);
+        cur.confs.push(v.conf);
+        cur.end = v.ts;
       }
-      currentNote = {
-        startTime: f.timestamp,
-        endTime: f.timestamp,
-        frequency: f.frequency,
-        midi,
-        cents: centsOf(f.frequency),
-        velocity: 90,
-        confidence: f.confidence,
-      };
+    } else if (cand && v.midi === cand.midi) {
+      cand.freqs.push(v.freq);
+      cand.confs.push(v.conf);
+      if (v.ts - cand.start >= DEBOUNCE_MS) {
+        // sustained change — commit: current note ends where the new one began
+        closeCurrent(cand.start);
+        cur = { midi: cand.midi, start: cand.start, end: v.ts, freqs: [...cand.freqs], confs: [...cand.confs] };
+        cand = null;
+      }
+    } else {
+      // a different note appears — start watching it as a candidate
+      cand = { midi: v.midi, start: v.ts, freqs: [v.freq], confs: [v.conf] };
     }
   }
-  if (currentNote && lastVoicedTs - currentNote.startTime >= minNoteMs) {
-    currentNote.endTime = lastVoicedTs;
-    notes.push(currentNote);
+  closeCurrent(lastTs);
+
+  // ── Merge adjacent same-pitch notes separated by a tiny gap (the debounce
+  //    can leave a sliver of silence between two same-pitch segments). ──
+  const merged: Note[] = [];
+  for (const n of notes) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.midi === n.midi && n.startTime - prev.endTime <= gapMs) {
+      prev.endTime = n.endTime;
+      prev.frequency = (prev.frequency + n.frequency) / 2;
+      prev.confidence = Math.max(prev.confidence, n.confidence);
+    } else {
+      merged.push({ ...n });
+    }
   }
-  return notes;
+  return merged;
 }

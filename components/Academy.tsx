@@ -124,6 +124,9 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
           'intervals': 'course-intervals',
           'scales': 'course-scales',
           'harmony': 'course-harmony',
+          'vocal-anatomy': 'course-anatomy',
+          'vocal-health': 'course-health',
+          'singing-technique': 'course-technique',
         };
         const badgeId = badgeMap[courseId];
         if (badgeId && !profile.badges.includes(badgeId)) unlockBadge(badgeId);

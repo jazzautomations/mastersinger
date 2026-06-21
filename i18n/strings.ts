@@ -170,6 +170,28 @@ const en: Dict = {
   'onb.finish': 'Start singing',
   'onb.step': 'Step',
   'onb.of': 'of',
+
+  // ── Warmup ──
+  'nav.warmup': 'Warmup',
+  'warmup.cta': 'Guided warmup',
+  'warmup.ctaDesc': 'Get your voice ready in 5 minutes',
+  'warmup.title': 'Vocal Warmup',
+  'warmup.subtitle': 'Follow the guide — sing along, live feedback',
+  'warmup.start': 'Start warmup',
+  'warmup.step': 'Step',
+  'warmup.of': 'of',
+  'warmup.next': 'Next step',
+  'warmup.finish': 'Finish',
+  'warmup.complete': 'Warmup complete!',
+  'warmup.singNow': 'Sing now — match the guide',
+  'warmup.listenThenSing': 'Listen, then sing along',
+  'warmup.breathe': 'Breathe',
+  'warmup.inhale': 'Inhale',
+  'warmup.exhale': 'Exhale',
+  'warmup.hold': 'Hold',
+  'warmup.targetNote': 'Target note',
+  'warmup.yourPitch': 'Your pitch',
+  'warmup.duration': 'Duration',
 };
 
 const pt: Dict = {
@@ -327,6 +349,28 @@ const pt: Dict = {
   'onb.finish': 'Começar a cantar',
   'onb.step': 'Passo',
   'onb.of': 'de',
+
+  // ── Aquecimento ──
+  'nav.warmup': 'Aquecimento',
+  'warmup.cta': 'Aquecimento guiado',
+  'warmup.ctaDesc': 'Prepare sua voz em 5 minutos',
+  'warmup.title': 'Aquecimento Vocal',
+  'warmup.subtitle': 'Siga o guia — cante junto, feedback ao vivo',
+  'warmup.start': 'Começar aquecimento',
+  'warmup.step': 'Passo',
+  'warmup.of': 'de',
+  'warmup.next': 'Próximo passo',
+  'warmup.finish': 'Concluir',
+  'warmup.complete': 'Aquecimento concluído!',
+  'warmup.singNow': 'Cante agora — acompanhe o guia',
+  'warmup.listenThenSing': 'Ouça, depois cante junto',
+  'warmup.breathe': 'Respire',
+  'warmup.inhale': 'Inspire',
+  'warmup.exhale': 'Expire',
+  'warmup.hold': 'Segure',
+  'warmup.targetNote': 'Nota alvo',
+  'warmup.yourPitch': 'Sua afinação',
+  'warmup.duration': 'Duração',
 };
 
 const DICTS: Record<Language, Dict> = { en, 'pt-BR': pt };

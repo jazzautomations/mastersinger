@@ -9,6 +9,7 @@ import { EarTraining } from './components/EarTraining';
 import { Theory } from './components/Theory';
 import { Harmony } from './components/Harmony';
 import { Academy } from './components/Academy';
+import { Warmup } from './components/Warmup';
 import { Progress } from './components/Progress';
 import { Settings } from './components/Settings';
 import { t } from './i18n/strings';
@@ -86,6 +87,7 @@ function MainApp() {
         {view === 'theory'   && <Theory />}
         {view === 'harmony'  && <Harmony />}
         {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} />}
+        {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
         {view === 'progress' && <Progress />}
         {view === 'settings' && <Settings />}
       </main>
