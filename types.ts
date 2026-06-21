@@ -1,0 +1,176 @@
+// ──────────────────────────────────────────────────────────────────────────
+// MasterSinger — Core domain types
+// ──────────────────────────────────────────────────────────────────────────
+
+export type StudentLevel = 'beginner' | 'intermediate' | 'advanced';
+
+export type View =
+  | 'home'
+  | 'tuner'
+  | 'practice'
+  | 'studio'      // MIDI melody editor
+  | 'ear'
+  | 'theory'
+  | 'harmony'
+  | 'academy'
+  | 'progress'
+  | 'settings';
+
+export type Language = 'pt-BR' | 'en';
+
+// ── Pitch detection ──
+export interface PitchFrame {
+  frequency: number;   // Hz, 0 if silent/unreliable
+  confidence: number;  // 0..1
+  cents: number;       // -50..+50 from nearest note
+  midi: number;        // 0..127 (float, not rounded)
+  noteName: string;    // e.g. "A4"
+  octave: number;
+  timestamp: number;   // ms since detection start
+}
+
+// ── Melody / MIDI ──
+export interface Note {
+  startTime: number;   // ms
+  endTime: number;     // ms
+  frequency: number;   // Hz average
+  midi: number;        // 0..127 integer
+  cents: number;       // -50..+50 average deviation during note
+  velocity: number;    // 0..127
+  confidence: number;  // 0..1
+  lyric?: string;
+}
+
+// ── Practice ──
+export type ExerciseType =
+  | 'scale-runner'
+  | 'arpeggio-drill'
+  | 'interval-leap'
+  | 'pitch-hold';
+
+export interface ExerciseTarget {
+  midi: number;          // target note
+  startMs: number;       // when it should sound (relative to exercise start)
+  durationMs: number;    // how long it should last
+}
+
+export interface Exercise {
+  id: string;
+  type: ExerciseType;
+  title: string;
+  description: string;
+  level: StudentLevel;
+  key?: string;          // e.g. "C", "G"
+  scaleName?: string;    // e.g. "Major", "Minor Harmonic"
+  targets: ExerciseTarget[];
+  tempoBpm?: number;
+  xp: number;
+}
+
+export interface ExerciseResult {
+  exerciseId: string;
+  score: number;          // 0..100
+  accuracyPct: number;    // 0..100 — pitch accuracy
+  timingPct: number;      // 0..100 — timing accuracy
+  stabilityPct: number;   // 0..100 — pitch stability within notes
+  xpEarned: number;
+  completedAt: number;    // timestamp
+}
+
+// ── Ear training ──
+export type EarQuestionType =
+  | 'interval-melodic'
+  | 'interval-harmonic'
+  | 'scale-identify'
+  | 'chord-identify'
+  | 'cadence-identify';
+
+export interface EarQuestion {
+  id: string;
+  type: EarQuestionType;
+  audioSequence: { midi: number; durationMs: number; simultaneous?: boolean }[];
+  options: string[];
+  answer: string;
+  level: StudentLevel;
+  xp: number;
+}
+
+// ── Academy ──
+export interface Lesson {
+  id: string;
+  courseId: string;
+  index: number;
+  title: string;
+  summary: string;
+  content: LessonBlock[];
+  exerciseId?: string;     // optional practice exercise tied to the lesson
+  xp: number;
+}
+
+export type LessonBlock =
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'heading'; text: string }
+  | { kind: 'tip'; text: string }
+  | { kind: 'audio'; midi: number; durationMs: number; label: string }
+  | { kind: 'list'; items: string[] };
+
+export interface Course {
+  id: string;
+  title: string;
+  description: string;
+  level: StudentLevel;
+  color: string;          // accent
+  icon: string;           // emoji
+  lessons: Lesson[];
+}
+
+// ── Gamification ──
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  earnedAt?: number;
+}
+
+export interface LevelInfo {
+  level: number;
+  title: string;
+  xpIntoLevel: number;
+  xpForNextLevel: number;
+  progressPct: number;
+}
+
+export type League = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
+
+// ── User profile (persisted) ──
+export interface UserProfile {
+  level: number;          // 1..100
+  xp: number;
+  badges: string[];       // earned badge ids
+  streak: {
+    current: number;
+    longest: number;
+    lastActiveDate: string;  // YYYY-MM-DD
+    freezes: number;
+  };
+  weeklyXp: { weekStart: string; xp: number }[];
+  range: {
+    lowestMidi?: number;
+    highestMidi?: number;
+    detectedAt?: number;
+  };
+  settings: {
+    language: Language;
+    a4: number;            // tuning reference, default 440
+    level: StudentLevel;
+    audioInputDeviceId?: string;
+  };
+  results: ExerciseResult[];   // recent N results
+  completedLessons: string[];
+  dailyChallenge?: {
+    date: string;
+    exerciseIds: string[];
+    completed: boolean;
+  };
+}
