@@ -219,10 +219,11 @@ export function PitchMeter({
         <div className="relative h-5 rounded-full gauge-bg overflow-hidden">
           {/* needle */}
           <div
-            className="absolute top-0 bottom-0 w-1.5 bg-white shadow-lg transition-all duration-75"
+            className="absolute top-0 bottom-0 w-1.5 bg-white shadow-lg"
             style={{
               left: `${Math.max(0, Math.min(100, ((cents + 50) / 100) * 100))}%`,
               transform: 'translateX(-50%)',
+              transition: 'left 40ms linear',
             }}
           />
           {/* center mark */}

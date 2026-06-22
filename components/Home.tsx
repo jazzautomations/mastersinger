@@ -4,6 +4,8 @@ import type { View } from '../types';
 import { dailyChallengeExercises } from '../data/exercises';
 import { COURSES } from '../data/courses';
 import { weekStartISO, todayISO } from '../services/theoryService';
+import { Journey } from '../components/Journey';
+import { courseTitle, lessonTitle, lessonSummary } from '../services/courseI18n';
 
 interface HomeProps {
   onNavigate: (view: View, opts?: any) => void;
@@ -70,6 +72,9 @@ export function Home({ onNavigate }: HomeProps) {
         </div>
       </div>
 
+      {/* ── Guided journey: today's mission ── */}
+      <Journey onNavigate={onNavigate} />
+
       {/* ── Daily challenge ── */}
       <button
         onClick={() => onNavigate('practice', { exerciseIds: dailyExercises.map(e => e.id), isDaily: true })}
@@ -126,9 +131,9 @@ export function Home({ onNavigate }: HomeProps) {
             <div className="flex items-center gap-4">
               <div className="text-4xl">{nextCourse.icon}</div>
               <div className="flex-1">
-                <div className="text-xs font-mono" style={{ color: nextCourse.color }}>{nextCourse.title}</div>
-                <div className="text-base font-bold">{nextLesson.title}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">{nextLesson.summary}</div>
+                <div className="text-xs font-mono" style={{ color: nextCourse.color }}>{courseTitle(nextCourse, lang)}</div>
+                <div className="text-base font-bold">{lessonTitle(nextCourse, nextLesson, lang)}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{lessonSummary(nextCourse, nextLesson, lang)}</div>
               </div>
               <span className="text-violet-400"><i className="fas fa-chevron-right"></i></span>
             </div>
@@ -148,7 +153,7 @@ export function Home({ onNavigate }: HomeProps) {
                 <div className="flex items-center gap-3">
                   <div className="text-2xl">{course.icon}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold truncate">{course.title}</div>
+                    <div className="text-sm font-bold truncate">{courseTitle(course, lang)}</div>
                     <div className="text-[11px] text-slate-400">{completed}/{course.lessons.length} {t(lang, 'academy.lessons')}</div>
                   </div>
                   <div className="text-xs font-mono text-slate-400">{pct}%</div>

@@ -32,12 +32,12 @@ export interface PitchSmootherOptions {
 }
 
 const DEFAULTS: Required<PitchSmootherOptions> = {
-  windowSize: 7,
-  emaAlpha: 0.35,
+  windowSize: 5,        // tighter median → less lag in the needle
+  emaAlpha: 0.55,       // more responsive: needle tracks the voice instead of trailing
   maxOctaveJump: 0.5,
   a4: 440,
-  minConfidence: 0.5,
-  holdFrames: 3,
+  minConfidence: 0.45,  // accept slightly noisier frames (real mics are imperfect)
+  holdFrames: 2,        // shorter hold so silence reads as silence faster
 };
 
 function median(values: number[]): number {
@@ -97,15 +97,17 @@ export class PitchSmoother {
 
     // ── Octave-error rejection. Compare against the recent median: if the new
     //    estimate is roughly 2× or ½× the stable pitch, it's almost certainly
-    //    a YIN octave jump — fold it back to the correct octave. ──
+    //    a YIN octave jump — fold it back to the correct octave. A wider
+    //    acceptance band (1.7–2.3) catches more octave errors without eating
+    //    legitimate large leaps (which singers rarely make in one frame). ──
     let freq = raw.frequency;
     if (this.history.length >= 3) {
       const ref = median(this.history);
       if (ref > 0) {
         const ratio = freq / ref;
-        if (ratio > 1.8 && ratio < 2.25) freq = freq / 2;
-        else if (ratio > 0.45 && ratio < 0.56) freq = freq * 2;
-        else if (ratio > 2.25 || ratio < 0.44) {
+        if (ratio > 1.7 && ratio < 2.3) freq = freq / 2;
+        else if (ratio > 0.43 && ratio < 0.59) freq = freq * 2;
+        else if (ratio > 2.3 || ratio < 0.42) {
           // Wild outlier — trust the recent median rather than this frame.
           freq = ref;
         }

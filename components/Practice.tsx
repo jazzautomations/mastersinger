@@ -51,6 +51,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
   const pitch = usePitchDetection({
     a4,
+    record: true,
     onFrame: (frame) => {
       if (phaseRef.current !== 'listening') return;
       framesRef.current.push(frame);
@@ -370,14 +371,27 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           <div className="text-2xl">{result.score >= 90 ? '🎉' : result.score >= 70 ? '👍' : '💪'}</div>
           <div className="text-sm text-slate-400">+{result.xpEarned} XP</div>
         </div>
+
         <div className="grid grid-cols-3 gap-3">
           <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.accuracy')}</div><div className="text-2xl font-black font-mono text-green-400">{result.accuracyPct}%</div></div>
           <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.timing')}</div><div className="text-2xl font-black font-mono text-violet-400">{result.timingPct}%</div></div>
           <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.stability')}</div><div className="text-2xl font-black font-mono text-cyan-400">{result.stabilityPct}%</div></div>
         </div>
+
+        {pitch.recordingUrl && (
+          <div className="card p-5 space-y-3">
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Sua gravação' : 'Your take'}</div>
+            <audio controls src={pitch.recordingUrl} className="w-full" />
+            <div className="text-[11px] text-slate-500 font-mono">
+              {lang === 'pt-BR' ? 'Ouça sua última tentativa antes de refazer o exercício.' : 'Listen to your last take before trying again.'}
+            </div>
+          </div>
+        )}
+
         {isDaily && exerciseQueue.length > 1 && (
           <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{L('Média parcial', 'Partial average')}</div><div className="text-2xl font-black font-mono">{totalScore}%</div><div className="text-xs text-slate-500">{currentIdx + 1} / {exerciseQueue.length}</div></div>
         )}
+
         <div className="grid gap-3">
           {!isLast && exerciseQueue.length > 0 ? (
             <button onClick={goNext} className="btn-primary">{L('Próximo exercício', 'Next exercise')} <i className="fas fa-arrow-right ml-2"></i></button>

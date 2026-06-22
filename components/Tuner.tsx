@@ -19,7 +19,7 @@ export function Tuner() {
   const { profile, unlockBadge: unlock } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
-  const pitch = usePitchDetection({ a4 });
+  const pitch = usePitchDetection({ a4, record: true });
 
   const [refMidi, setRefMidi] = useState<number>(69);
   const [refPlaying, setRefPlaying] = useState<boolean>(false);
@@ -86,10 +86,11 @@ export function Tuner() {
         <div className="relative h-4 rounded-full gauge-bg overflow-hidden">
           {/* needle */}
           <div
-            className="absolute top-0 bottom-0 w-1 bg-white shadow-lg transition-all duration-75"
+            className="absolute top-0 bottom-0 w-1 bg-white shadow-lg"
             style={{
               left: `${Math.max(0, Math.min(100, ((cents + 50) / 100) * 100))}%`,
               transform: 'translateX(-50%)',
+              transition: 'left 40ms linear',
             }}
           />
           {/* center mark */}
@@ -151,6 +152,22 @@ export function Tuner() {
           <div className="text-xl font-black font-mono neon-text">{(pitch.micLevel * 100).toFixed(0)}</div>
         </div>
       </div>
+
+      {/* ── Review: ouça sua própria voz ── */}
+      {pitch.recordingUrl && (
+        <div className="card p-5 space-y-3">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">
+            {lang === 'pt-BR' ? 'Ouça sua voz 🎧' : 'Listen to your voice 🎧'}
+          </div>
+          <audio src={pitch.recordingUrl} controls className="w-full" />
+          <div className="flex justify-between items-center text-[11px] text-slate-500 font-mono">
+            <span>{lang === 'pt-BR' ? 'Duração' : 'Duration'}: {(pitch.recordingDurationMs / 1000).toFixed(1)}s</span>
+            <button onClick={pitch.clearRecording} className="text-slate-400 hover:text-red-400 underline">
+              {lang === 'pt-BR' ? 'Apagar gravação' : 'Delete recording'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {pitch.error && (
         <div className="card p-4 border-red-500/30 text-center text-red-400 text-sm">

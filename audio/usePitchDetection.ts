@@ -11,17 +11,22 @@ interface UsePitchDetectionOptions {
   maxFreq?: number;
   threshold?: number;        // YIN threshold
   smoothing?: boolean;       // apply temporal smoothing (default true)
+  record?: boolean;          // also capture raw audio for playback (default false)
   onFrame?: (frame: PitchFrame) => void;
 }
 
 interface UsePitchDetectionReturn {
   isListening: boolean;
+  isRecording: boolean;      // true while MediaRecorder is capturing
   error: string | null;
   start: () => Promise<void>;
   stop: () => void;
   currentFrame: PitchFrame | null;
   micLevel: number;          // 0..1 instantaneous RMS
   audioContext: AudioContext | null;
+  recordingUrl: string | null;   // object URL of last recording (or null)
+  recordingDurationMs: number;   // length of last recording
+  clearRecording: () => void;    // revoke the URL + reset
 }
 
 // 4096 gives YIN a comfortable window for low male voices (~80 Hz) and
@@ -36,6 +41,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     maxFreq = 1200,
     threshold = 0.12,
     smoothing = true,
+    record = false,
     onFrame,
   } = options;
 
@@ -43,6 +49,9 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const [error, setError] = useState<string | null>(null);
   const [currentFrame, setCurrentFrame] = useState<PitchFrame | null>(null);
   const [micLevel, setMicLevel] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingDurationMs, setRecordingDurationMs] = useState(0);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -54,6 +63,13 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const smootherRef = useRef<PitchSmoother>(new PitchSmoother({ a4 }));
   const onFrameRef = useRef(onFrame);
   onFrameRef.current = onFrame;
+
+  // ── Recording (MediaRecorder) ──
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
+  const recordStartRef = useRef<number>(0);
+  const recordRef = useRef<boolean>(record);
+  recordRef.current = record;
 
   // keep smoother a4 in sync if the user changes tuning reference
   useEffect(() => {
@@ -101,8 +117,12 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
           : null);
       }
     } else {
-      // raw path (kept for tests / opt-out)
-      if (result.frequency > 0 && result.confidence > 0.5) {
+      // raw path (smoothing disabled) — used by the Melody Studio so note
+      // timestamps stay aligned with real time. Lower the confidence gate so
+      // soft/edge-of-voiced frames still reach the transcriber, which then
+      // applies its own median filter + segmentation. A higher gate here
+      // would drop the attack and tail of every sung note.
+      if (result.frequency > 0 && result.confidence > 0.3) {
         const midi = frequencyToMidi(result.frequency, a4);
         const nearestMidi = Math.round(midi);
         const cents = midiToCents(result.frequency, a4);
@@ -161,6 +181,46 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       startTimeRef.current = performance.now();
       setIsListening(true);
       rafRef.current = requestAnimationFrame(processFrame);
+
+      // ── Start raw-audio recording if requested. We grab the SAME stream the
+      //    analyser uses, so the user hears exactly what was captured. Pick the
+      //    best-supported mime type; fall back to the browser default. ──
+      if (recordRef.current && 'MediaRecorder' in window) {
+        recordedChunksRef.current = [];
+        try {
+          const candidates = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/mp4',
+          ];
+          let mimeType: string | undefined;
+          for (const c of candidates) {
+            if (MediaRecorder.isTypeSupported(c)) { mimeType = c; break; }
+          }
+          const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+          mr.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+          };
+          mr.onstop = () => {
+            const chunks = recordedChunksRef.current;
+            if (chunks.length === 0) return;
+            const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+            // revoke any previous URL before creating a new one
+            setRecordingUrl(prev => {
+              if (prev) URL.revokeObjectURL(prev);
+              return URL.createObjectURL(blob);
+            });
+            setRecordingDurationMs(Math.round(performance.now() - recordStartRef.current));
+          };
+          recordStartRef.current = performance.now();
+          mr.start();
+          mediaRecorderRef.current = mr;
+          setIsRecording(true);
+        } catch (recErr) {
+          console.warn('MediaRecorder unavailable, recording skipped:', recErr);
+        }
+      }
     } catch (err: any) {
       console.error('Microphone access error:', err);
       if (err?.name === 'NotAllowedError') {
@@ -179,6 +239,14 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
+    // ── Stop the MediaRecorder BEFORE the tracks are killed, so it flushes
+    //    its final chunk and fires onstop. Skip if already inactive. ──
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== 'inactive') {
+      try { mr.stop(); } catch { /* ignore */ }
+    }
+    mediaRecorderRef.current = null;
+    setIsRecording(false);
     if (sourceRef.current) {
       sourceRef.current.disconnect();
       sourceRef.current = null;
@@ -201,8 +269,24 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     setMicLevel(0);
   }, [smoothing]);
 
+  const clearRecording = useCallback(() => {
+    setRecordingUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setRecordingDurationMs(0);
+    recordedChunksRef.current = [];
+  }, []);
+
   useEffect(() => {
-    return () => stop();
+    return () => {
+      stop();
+      // revoke the blob URL on unmount to avoid leaking
+      setRecordingUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
   }, [stop]);
 
   return {
@@ -213,5 +297,9 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     currentFrame,
     micLevel,
     audioContext: audioContextRef.current,
+    isRecording,
+    recordingUrl,
+    recordingDurationMs,
+    clearRecording,
   };
 }

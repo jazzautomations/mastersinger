@@ -48,6 +48,9 @@ export function MelodyStudio() {
 
   const pitch = usePitchDetection({
     a4,
+    smoothing: false,   // raw frames: let framesToNotes own the smoothing so
+                        // note timestamps line up with real time (EMA in the
+                        // hook would lag pitch behind its timestamp).
     onFrame: (frame) => { framesRef.current.push(frame); },
   });
 

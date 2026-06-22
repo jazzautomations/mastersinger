@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
 import { COURSES, getCourseById } from '../data/courses';
+import {
+  courseTitle, courseDesc, lessonTitle, lessonSummary, blockText,
+} from '../services/courseI18n';
 import { playNote, ensureAudioStarted } from '../services/audioService';
 import { midiToNoteName } from '../services/theoryService';
 import type { Course, Lesson, LessonBlock } from '../types';
@@ -48,8 +51,8 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
                   <div className="text-4xl">{course.icon}</div>
                   <div className="flex-1">
                     <div className="text-xs font-mono mb-1" style={{ color: course.color }}>{course.level.toUpperCase()}</div>
-                    <div className="text-base font-bold">{course.title}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">{course.description}</div>
+                    <div className="text-base font-bold">{courseTitle(course, lang)}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{courseDesc(course, lang)}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-3">
@@ -75,8 +78,8 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
         </button>
         <div className="card p-6">
           <div className="text-5xl mb-3">{selectedCourse.icon}</div>
-          <h1 className="text-2xl font-black display tracking-tight">{selectedCourse.title}</h1>
-          <p className="text-slate-400 text-sm mt-1">{selectedCourse.description}</p>
+          <h1 className="text-2xl font-black display tracking-tight">{courseTitle(selectedCourse, lang)}</h1>
+          <p className="text-slate-400 text-sm mt-1">{courseDesc(selectedCourse, lang)}</p>
         </div>
         <div className="space-y-2">
           {selectedCourse.lessons.map((lesson, idx) => {
@@ -92,8 +95,8 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
                     {done ? '✓' : idx + 1}
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm font-bold">{lesson.title}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">{lesson.summary}</div>
+                    <div className="text-sm font-bold">{lessonTitle(selectedCourse, lesson, lang)}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{lessonSummary(selectedCourse, lesson, lang)}</div>
                   </div>
                   <span className="text-xs text-violet-400 font-mono">+{lesson.xp} XP</span>
                 </div>
@@ -162,13 +165,13 @@ function LessonView({ lesson, course, lang, onBack, onComplete }: LessonViewProp
       </button>
 
       <div className="space-y-1">
-        <div className="text-xs font-mono" style={{ color: course.color }}>{course.title}</div>
-        <h1 className="text-2xl font-black display tracking-tight">{lesson.title}</h1>
-        <p className="text-slate-400 text-sm">{lesson.summary}</p>
+        <div className="text-xs font-mono" style={{ color: course.color }}>{courseTitle(course, lang)}</div>
+        <h1 className="text-2xl font-black display tracking-tight">{lessonTitle(course, lesson, lang)}</h1>
+        <p className="text-slate-400 text-sm">{lessonSummary(course, lesson, lang)}</p>
       </div>
 
       <div className="card p-6 space-y-4">
-        {lesson.content.map((block, i) => <LessonBlockView key={i} block={block} lang={lang} />)}
+        {lesson.content.map((block, i) => <LessonBlockView key={i} block={block} lang={lang} course={course} lesson={lesson} blockIdx={i} />)}
       </div>
 
       {completed ? (
@@ -189,25 +192,26 @@ function LessonView({ lesson, course, lang, onBack, onComplete }: LessonViewProp
   );
 }
 
-function LessonBlockView({ block, lang }: { block: LessonBlock; lang: 'pt-BR' | 'en' }) {
+function LessonBlockView({ block, lang, course, lesson, blockIdx }: { block: LessonBlock; lang: 'pt-BR' | 'en'; course: Course; lesson: Lesson; blockIdx: number }) {
+  const bt = blockText(course, lesson, blockIdx, block, lang);
   switch (block.kind) {
     case 'heading':
-      return <h3 className="text-lg font-bold display text-violet-300 pt-2">{block.text}</h3>;
+      return <h3 className="text-lg font-bold display text-violet-300 pt-2">{bt.text}</h3>;
     case 'paragraph':
-      return <p className="text-sm text-slate-200 leading-relaxed">{block.text}</p>;
+      return <p className="text-sm text-slate-200 leading-relaxed">{bt.text}</p>;
     case 'tip':
       return (
         <div className="bg-cyan-500/10 border-l-2 border-cyan-500 p-3 rounded-r-lg">
           <div className="flex gap-2">
             <span className="text-cyan-400 text-sm">💡</span>
-            <p className="text-sm text-cyan-100 leading-relaxed">{block.text}</p>
+            <p className="text-sm text-cyan-100 leading-relaxed">{bt.text}</p>
           </div>
         </div>
       );
     case 'list':
       return (
         <ul className="space-y-1.5">
-          {block.items.map((item, i) => (
+          {(bt.items ?? block.items).map((item, i) => (
             <li key={i} className="text-sm text-slate-300 flex gap-2">
               <span className="text-violet-400">•</span>
               <span>{item}</span>
@@ -218,7 +222,7 @@ function LessonBlockView({ block, lang }: { block: LessonBlock; lang: 'pt-BR' | 
     case 'audio':
       return (
         <div className="bg-white/5 p-4 rounded-xl space-y-2">
-          <div className="text-xs text-slate-400 font-mono">{block.label}</div>
+          <div className="text-xs text-slate-400 font-mono">{bt.label ?? block.label}</div>
           <button
             onClick={async () => { await ensureAudioStarted(); playNote(block.midi, block.durationMs); }}
             className="btn-ghost"
