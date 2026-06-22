@@ -5,6 +5,7 @@ import { t } from '../i18n/strings';
 import { NOTE_NAMES_SHARP, midiToFrequency } from '../services/theoryService';
 import { playDrone, stopDrone, ensureAudioStarted } from '../services/audioService';
 import { unlockBadge } from '../store/store';
+import { PitchMeter } from '../components/PitchMeter';
 
 // Reference tones offered in the tuner (C4..A4 span — comfortable singing range).
 const REFERENCE_NOTES = [
@@ -19,10 +20,6 @@ export function Tuner() {
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
   const pitch = usePitchDetection({ a4 });
-
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const historyRef = useRef<number[]>([]);
-  const lockedSinceRef = useRef<number>(0);
 
   const [refMidi, setRefMidi] = useState<number>(69);
   const [refPlaying, setRefPlaying] = useState<boolean>(false);
@@ -52,87 +49,6 @@ export function Tuner() {
       unlock('first-tuner');
     }
   }, [pitch.isListening]);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d')!;
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    ctx.scale(dpr, dpr);
-
-    // draw history line
-    const history = historyRef.current;
-    if (pitch.currentFrame && pitch.currentFrame.frequency > 0) {
-      history.push(pitch.currentFrame.cents);
-    } else {
-      history.push(0);
-    }
-    if (history.length > 200) history.shift();
-
-    ctx.clearRect(0, 0, w, h);
-
-    // grid lines (every 25 cents)
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
-    for (let c = -50; c <= 50; c += 25) {
-      const x = ((c + 50) / 100) * w;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-
-    // center line
-    ctx.strokeStyle = 'rgba(124,58,237,0.4)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(w / 2, 0);
-    ctx.lineTo(w / 2, h);
-    ctx.stroke();
-
-    // history line
-    ctx.strokeStyle = 'rgba(34,211,238,0.8)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    history.forEach((cents, i) => {
-      const x = (i / (history.length - 1 || 1)) * w;
-      const y = h - ((cents + 50) / 100) * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-
-    // current point
-    if (pitch.currentFrame && pitch.currentFrame.frequency > 0) {
-      const cents = pitch.currentFrame.cents;
-      const x = ((cents + 50) / 100) * w;
-      const y = h - ((cents + 50) / 100) * h;
-      const color = Math.abs(cents) < 10 ? '#22c55e' : Math.abs(cents) < 25 ? '#f59e0b' : '#ef4444';
-      ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // check for dead-center badge
-      if (Math.abs(cents) < 2) {
-        if (lockedSinceRef.current === 0) lockedSinceRef.current = Date.now();
-        else if (Date.now() - lockedSinceRef.current > 3000 && !profile.badges.includes('perfect-tuner')) {
-          unlock('perfect-tuner');
-        }
-      } else {
-        lockedSinceRef.current = 0;
-      }
-    } else {
-      lockedSinceRef.current = 0;
-    }
-  }, [pitch.currentFrame, pitch.isListening]);
 
   const cents = pitch.currentFrame?.cents ?? 0;
   const note = pitch.currentFrame?.noteName ?? '—';
@@ -189,7 +105,11 @@ export function Tuner() {
         <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-2">
           {lang === 'pt-BR' ? 'Histórico de afinação' : 'Pitch history'}
         </div>
-        <canvas ref={canvasRef} className="w-full h-32" />
+        <PitchMeter
+          frame={pitch.currentFrame}
+          isListening={pitch.isListening}
+          lang={lang}
+        />
       </div>
 
       {/* Reference tone — tune against a selectable sustained note */}

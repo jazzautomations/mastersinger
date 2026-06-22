@@ -6,6 +6,7 @@ import { EXERCISES, getExercisesByType, getExercisesByLevel } from '../data/exer
 import { scoreExercise } from '../services/scoringService';
 import { playNote, stopAll, ensureAudioStarted } from '../services/audioService';
 import { midiToNoteName } from '../services/theoryService';
+import { PitchMeter } from './PitchMeter';
 import type { Exercise, ExerciseType, PitchFrame, ExerciseResult } from '../types';
 
 interface PracticeProps {
@@ -327,20 +328,18 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
   // ── Listening phase ──
   if (phase === 'listening' && currentExercise) {
-    const cents = liveCents;
-    const color = Math.abs(cents) < 10 ? 'text-green-400' : Math.abs(cents) < 25 ? 'text-amber-400' : 'text-red-400';
     return (
       <div className="space-y-6 pb-24">
-        <div className="card p-6 space-y-3">
-          <div className="flex justify-between items-baseline">
-            <span className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'tuner.note')}</span>
-            <span className={`text-5xl font-black font-mono ${color} ${liveNote ? 'pulse-soft' : ''}`}>{liveNote || '—'}</span>
-          </div>
-          <div className="relative h-3 rounded-full gauge-bg overflow-hidden">
-            <div className="absolute top-0 bottom-0 w-1 bg-white transition-all duration-75" style={{ left: `${Math.max(0, Math.min(100, ((cents + 50) / 100) * 100))}%`, transform: 'translateX(-50%)' }} />
-          </div>
-          <div className="text-center text-[11px] text-slate-500 font-mono">{playGuide ? L('Cante junto com o guia', 'Sing along with the guide') : L('Cante seguindo o playhead', 'Sing following the playhead')}</div>
-        </div>
+        <PitchMeter
+          frame={pitch.currentFrame}
+          targetMidi={currentTargetIdx >= 0 ? currentExercise.targets[currentTargetIdx].midi : undefined}
+          targetLabel={currentTargetIdx >= 0 ? midiToNoteName(currentExercise.targets[currentTargetIdx].midi) : undefined}
+          isListening={pitch.isListening}
+          lang={lang}
+        />
+        <div className="text-center text-[11px] text-slate-500 font-mono">{playGuide ? L('Cante junto com o guia', 'Sing along with the guide') : L('Cante seguindo o playhead', 'Sing following the playhead')}</div>
+
+        {/* Sequence progression — visual playhead */}
         <div className="card p-4">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-3">{L('Sequência', 'Sequence')}</div>
           <div className="flex flex-wrap gap-2">
@@ -351,6 +350,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
             ))}
           </div>
         </div>
+
         <button onClick={handleStop} className="btn-primary w-full !bg-gradient-to-r !from-red-500 !to-orange-500"><i className="fas fa-stop mr-2"></i>{L('Encerrar agora', 'Stop now')}</button>
       </div>
     );
