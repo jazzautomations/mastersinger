@@ -94,7 +94,7 @@ export function Home({ onNavigate }: HomeProps) {
 
       {/* ── Guided warmup ── */}
       <button
-        onClick={() => onNavigate('warmup', { routineId: 'quick' })}
+        onClick={() => onNavigate('warmup')}
         className="card p-6 w-full text-left space-y-2 hover:border-cyan-500/40 transition-all"
       >
         <div className="flex items-center justify-between">

@@ -81,4 +81,50 @@ describe('YIN pitch detection', () => {
     expect(result.cents).toBeGreaterThan(15);
     expect(result.cents).toBeLessThan(35);
   });
+
+  // ── Regression: octave-error correction. The #1 "imprecise tuner" complaint
+  //    was YIN locking onto the 2nd harmonic when the fundamental is masked
+  //    (breathy/tense phonation, certain vowels), reporting a full octave
+  //    (1200 cents) too high. These must now detect the TRUE fundamental.
+  it('corrects octave-up error when 2nd harmonic dominates (weak fundamental)', () => {
+    // fundamental=0.2, 2nd harmonic=1.0 — a realistic masked-fundamental voice
+    const freq = 130.81; // C3
+    const samples = Math.floor(sampleRate * 100 / 1000);
+    const buffer = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+      const x = 2 * Math.PI * freq * i / sampleRate;
+      buffer[i] = 0.2 * Math.sin(x) + 1.0 * Math.sin(2 * x) + 0.5 * Math.sin(3 * x);
+    }
+    const result = detectPitchYin(buffer, sampleRate, 0.12, 60, 1200);
+    expect(result.frequency).toBeGreaterThan(125);
+    expect(result.frequency).toBeLessThan(137);
+    // must NOT report the octave-up (~262 Hz)
+    expect(result.frequency).toBeLessThan(200);
+  });
+
+  it('corrects octave-up error across the singing range (weak fundamental)', () => {
+    const cases = [82.41, 130.81, 196.0, 261.63, 392.0, 523.25];
+    for (const freq of cases) {
+      const samples = Math.floor(sampleRate * 100 / 1000);
+      const buffer = new Float32Array(samples);
+      for (let i = 0; i < samples; i++) {
+        const x = 2 * Math.PI * freq * i / sampleRate;
+        buffer[i] = 0.2 * Math.sin(x) + 1.0 * Math.sin(2 * x) + 0.5 * Math.sin(3 * x);
+      }
+      const result = detectPitchYin(buffer, sampleRate, 0.12, 60, 1200);
+      expect(result.frequency, `freq ${freq}Hz`).toBeGreaterThan(freq * 0.97);
+      expect(result.frequency, `freq ${freq}Hz`).toBeLessThan(freq * 1.03);
+    }
+  });
+
+  it('does NOT over-correct clean tones down an octave', () => {
+    // A clean fundamental must stay at its true pitch, not drop an octave.
+    const freq = 261.63; // C4
+    const buffer = makeSineWave(freq, sampleRate, 100, 0.5);
+    const result = detectPitchYin(buffer, sampleRate, 0.12, 60, 1200);
+    expect(result.frequency).toBeGreaterThan(258);
+    expect(result.frequency).toBeLessThan(266);
+    // must NOT report the octave-down (~131 Hz)
+    expect(result.frequency).toBeGreaterThan(200);
+  });
 });

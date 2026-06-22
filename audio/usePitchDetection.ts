@@ -37,7 +37,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const {
     a4 = 440,
     bufferSize = DEFAULT_BUFFER_SIZE,
-    minFreq = 70,
+    minFreq = 60,        // lowered from 70 → catches bass/baritone lows (C2=65.4Hz)
     maxFreq = 1200,
     threshold = 0.12,
     smoothing = true,

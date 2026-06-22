@@ -19,6 +19,19 @@ const DEFAULT_SAMPLE_RATE = 44100;
 // one. Pure tones always clear the main threshold path, so this only affects
 // the degraded fallback.
 const FALLBACK_MAX_YIN = 0.5;
+// ── Octave-error correction thresholds ──
+// YIN's biggest failure mode for the singing voice: when the 2nd harmonic is
+// stronger than the fundamental (breathy phonation, tense production, certain
+// vowels, falsetto-to-mix transitions), the difference function dips hardest
+// at HALF the true period — so it reports a pitch one octave too high. The
+// ear still hears the lower octave (missing-fundamental perception), so the
+// tuner showing the wrong note entirely is the #1 "imprecise" complaint.
+// Fix: after picking tau, also test 2*tau (one octave lower). If the YIN
+// value there is reasonably low, the true fundamental almost certainly lives
+// at 2*tau — prefer it. Applied in the CORE detector so every consumer (live
+// smoother, studio transcriber) benefits, and the downstream rolling-median
+// octave guards never see a consistently-wrong reference (which is exactly
+// why they failed to self-correct before).
 
 /**
  * Step 1+2: Difference function + cumulative mean normalized difference.
@@ -113,7 +126,7 @@ export function detectPitchYin(
   buffer: Float32Array,
   sampleRate: number = DEFAULT_SAMPLE_RATE,
   threshold: number = DEFAULT_THRESHOLD,
-  minFreq: number = 70,
+  minFreq: number = 60,       // lowered from 70 → catches bass/baritone lows (C2=65.4Hz, B1=61.7Hz)
   maxFreq: number = 1200,
 ): YinResult {
   // RMS gate — silence detection
@@ -138,11 +151,44 @@ export function detectPitchYin(
     return { frequency: 0, confidence: 0, rms };
   }
 
-  const betterTau = parabolicInterpolation(yin, tauEstimate);
+  // ── Octave-error correction (the critical fix for singing-voice precision).
+  //    YIN's difference function is ~0 at EVERY integer multiple of the true
+  //    period, so absoluteThreshold (scanning upward from minTau) can lock onto
+  //    a HARMONIC's period instead of the fundamental — reporting one or more
+  //    octaves too HIGH. This is THE precision complaint: breathy/tense
+  //    phonation and certain vowels mask the fundamental so the 2nd harmonic's
+  //    dip is the first one below threshold, and the tuner shows the wrong note.
+  //
+  //    Discriminator: the true fundamental sits at k*tau (k=2,3...) and has a
+  //    LOWER yin value than the chosen harmonic dip. For a clean tone, tau is
+  //    already the fundamental and yin[2*tau] ≈ yin[tau] (both ~0, multiples),
+  //    so the gap is ~0 and we don't shift. For a masked fundamental, yin[tau]
+  //    (the harmonic) is clearly worse than yin[2*tau] (the true period), so
+  //    the gap exceeds the margin and we shift down. Iterating catches a
+  //    fundamental masked by the 4th harmonic (two octaves up) too.
+  const OCTAVE_SHIFT_MARGIN = 0.05;
+  let chosenTau = tauEstimate;
+  for (let iter = 0; iter < 2; iter++) {
+    const tauDown = chosenTau * 2;            // one octave LOWER in pitch
+    if (tauDown < maxTau && yin[tauDown] < yin[chosenTau] - OCTAVE_SHIFT_MARGIN) {
+      chosenTau = tauDown;
+      continue;
+    }
+    break;
+  }
+  // Rarer over-high report (absoluteThreshold settled too low): shift UP one
+  // octave only if tau/2 is a meaningfully better dip. Checked after the down
+  // pass so a masked fundamental doesn't get yanked back up.
+  const tauUp = Math.floor(chosenTau / 2);
+  if (tauUp >= minTau && yin[tauUp] < yin[chosenTau] - OCTAVE_SHIFT_MARGIN) {
+    chosenTau = tauUp;
+  }
+
+  const betterTau = parabolicInterpolation(yin, chosenTau);
   const frequency = sampleRate / betterTau;
 
   // Confidence: 1 - yin value at the chosen tau (lower yin = more confident)
-  const confidence = Math.max(0, Math.min(1, 1 - yin[tauEstimate]));
+  const confidence = Math.max(0, Math.min(1, 1 - yin[chosenTau]));
 
   if (frequency < minFreq || frequency > maxFreq) {
     return { frequency: 0, confidence: 0, rms };
