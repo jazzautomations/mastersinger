@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StoreProvider, useStore } from './store/store';
 import { Onboarding } from './components/Onboarding';
+import { Landing } from './components/Landing';
 import { Home } from './components/Home';
 import { Tuner } from './components/Tuner';
 import { Practice } from './components/Practice';
@@ -21,6 +22,27 @@ const ONBOARDED_KEY = 'mastersinger:onboarded';
 function MainApp() {
   const { profile } = useStore();
   const lang = profile.settings.language;
+
+  // ── Hash routing: "/" shows the marketing landing, "/#app" shows the app.
+  //    The landing is the public, SEO-facing surface; the app is gated behind
+  //    the "Entrar no app" CTA. Plain hash check — no router dependency.
+  const [showApp, setShowApp] = useState<boolean>(() => {
+    try { return window.location.hash.toLowerCase() === '#app'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    const onHash = () => {
+      const isApp = window.location.hash.toLowerCase() === '#app';
+      setShowApp(isApp);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const enterApp = () => { window.location.hash = '#app'; };
+  const enterLanding = () => { window.location.hash = ''; };
+
   const [onboarded, setOnboarded] = useState<boolean>(() => {
     try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch { return false; }
   });
@@ -41,6 +63,11 @@ function MainApp() {
     setView(v);
     setViewOpts(opts ?? null);
   };
+
+  // ── Landing is the public home page ──
+  if (!showApp) {
+    return <Landing onEnterApp={enterApp} />;
+  }
 
   if (!onboarded) {
     return <Onboarding onDone={() => { setOnboarded(true); try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch {} }} />;
@@ -71,6 +98,9 @@ function MainApp() {
             </button>
             <button onClick={() => handleNavigate('harmony')} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all">
               {t(lang, 'nav.harmony')}
+            </button>
+            <button onClick={enterLanding} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all" title="Voltar à página inicial">
+              <i className="fas fa-globe"></i>
             </button>
             <button onClick={() => handleNavigate('settings')} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all">
               <i className="fas fa-cog"></i>
