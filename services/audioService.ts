@@ -18,11 +18,16 @@ import { midiToFrequency } from './theoryService';
 //      so clicking "Play" again never stacks two sequences on top of each other.
 //   4. DRONE is idempotent: re-attacking the same frequency is a no-op;
 //      attacking a new frequency releases the old one first. No infinite drones.
+//   5. MASTER GAIN: every synth routes through one GainNode → destination.
+//      Phone speakers (especially iPhone) need a strong, predictable level;
+//      the individual synth.volume knobs alone left output too quiet. The
+//      master sits near unity so the synth levels are the audible ceiling.
 // ──────────────────────────────────────────────────────────────────────────
 
 let synth: Tone.PolySynth | null = null;
 let monoSynth: Tone.Synth | null = null;
 let fx: Tone.FeedbackDelay | null = null;
+let master: Tone.Gain | null = null;
 let warmed = false;
 
 // Generation token — bumped by stopAll() so any in-flight scheduled playback
@@ -32,13 +37,23 @@ let playbackGen = 0;
 // idempotent and prevent the "infinite drone" bug.
 let droneFreq = 0;
 
+// Single loud, controllable output bus. Created once; every synth connects to
+// it instead of toDestination() directly.
+function ensureMaster(): Tone.Gain {
+  if (!master) {
+    master = new Tone.Gain(1).toDestination();
+  }
+  return master;
+}
+
 function ensureSynth(): Tone.PolySynth {
   if (!synth) {
-    fx = new Tone.FeedbackDelay({ delayTime: 0.18, feedback: 0.18, wet: 0.12 }).toDestination();
+    const out = ensureMaster();
+    fx = new Tone.FeedbackDelay({ delayTime: 0.18, feedback: 0.18, wet: 0.12 }).connect(out);
     synth = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'sine' },
       envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.4 },
-      volume: -10,
+      volume: -3,
     }).connect(fx);
     synth.maxPolyphony = 8;
   }
@@ -47,11 +62,12 @@ function ensureSynth(): Tone.PolySynth {
 
 function ensureMonoSynth(): Tone.Synth {
   if (!monoSynth) {
+    const out = ensureMaster();
     monoSynth = new Tone.Synth({
       oscillator: { type: 'triangle' },
       envelope: { attack: 0.02, decay: 0.1, sustain: 0.6, release: 0.4 },
-      volume: -12,
-    }).toDestination();
+      volume: -3,
+    }).connect(out);
   }
   return monoSynth;
 }
@@ -73,10 +89,21 @@ export async function ensureAudioStarted(): Promise<void> {
   warmed = true;
 }
 
+// iOS Safari only unlocks the AudioContext if the resume() call is made
+// *inside* the user-gesture handler (pointerdown/touchstart/keydown), not in
+// a detached async continuation. Tone.start() calls context.resume()
+// synchronously at its start, so calling it directly in the listener — without
+// awaiting — is what actually satisfies the autoplay policy. We also build the
+// synth graph here so the first real play call has zero setup latency.
 export function warmAudioOnUserGesture(): void {
   if (warmed) return;
   const unlock = () => {
-    resumeIfSuspended();
+    // Fire Tone.start() (which resumes the context) in-gesture, synchronously.
+    // We don't await — the resume() has already been kicked off inside this
+    // call stack, which is what iOS requires. Then pre-build the graph.
+    Tone.start().catch(() => {});
+    ensureSynth();
+    ensureMonoSynth();
     warmed = true;
     window.removeEventListener('pointerdown', unlock);
     window.removeEventListener('keydown', unlock);

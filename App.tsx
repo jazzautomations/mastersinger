@@ -86,7 +86,7 @@ function MainApp() {
   return (
     <div className="min-h-screen">
       {/* Top bar */}
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-white/5">
+      <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <button onClick={() => handleNavigate('home')} className="flex items-center gap-2">
             <span className="text-xl">🎤</span>
@@ -129,7 +129,7 @@ function MainApp() {
       </main>
 
       {/* Bottom nav (mobile-friendly) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-slate-950/85 border-t border-white/5">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-slate-950/85 border-t border-white/5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-3xl mx-auto px-2 py-2 grid grid-cols-7 gap-0.5">
           {navItems.map(item => (
             <button

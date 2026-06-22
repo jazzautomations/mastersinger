@@ -26,9 +26,10 @@ const FALLBACK_MAX_YIN = 0.5;
  */
 function difference(buffer: Float32Array, maxTau: number): Float32Array {
   const diff = new Float32Array(maxTau);
+  const limit = buffer.length;
   for (let tau = 1; tau < maxTau; tau++) {
     let sum = 0;
-    for (let i = 0; i < maxTau; i++) {
+    for (let i = 0; i < limit - tau; i++) {
       const delta = buffer[i] - buffer[i + tau];
       sum += delta * delta;
     }
