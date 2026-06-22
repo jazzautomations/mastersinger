@@ -4,7 +4,7 @@ import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
 import { EXERCISES, getExercisesByType, getExercisesByLevel } from '../data/exercises';
 import { scoreExercise } from '../services/scoringService';
-import { playNote, stopAll, ensureAudioStarted } from '../services/audioService';
+import { playNote, stopAll, ensureAudioStarted, beginPlayback, isPlaybackActive } from '../services/audioService';
 import { midiToNoteName } from '../services/theoryService';
 import { PitchMeter } from './PitchMeter';
 import type { Exercise, ExerciseType, PitchFrame, ExerciseResult } from '../types';
@@ -171,6 +171,8 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
   const handleListenFirst = () => {
     if (!currentExercise) return;
+    clearAllTimers();
+    stopAll();
     ensureAudioStarted();
     currentExercise.targets.forEach(target => {
       playNote(target.midi, target.durationMs * 0.7, target.startMs, a4);

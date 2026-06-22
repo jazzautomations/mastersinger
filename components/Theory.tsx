@@ -1,10 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
-import { playNote, playChord, playSequence, ensureAudioStarted, stopAll } from '../services/audioService';
-import { SCALES, INTERVALS, NOTE_NAMES_SHARP, buildScale, midiToNoteName } from '../services/theoryService';
+import { playNote, ensureAudioStarted, stopAll, beginPlayback, isPlaybackActive } from '../services/audioService';
+import { SCALES, INTERVALS, NOTE_NAMES_SHARP, midiToNoteName } from '../services/theoryService';
 
 type Topic = 'notes' | 'intervals' | 'scales' | 'rhythm' | 'keys';
+
+// ── Note glyph (SVG) — renders in ANY font, no tofu □ squares.
+// Whole / half / quarter / eighth / sixteenth note heads with stems + flags.
+function NoteGlyph({ type }: { type: 'whole' | 'half' | 'quarter' | 'eighth' | 'sixteenth' }) {
+  const stem = type !== 'whole';
+  const filled = type !== 'whole' && type !== 'half';
+  const flags = type === 'eighth' ? 1 : type === 'sixteenth' ? 2 : 0;
+  return (
+    <svg viewBox="0 0 24 40" className="inline-block" width="20" height="34" aria-hidden>
+      {/* note head */}
+      <ellipse cx="9" cy="32" rx="7" ry="5" transform="rotate(-20 9 32)"
+        fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" />
+      {stem && <rect x="15" y="4" width="1.8" height="28" fill="currentColor" />}
+      {Array.from({ length: flags }).map((_, i) => (
+        <path key={i} d={`M16 ${6 + i * 6} q8 4 6 14`} fill="none" stroke="currentColor" strokeWidth="1.6" />
+      ))}
+    </svg>
+  );
+}
 
 export function Theory() {
   const { profile } = useStore();
@@ -13,10 +32,29 @@ export function Theory() {
   const [topic, setTopic] = useState<Topic | null>(null);
   const timersRef = useRef<number[]>([]);
 
+  // stop + clear everything when leaving the theory view
   useEffect(() => () => {
     timersRef.current.forEach(id => clearTimeout(id));
+    timersRef.current = [];
     stopAll();
   }, []);
+
+  // helper shared by all play handlers: clears outstanding timers, silences
+  // anything still sounding, and returns a fresh playback token so rapid
+  // clicks never stack sequences on top of each other.
+  const beginPlay = (): number => {
+    timersRef.current.forEach(id => clearTimeout(id));
+    timersRef.current = [];
+    stopAll();
+    return beginPlayback();
+  };
+
+  const scheduleNote = (token: number, delayMs: number, fn: () => void) => {
+    const id = window.setTimeout(() => {
+      if (isPlaybackActive(token)) fn();
+    }, delayMs);
+    timersRef.current.push(id);
+  };
 
   const topics: { id: Topic; icon: string; titleKey: string }[] = [
     { id: 'notes',     icon: '🎵', titleKey: 'theory.notes' },
@@ -56,22 +94,27 @@ export function Theory() {
 
   return (
     <div className="space-y-5 pb-24">
-      <button onClick={() => setTopic(null)} className="btn-ghost">
+      <button onClick={() => { stopAll(); setTopic(null); }} className="btn-ghost">
         <i className="fas fa-arrow-left mr-2"></i>{t(lang, 'common.back')}
       </button>
 
-      {topic === 'notes' && <NotesTopic lang={lang} a4={a4} />}
-      {topic === 'intervals' && <IntervalsTopic lang={lang} a4={a4} />}
-      {topic === 'scales' && <ScalesTopic lang={lang} a4={a4} />}
+      {topic === 'notes' && <NotesTopic lang={lang} a4={a4} beginPlay={beginPlay} scheduleNote={scheduleNote} />}
+      {topic === 'intervals' && <IntervalsTopic lang={lang} a4={a4} beginPlay={beginPlay} scheduleNote={scheduleNote} />}
+      {topic === 'scales' && <ScalesTopic lang={lang} a4={a4} beginPlay={beginPlay} scheduleNote={scheduleNote} />}
       {topic === 'rhythm' && <RhythmTopic lang={lang} />}
       {topic === 'keys' && <KeysTopic lang={lang} />}
     </div>
   );
 }
 
-interface TopicProps { lang: 'pt-BR' | 'en'; a4: number; }
+interface TopicProps {
+  lang: 'pt-BR' | 'en';
+  a4: number;
+  beginPlay: () => number;
+  scheduleNote: (token: number, delayMs: number, fn: () => void) => void;
+}
 
-function NotesTopic({ lang, a4 }: TopicProps) {
+function NotesTopic({ lang, a4, beginPlay, scheduleNote }: TopicProps) {
   const [selectedPc, setSelectedPc] = useState(0);
   const [octave, setOctave] = useState(4);
   const midi = (octave + 1) * 12 + selectedPc;
@@ -99,7 +142,12 @@ function NotesTopic({ lang, a4 }: TopicProps) {
           {NOTE_NAMES_SHARP.map((n, i) => (
             <button
               key={n}
-              onClick={async () => { await ensureAudioStarted(); setSelectedPc(i); playNote((octave + 1) * 12 + i, 800, 0, a4); }}
+              onClick={async () => {
+                await ensureAudioStarted();
+                const token = beginPlay();
+                setSelectedPc(i);
+                scheduleNote(token, 0, () => playNote((octave + 1) * 12 + i, 800, 0, a4));
+              }}
               className={`p-3 rounded-lg text-sm font-bold font-mono transition-all ${selectedPc === i ? 'bg-violet-500 text-white' : 'bg-white/5 hover:bg-white/10'}`}
             >
               {n}
@@ -107,7 +155,7 @@ function NotesTopic({ lang, a4 }: TopicProps) {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 font-mono">Octave</span>
+          <span className="text-xs text-slate-400 font-mono">{lang === 'pt-BR' ? 'Oitava' : 'Octave'}</span>
           <input type="range" min={2} max={6} value={octave} onChange={e => setOctave(+e.target.value)} className="flex-1" />
           <span className="text-xs font-mono">{octave}</span>
         </div>
@@ -119,7 +167,7 @@ function NotesTopic({ lang, a4 }: TopicProps) {
   );
 }
 
-function IntervalsTopic({ lang, a4 }: TopicProps) {
+function IntervalsTopic({ lang, a4, beginPlay, scheduleNote }: TopicProps) {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-black display">{t(lang, 'theory.intervals')}</h2>
@@ -139,7 +187,12 @@ function IntervalsTopic({ lang, a4 }: TopicProps) {
           {Object.values(INTERVALS).map(int => (
             <button
               key={int.name}
-              onClick={async () => { await ensureAudioStarted(); playNote(60, 600, 0, a4); const id = window.setTimeout(() => playNote(60 + int.semitones, 800, 0, a4), 650); timersRef.current.push(id); }}
+              onClick={async () => {
+                await ensureAudioStarted();
+                const token = beginPlay();
+                scheduleNote(token, 0, () => playNote(60, 600, 0, a4));
+                scheduleNote(token, 650, () => playNote(60 + int.semitones, 800, 0, a4));
+              }}
               className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all"
             >
               <span className="text-sm font-bold">{int.name}</span>
@@ -153,19 +206,21 @@ function IntervalsTopic({ lang, a4 }: TopicProps) {
   );
 }
 
-function ScalesTopic({ lang, a4 }: TopicProps) {
+function ScalesTopic({ lang, a4, beginPlay, scheduleNote }: TopicProps) {
   const [selectedScale, setSelectedScale] = useState('major');
   const [rootPc, setRootPc] = useState(0);
 
   const playScale = async () => {
     await ensureAudioStarted();
-    const root = 60;
+    const root = 60 + rootPc;
     const scale = SCALES[selectedScale];
+    const token = beginPlay();
     scale.intervals.forEach((interval, i) => {
-      const id = window.setTimeout(() => playNote(root + interval, 350, 0, a4), i * 400);
-      timersRef.current.push(id);
+      scheduleNote(token, i * 400, () => playNote(root + interval, 350, 0, a4));
     });
   };
+
+  const root = 60 + rootPc;
 
   return (
     <div className="space-y-4">
@@ -180,13 +235,13 @@ function ScalesTopic({ lang, a4 }: TopicProps) {
 
       <div className="card p-5 space-y-3">
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 font-mono w-12">Key</span>
+          <span className="text-xs text-slate-400 font-mono w-12">{lang === 'pt-BR' ? 'Tom' : 'Key'}</span>
           <select value={rootPc} onChange={e => setRootPc(+e.target.value)} className="bg-white/5 px-3 py-2 rounded-lg flex-1 text-sm">
             {NOTE_NAMES_SHARP.map((n, i) => <option key={n} value={i} className="bg-slate-900">{n}</option>)}
           </select>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 font-mono w-12">Scale</span>
+          <span className="text-xs text-slate-400 font-mono w-12">{lang === 'pt-BR' ? 'Escala' : 'Scale'}</span>
           <select value={selectedScale} onChange={e => setSelectedScale(e.target.value)} className="bg-white/5 px-3 py-2 rounded-lg flex-1 text-sm">
             {Object.entries(SCALES).map(([k, v]) => <option key={k} value={k} className="bg-slate-900">{v.name}</option>)}
           </select>
@@ -197,7 +252,7 @@ function ScalesTopic({ lang, a4 }: TopicProps) {
         <div className="flex flex-wrap gap-1.5">
           {SCALES[selectedScale].intervals.map((interval, i) => (
             <div key={i} className="px-2 py-1 bg-violet-500/20 rounded text-xs font-mono">
-              {midiToNoteName(60 + interval)}
+              {midiToNoteName(root + interval)}
             </div>
           ))}
         </div>
@@ -207,6 +262,13 @@ function ScalesTopic({ lang, a4 }: TopicProps) {
 }
 
 function RhythmTopic({ lang }: { lang: 'pt-BR' | 'en' }) {
+  const rows: { type: 'whole' | 'half' | 'quarter' | 'eighth' | 'sixteenth'; beats: string }[] = [
+    { type: 'whole',      beats: '4' },
+    { type: 'half',       beats: '2' },
+    { type: 'quarter',    beats: '1' },
+    { type: 'eighth',     beats: '½' },
+    { type: 'sixteenth',  beats: '¼' },
+  ];
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-black display">{t(lang, 'theory.rhythm')}</h2>
@@ -224,12 +286,13 @@ function RhythmTopic({ lang }: { lang: 'pt-BR' | 'en' }) {
         <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-3">
           {lang === 'pt-BR' ? 'Notação musical' : 'Music notation'}
         </div>
-        <div className="grid grid-cols-5 gap-2 text-center text-xs font-mono">
-          <div className="p-2 bg-white/5 rounded">𝅝<div className="text-slate-500 mt-1">4</div></div>
-          <div className="p-2 bg-white/5 rounded">𝅗𝅥<div className="text-slate-500 mt-1">2</div></div>
-          <div className="p-2 bg-white/5 rounded">♩<div className="text-slate-500 mt-1">1</div></div>
-          <div className="p-2 bg-white/5 rounded">♪<div className="text-slate-500 mt-1">½</div></div>
-          <div className="p-2 bg-white/5 rounded">♬<div className="text-slate-500 mt-1">¼</div></div>
+        <div className="grid grid-cols-5 gap-2 text-center">
+          {rows.map(r => (
+            <div key={r.type} className="p-2 bg-white/5 rounded flex flex-col items-center gap-2">
+              <span className="text-violet-300 flex items-center justify-center h-9"><NoteGlyph type={r.type} /></span>
+              <div className="text-xs text-slate-500 font-mono">{r.beats}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

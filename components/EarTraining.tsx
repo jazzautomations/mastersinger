@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
 import { makeEarQuestion } from '../data/earQuestions';
-import { playNote, playChord, ensureAudioStarted, stopAll } from '../services/audioService';
+import { playNote, playChord, playSequence, ensureAudioStarted, stopAll, isPlaybackActive } from '../services/audioService';
 import type { EarQuestion, EarQuestionType } from '../types';
 
 export function EarTraining() {
@@ -61,12 +61,13 @@ export function EarTraining() {
       const midis = seq.map(s => s.midi);
       playChord(midis, seq[0]?.durationMs ?? 1200, a4l);
     } else {
-      // melodic / scale — play each note in turn
-      let delay = 0;
-      seq.forEach((s) => {
-        const id = window.setTimeout(() => playNote(s.midi, s.durationMs * 0.9, 0, a4l), delay);
+      // play each note in turn — track timers for cleanup
+      clearTimers();
+      const token = beginPlayback();
+      seq.forEach((s, i) => {
+        const delay = i * s.durationMs;
+        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4); }, delay);
         noteTimersRef.current.push(id);
-        delay += s.durationMs;
       });
     }
   };

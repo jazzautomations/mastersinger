@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/store';
 import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
-import { playChord, playNote, ensureAudioStarted, stopAll } from '../services/audioService';
+import { playChord, playNote, ensureAudioStarted, stopAll, beginPlayback, isPlaybackActive } from '../services/audioService';
 import { CHORD_TYPES, midiToNoteName, NOTE_NAMES_SHARP } from '../services/theoryService';
 import type { PitchFrame } from '../types';
 
@@ -93,7 +93,7 @@ function TriadsExplorer({ lang, a4 }: TriadsProps) {
             {Object.entries(CHORD_TYPES).map(([k, v]) => <option key={k} value={k} className="bg-slate-900">{v.name}</option>)}
           </select>
         </div>
-        <button onClick={async () => { await ensureAudioStarted(); playChord(chordMidis, 1500, a4); }} className="btn-primary w-full">
+        <button onClick={async () => { await ensureAudioStarted(); stopAll(); playChord(chordMidis, 1500, a4); }} className="btn-primary w-full">
           <i className="fas fa-volume-up mr-2"></i>{lang === 'pt-BR' ? 'Tocar acorde' : 'Play chord'}
         </button>
         <div className="flex flex-wrap gap-2">
@@ -123,14 +123,15 @@ function ProgressionsExplorer({ lang, a4 }: TriadsProps) {
   const playProgression = async () => {
     setPlaying(true);
     await ensureAudioStarted();
+    const token = beginPlayback();
     const prog = progressions[selected];
     for (let i = 0; i < prog.chords.length; i++) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || !isPlaybackActive(token)) return;
       const c = prog.chords[i];
       const midis = CHORD_TYPES[c.type].intervals.map(int => 60 + c.root + int);
       playChord(midis, 1200, a4);
       await new Promise(r => setTimeout(r, 1300));
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || !isPlaybackActive(token)) return;
     }
     if (mountedRef.current) setPlaying(false);
   };
@@ -218,8 +219,12 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile }: Si
 
   const playReference = async () => {
     await ensureAudioStarted();
+    timersRef.current.forEach(id => clearTimeout(id));
+    timersRef.current = [];
+    const token = beginPlayback();
+    stopAll();
     playNote(targetMidi, 1500, 0, a4);
-    const id = window.setTimeout(() => playNote(expectedMidi, 800, 0, a4), 1600);
+    const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(expectedMidi, 800, 0, a4); }, 1600);
     timersRef.current.push(id);
   };
 

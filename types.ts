@@ -4,6 +4,9 @@
 
 export type StudentLevel = 'beginner' | 'intermediate' | 'advanced';
 
+// ── Voice classification (derived from detected range) ──
+export type VoiceType = 'soprano' | 'mezzo' | 'alto' | 'tenor' | 'baritone' | 'bass' | 'unknown';
+
 export type View =
   | 'home'
   | 'tuner'
@@ -160,11 +163,13 @@ export interface UserProfile {
     lowestMidi?: number;
     highestMidi?: number;
     detectedAt?: number;
+    voiceType?: VoiceType;   // classified from lowest/highest
   };
   settings: {
     language: Language;
     a4: number;            // tuning reference, default 440
     level: StudentLevel;
+    rangeCenterMidi?: number;  // midpoint of detected range; exercises transpose to sit here
     audioInputDeviceId?: string;
   };
   results: ExerciseResult[];   // recent N results

@@ -4,15 +4,20 @@ import { midiToFrequency } from './theoryService';
 // ──────────────────────────────────────────────────────────────────────────
 // Audio engine for MasterSinger.
 //
-// Key robustness rules (these fix the "no sound" / "notes pile up" bugs):
-//   1. The Web Audio context starts SUSPENDED until a user gesture. Every play
+// Robustness rules (these fix the overlap / infinite-sound / no-sound bugs):
+//   1. Web Audio context starts SUSPENDED until a user gesture. Every play
 //      function calls resumeIfSuspended() so audio works even if the caller
 //      forgot to await ensureAudioStarted() first.
 //   2. We do NOT use Tone.Reverb — it generates its impulse response
 //      asynchronously (OfflineAudioContext) and silently blocks the signal
-//      chain until ready, which is the #1 cause of "first notes don't play".
-//      A sync Tone.FeedbackDelay gives ambience without that pitfall.
-//   3. synths are created lazily and reused; stopAll() releases everything.
+//      chain until ready. A sync Tone.FeedbackDelay gives ambience safely.
+//   3. PLAYBACK GENERATION TOKEN: every time you start a new sequence/scale/
+//      progression, call beginPlayback() to get a token. The scheduled notes
+//      must check isPlaybackActive(token) before firing. stopAll() bumps the
+//      generation, instantly invalidating ALL outstanding scheduled notes —
+//      so clicking "Play" again never stacks two sequences on top of each other.
+//   4. DRONE is idempotent: re-attacking the same frequency is a no-op;
+//      attacking a new frequency releases the old one first. No infinite drones.
 // ──────────────────────────────────────────────────────────────────────────
 
 let synth: Tone.PolySynth | null = null;
@@ -20,9 +25,15 @@ let monoSynth: Tone.Synth | null = null;
 let fx: Tone.FeedbackDelay | null = null;
 let warmed = false;
 
+// Generation token — bumped by stopAll() so any in-flight scheduled playback
+// self-cancels instead of piling on top of a fresh one.
+let playbackGen = 0;
+// Currently-sustaining drone frequency (0 = none). Used to make playDrone
+// idempotent and prevent the "infinite drone" bug.
+let droneFreq = 0;
+
 function ensureSynth(): Tone.PolySynth {
   if (!synth) {
-    // Sync feedback delay — no async impulse generation, never blocks audio.
     fx = new Tone.FeedbackDelay({ delayTime: 0.18, feedback: 0.18, wet: 0.12 }).toDestination();
     synth = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'sine' },
@@ -45,11 +56,6 @@ function ensureMonoSynth(): Tone.Synth {
   return monoSynth;
 }
 
-/**
- * Kick off a context resume if it's suspended. Non-blocking: returns the
- * promise but callers don't need to await it. Once resumed, Tone.now() starts
- * advancing and any scheduled notes fire. Safe to call on every play.
- */
 function resumeIfSuspended(): void {
   const ctx = Tone.getContext();
   if (ctx.state !== 'running') {
@@ -57,28 +63,16 @@ function resumeIfSuspended(): void {
   }
 }
 
-/**
- * Ensure the audio context is running. Await this from inside a user-gesture
- * handler for the most reliable unlock (Safari/iOS require it in the gesture
- * stack). Returns once running.
- */
 export async function ensureAudioStarted(): Promise<void> {
   const ctx = Tone.getContext();
   if (ctx.state !== 'running') {
     await Tone.start();
   }
-  // make sure synths exist so the first real note has zero setup latency
   ensureSynth();
   ensureMonoSynth();
   warmed = true;
 }
 
-/**
- * One-time global gesture listener that resumes the audio context on the
- * first user interaction. Call once at app startup. This guarantees that any
- * later audio call (even one that skips ensureAudioStarted) finds a running
- * context, fixing the autoplay-policy silence bug across the whole app.
- */
 export function warmAudioOnUserGesture(): void {
   if (warmed) return;
   const unlock = () => {
@@ -91,6 +85,20 @@ export function warmAudioOnUserGesture(): void {
   window.addEventListener('pointerdown', unlock, { once: false });
   window.addEventListener('keydown', unlock, { once: false });
   window.addEventListener('touchstart', unlock, { once: false });
+}
+
+/**
+ * Start a new playback session. Returns a token you pass to isPlaybackActive()
+ * from inside each scheduled step. Calling this (or stopAll) invalidates any
+ * previously-started session, so rapid clicks never stack sequences.
+ */
+export function beginPlayback(): number {
+  return ++playbackGen;
+}
+
+/** True only if `token` is the most recently begun playback session. */
+export function isPlaybackActive(token: number): boolean {
+  return token === playbackGen;
 }
 
 export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 = 440): void {
@@ -116,24 +124,49 @@ export function playSequence(midis: number[], noteDurationMs: number, gapMs = 50
   });
 }
 
+/**
+ * Play a sustained reference tone (drone). Idempotent: re-attacking the SAME
+ * frequency is a no-op; attacking a NEW frequency releases the old one first.
+ * This kills the classic "click reference 5x → 5 overlapping infinite drones".
+ */
 export function playDrone(midi: number, a4 = 440): Tone.Synth | null {
   resumeIfSuspended();
   const s = ensureMonoSynth();
-  s.triggerAttack(midiToFrequency(midi, a4));
+  const freq = midiToFrequency(midi, a4);
+  if (droneFreq === freq) {
+    // already sustaining this exact tone — do nothing
+    return s;
+  }
+  if (droneFreq !== 0) {
+    // different tone is sustaining — release it cleanly first
+    s.triggerRelease();
+  }
+  s.triggerAttack(freq);
+  droneFreq = freq;
   return s;
 }
 
 export function stopDrone(): void {
-  if (monoSynth) {
+  if (monoSynth && droneFreq !== 0) {
     monoSynth.triggerRelease();
+    droneFreq = 0;
   }
 }
 
+/**
+ * Silence everything and cancel any in-flight scheduled playback.
+ * - bumps playbackGen so every outstanding isPlaybackActive(token) returns false
+ * - releases all poly voices
+ * - releases the drone
+ * Call this before starting a new sequence AND on component unmount.
+ */
 export function stopAll(): void {
+  playbackGen++; // invalidate all outstanding scheduled notes
   if (synth) {
     synth.releaseAll();
   }
-  if (monoSynth) {
+  if (monoSynth && droneFreq !== 0) {
     monoSynth.triggerRelease();
+    droneFreq = 0;
   }
 }
