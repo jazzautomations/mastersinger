@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
 import { makeEarQuestion } from '../data/earQuestions';
-import { playNote, playChord, playSequence, ensureAudioStarted, stopAll } from '../services/audioService';
+import { playNote, playChord, ensureAudioStarted, stopAll } from '../services/audioService';
 import type { EarQuestion, EarQuestionType } from '../types';
 
 export function EarTraining() {
@@ -17,6 +17,8 @@ export function EarTraining() {
   const [showResult, setShowResult] = useState(false);
   const [streak, setStreak] = useState(0);
   const noteTimersRef = useRef<number[]>([]);
+  const a4Ref = useRef(a4);
+  a4Ref.current = a4;
 
   const clearTimers = () => {
     noteTimersRef.current.forEach(id => clearTimeout(id));
@@ -35,38 +37,42 @@ export function EarTraining() {
     { type: 'chord-identify',   icon: '🎼', titleKey: 'ear.chordIdentify' },
   ];
 
-  const startQuestion = useCallback((type: EarQuestionType) => {
+  const startQuestion = (type: EarQuestionType) => {
     const seed = Math.random() * 1000;
     const q = makeEarQuestion(type, level, seed);
     setQuestion(q);
     setSelectedAnswer(null);
     setShowResult(false);
-  }, [level]);
+    // play immediately from the gesture handler (best for autoplay policy),
+    // scheduling a replay once state is set.
+    void playQuestionSeq(q);
+  };
 
-  useEffect(() => {
-    if (question) {
-      playQuestion();
-    }
-  }, [question]);
-
-  const playQuestion = useCallback(async () => {
-    if (!question) return;
+  // Play a question's audio. Robust: resumes the context, tracks timers so a
+  // new question or unmount can cancel pending notes.
+  const playQuestionSeq = async (q: EarQuestion) => {
+    clearTimers();
+    stopAll();
     await ensureAudioStarted();
-    const seq = question.audioSequence;
-    if (question.type === 'interval-harmonic' || question.type === 'chord-identify') {
-      // play all notes simultaneously as a chord
+    const seq = q.audioSequence;
+    const a4l = a4Ref.current;
+    if (q.type === 'interval-harmonic' || q.type === 'chord-identify') {
+      // simultaneous — play every note at once as one chord
       const midis = seq.map(s => s.midi);
-      playChord(midis, seq[0].durationMs, a4);
+      playChord(midis, seq[0]?.durationMs ?? 1200, a4l);
     } else {
-      // play each note in turn — track timers for cleanup
-      clearTimers();
-      seq.forEach((s, i) => {
-        const delay = seq.slice(0, i).reduce((a, b) => a + b.durationMs, 0);
-        const id = window.setTimeout(() => playNote(s.midi, s.durationMs * 0.9, 0, a4), delay);
+      // melodic / scale — play each note in turn
+      let delay = 0;
+      seq.forEach((s) => {
+        const id = window.setTimeout(() => playNote(s.midi, s.durationMs * 0.9, 0, a4l), delay);
         noteTimersRef.current.push(id);
+        delay += s.durationMs;
       });
     }
-  }, [question, a4]);
+  };
+
+  // replay button uses the current question
+  const replay = () => { if (question) void playQuestionSeq(question); };
 
   const handleAnswer = (answer: string) => {
     if (!question || showResult) return;
@@ -136,7 +142,7 @@ export function EarTraining() {
       {/* Question */}
       <div className="card p-6 space-y-4 text-center">
         <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'ear.question')}</div>
-        <button onClick={playQuestion} className="btn-primary mx-auto">
+        <button onClick={replay} className="btn-primary mx-auto">
           <i className="fas fa-volume-up mr-2"></i>{t(lang, 'ear.replay')}
         </button>
       </div>

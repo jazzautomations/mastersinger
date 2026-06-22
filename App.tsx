@@ -13,6 +13,7 @@ import { Warmup } from './components/Warmup';
 import { Progress } from './components/Progress';
 import { Settings } from './components/Settings';
 import { t } from './i18n/strings';
+import { warmAudioOnUserGesture } from './services/audioService';
 import type { View } from './types';
 
 const ONBOARDED_KEY = 'mastersinger:onboarded';
@@ -25,6 +26,11 @@ function MainApp() {
   });
   const [view, setView] = useState<View>('home');
   const [viewOpts, setViewOpts] = useState<any>(null);
+
+  // Warm up the Web Audio context on the first user gesture so every later
+  // audio call (tuner reference, ear-training playback, practice guide) finds
+  // a running context. Fixes the autoplay-policy "no sound" bug globally.
+  useEffect(() => { warmAudioOnUserGesture(); }, []);
 
   // scroll to top on view change
   useEffect(() => {
