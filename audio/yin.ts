@@ -12,6 +12,13 @@
 
 const DEFAULT_THRESHOLD = 0.12;
 const DEFAULT_SAMPLE_RATE = 44100;
+// When no tau clears the absolute threshold, we only accept a fallback pitch
+// if the global minimum is a clear local valley below this value. Raising
+// robustness here (was 0.6) cuts false pitches on breathy/noisy frames — a
+// brief "no pitch" is far less damaging to a tuner than a confidently wrong
+// one. Pure tones always clear the main threshold path, so this only affects
+// the degraded fallback.
+const FALLBACK_MAX_YIN = 0.5;
 
 /**
  * Step 1+2: Difference function + cumulative mean normalized difference.
@@ -57,17 +64,21 @@ function absoluteThreshold(yin: Float32Array, threshold: number, minTau: number)
     }
     tau++;
   }
-  // No tau below threshold — return global min (within the valid range) as fallback
-  let minTauFound = Math.max(2, minTau);
-  let minVal = yin[minTauFound];
-  for (let i = minTauFound + 1; i < yin.length; i++) {
-    if (yin[i] < minVal) {
+  // No tau below the absolute threshold. Fall back to the best LOCAL valley
+  // in the valid range — but only if it is a genuine dip (a local minimum
+  // below FALLBACK_MAX_YIN). Returning the global min blindly (the old
+  // behavior, up to 0.6) turned flat/noisy frames into confidently wrong
+  // pitches; a local-valley requirement rejects that garbage and lets the
+  // caller report "no pitch" instead.
+  let minTauFound = -1;
+  let minVal = FALLBACK_MAX_YIN;
+  for (let i = Math.max(2, minTau) + 1; i < yin.length - 1; i++) {
+    if (yin[i] < minVal && yin[i] < yin[i - 1] && yin[i] <= yin[i + 1]) {
       minVal = yin[i];
       minTauFound = i;
     }
   }
-  // if even the global min is very high, signal no pitch
-  return minVal > 0.6 ? -1 : minTauFound;
+  return minTauFound;
 }
 
 /**

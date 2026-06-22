@@ -1,5 +1,5 @@
 import { COURSE_PT, type CoursePtLesson } from '../data/courses.pt';
-import type { Course, Lesson, Language } from '../types';
+import type { Course, Lesson, LessonBlock, Language } from '../types';
 
 // ── Bilingual course content helpers.
 //    The five original courses were authored in English; their pt-BR

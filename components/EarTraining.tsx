@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
 import { makeEarQuestion } from '../data/earQuestions';
-import { playNote, playChord, playSequence, ensureAudioStarted, stopAll, isPlaybackActive } from '../services/audioService';
+import { playNote, playChord, playSequence, ensureAudioStarted, stopAll, isPlaybackActive, beginPlayback } from '../services/audioService';
 import type { EarQuestion, EarQuestionType } from '../types';
 
 export function EarTraining() {

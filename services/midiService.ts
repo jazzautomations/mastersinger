@@ -1,5 +1,5 @@
 // MIDI file export/import using midi-writer-js
-import { Note } from 'types';
+import type { Note } from '../types';
 import { midiToFrequency } from './theoryService';
 
 // Convert our Note[] to a MIDI file (Blob)
@@ -144,6 +144,30 @@ export function framesToNotes(
   }
   if (voiced.length === 0) return [];
 
+  // ── Octave-error rejection. The raw path skips the live smoother (so note
+  //    timestamps stay aligned with real time), but that also skips the
+  //    smoother's octave guard — so a single YIN doubling/halving frame would
+  //    show up as a note an octave off (the classic "the studio is garbage"
+  //    symptom). Fold those back against a rolling median, exactly like the
+  //    smoother does, before segmentation sees them. ──
+  const refWindow: number[] = [];
+  for (const v of voiced) {
+    let freq = v.freq;
+    if (refWindow.length >= 3) {
+      const ref = medianOf(refWindow);
+      if (ref > 0) {
+        const ratio = freq / ref;
+        if (ratio > 1.7 && ratio < 2.3) freq = freq / 2;
+        else if (ratio > 0.43 && ratio < 0.59) freq = freq * 2;
+        else if (ratio > 2.3 || ratio < 0.42) freq = ref;
+      }
+    }
+    refWindow.push(freq);
+    if (refWindow.length > 7) refWindow.shift();
+    v.freq = freq;
+    v.midi = Math.round(midiFreq(freq));
+  }
+
   // ── Greedy segmentation with a debounce. A brief pitch excursion (< 60ms)
   //    on a different note is absorbed into the current note; a sustained
   //    change (>= 60ms) splits, with the split point where the new note began.
@@ -218,4 +242,13 @@ export function framesToNotes(
     }
   }
   return merged;
+}
+
+function medianOf(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const len = sorted.length;
+  return len % 2
+    ? sorted[(len - 1) / 2]
+    : (sorted[len / 2 - 1] + sorted[len / 2]) / 2;
 }

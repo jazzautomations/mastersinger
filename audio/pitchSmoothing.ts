@@ -32,12 +32,12 @@ export interface PitchSmootherOptions {
 }
 
 const DEFAULTS: Required<PitchSmootherOptions> = {
-  windowSize: 5,        // tighter median → less lag in the needle
+  windowSize: 7,        // slightly wider median → kills more single-frame outliers
   emaAlpha: 0.55,       // more responsive: needle tracks the voice instead of trailing
   maxOctaveJump: 0.5,
   a4: 440,
   minConfidence: 0.45,  // accept slightly noisier frames (real mics are imperfect)
-  holdFrames: 2,        // shorter hold so silence reads as silence faster
+  holdFrames: 3,        // hold the last pitch a touch longer through brief dips
 };
 
 function median(values: number[]): number {

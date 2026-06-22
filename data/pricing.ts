@@ -52,7 +52,7 @@ export const PLANS: Plan[] = [
       'Tudo do Free, sem limites',
       '30+ exercícios ilimitados (escalas, arpejos, saltos, sustentação)',
       'Aquecimentos completos (rápido, completo, agudos, graves)',
-      'Todos os 5 cursos da Academia',
+      'Todos os 8 cursos da Academia',
       'Treino de ouvido avançado + harmonia',
       'Estúdio de melodias com export MIDI',
       'Relatórios de progresso e registro vocal',

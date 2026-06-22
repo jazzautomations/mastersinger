@@ -11,7 +11,7 @@ const FEATURES = [
   { icon: '🎙️', title: 'Afinador em tempo real', desc: 'Detecção de pitch YIN com suavização anti-oitava. Veja exatamente quantos cents você está fora, com setas ALTO/BAIXO claras.' },
   { icon: '💪', title: 'Prática gamificada', desc: '30+ exercícios de escalas, arpejos, saltos de intervalo e sustentação de nota. Pontuação por afinação, tempo, estabilidade e cobertura.' },
   { icon: '🔥', title: 'Aquecimento guiado', desc: 'Rotinas prontas (rápido, completo, agudos, graves) com áudio-guia e feedback de pitch ao vivo. 5 minutos pra sua voz ficar pronta.' },
-  { icon: '🎓', title: 'Academia completa', desc: '5 cursos guiados do iniciante ao avançado: aquecimento, afinação, intervalos, escalas e harmonia. Aulas em PT-BR com dicas de professor.' },
+  { icon: '🎓', title: 'Academia completa', desc: '8 cursos guiados do iniciante ao avançado: aquecimento, afinação, intervalos, escalas, harmonia, aparelho vocal, saúde vocal e técnica de canto. Aulas em PT-BR com dicas de professor.' },
   { icon: '👂', title: 'Treino de ouvido', desc: 'Identifique intervalos melódicos e harmônicos, escalas e acordes de ouvido. A habilidade por trás de toda boa afinação.' },
   { icon: '🎼', title: 'Harmonia e terças', desc: 'Aprenda a cantar terças e quintas acima da melodia — o coração dos backing vocals. Treino com detecção de pitch ao vivo.' },
   { icon: '📼', title: 'Estúdio de melodias', desc: 'Cante, capture, edite num piano roll visual e exporte como MIDI. Sua melodia vira arquivo musical pronto pra produzir.' },
@@ -33,7 +33,7 @@ const STEPS = [
 
 const COMPARISON = [
   { feature: 'Detecção de pitch em tempo real', ms: true, lesson: true, others: 'parcial' },
-  { feature: 'Aulas estruturadas (5 cursos)', ms: true, lesson: true, others: false },
+  { feature: 'Aulas estruturadas (8 cursos)', ms: true, lesson: true, others: false },
   { feature: 'Aquecimento guiado interativo', ms: true, lesson: false, others: false },
   { feature: 'Treino de ouvido + harmonia', ms: true, lesson: 'às vezes', others: false },
   { feature: 'Estúdio de melodias (MIDI)', ms: true, lesson: false, others: false },
@@ -169,7 +169,7 @@ export function Landing({ onEnterApp }: { onEnterApp: () => void }) {
             O MasterSinger junta num só app o que você só encontra espalhado em 4 ou 5 ferramentas diferentes —
             ou que custa caro numa aula particular. Detecção de pitch em tempo real com algoritmo YIN,
             exercícios gamificados que pontuam sua afinação, aquecimentos guiados com áudio e feedback ao vivo,
-            uma academia com 5 cursos do zero ao avançado, treino de ouvido, harmonia e um estúdio pra capturar
+            uma academia com 8 cursos do zero ao avançado, treino de ouvido, harmonia e um estúdio pra capturar
             suas melodias em MIDI.
           </p>
           <p className="text-slate-300 leading-relaxed">

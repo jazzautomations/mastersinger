@@ -4,7 +4,6 @@ import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
 import { NOTE_NAMES_SHARP, midiToFrequency } from '../services/theoryService';
 import { playDrone, stopDrone, ensureAudioStarted } from '../services/audioService';
-import { unlockBadge } from '../store/store';
 import { PitchMeter } from '../components/PitchMeter';
 
 // Reference tones offered in the tuner (C4..A4 span — comfortable singing range).

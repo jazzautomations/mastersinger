@@ -56,7 +56,7 @@ function arpeggioDrill(
   const beatMs = 60000 / bpm;
   const leadIn = beatMs;
   const up = notes.map((midi, i) => ({ midi, startMs: leadIn + i * beatMs, durationMs: beatMs }));
-  const down = [...notes].reverse().slice(1, -1).map((t, i) => ({
+  const down = [...up].reverse().slice(1, -1).map((t, i) => ({
     ...t,
     startMs: leadIn + (notes.length + i) * beatMs,
   }));
