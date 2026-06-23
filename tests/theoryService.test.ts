@@ -13,6 +13,10 @@ import {
   ARPEGGIO_TYPES,
   INTERVALS,
   CHORD_TYPES,
+  classifyVoiceType,
+  transposeOffset,
+  centerOfMidis,
+  transposeExercise,
 } from '../services/theoryService';
 
 describe('theoryService', () => {
@@ -140,5 +144,61 @@ describe('theoryService', () => {
       expect(CHORD_TYPES.major.intervals).toEqual([0, 4, 7]);
       expect(CHORD_TYPES.dominant7.intervals).toEqual([0, 4, 7, 10]);
     });
+  });
+});
+
+describe('classifyVoiceType', () => {
+  it('returns unknown for invalid range', () => {
+    expect(classifyVoiceType(NaN, NaN)).toBe('unknown');
+    expect(classifyVoiceType(80, 40)).toBe('unknown');
+  });
+  it('classifies a typical soprano range', () => {
+    // floor C4(60), ceiling ~C6(84) → soprano
+    expect(classifyVoiceType(60, 84)).toBe('soprano');
+  });
+  it('classifies a typical bass range', () => {
+    // floor C2(36), ceiling ~G3(55) → bass
+    expect(classifyVoiceType(36, 55)).toBe('bass');
+  });
+  it('classifies a typical tenor range', () => {
+    // floor C3(48), ceiling ~G4(67) → tenor
+    expect(classifyVoiceType(48, 67)).toBe('tenor');
+  });
+});
+
+describe('transposeOffset', () => {
+  it('returns 0 when no target center is given', () => {
+    expect(transposeOffset(60, undefined)).toBe(0);
+  });
+  it('shifts source onto target by semitones', () => {
+    expect(transposeOffset(60, 64)).toBe(4);
+    expect(transposeOffset(64, 60)).toBe(-4);
+  });
+  it('clamps wild offsets to ±18 semitones', () => {
+    expect(transposeOffset(60, 100)).toBe(18);
+    expect(transposeOffset(100, 60)).toBe(-18);
+  });
+});
+
+describe('centerOfMidis', () => {
+  it('defaults to 60 for an empty set', () => {
+    expect(centerOfMidis([])).toBe(60);
+  });
+  it('returns the arithmetic mean of min and max', () => {
+    expect(centerOfMidis([60, 64, 67])).toBe(63.5);
+  });
+});
+
+describe('transposeExercise', () => {
+  it('returns the same exercise for a zero offset', () => {
+    const ex = { id: 'x', targets: [{ midi: 60, startMs: 0, durationMs: 100 }] } as any;
+    expect(transposeExercise(ex, 0)).toBe(ex);
+  });
+  it('shifts every target midi by the offset and leaves the original untouched', () => {
+    const ex = { id: 'x', targets: [{ midi: 60, startMs: 0, durationMs: 100 }, { midi: 64, startMs: 100, durationMs: 100 }] } as any;
+    const out = transposeExercise(ex, 5);
+    expect(out.targets[0].midi).toBe(65);
+    expect(out.targets[1].midi).toBe(69);
+    expect(ex.targets[0].midi).toBe(60); // original unchanged
   });
 });

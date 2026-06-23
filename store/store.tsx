@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import type { UserProfile, ExerciseResult, StudentLevel, Language, League, SavedMelody, Note } from '../types';
-import { todayISO, weekStartISO } from '../services/theoryService';
+import { todayISO, weekStartISO, classifyVoiceType } from '../services/theoryService';
 
 const STORAGE_KEY = 'mastersinger:v1';
 const MELODIES_KEY = 'mastersinger:melodies';
@@ -170,9 +170,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProfile(prev => {
       const newLow = Math.min(prev.range.lowestMidi ?? 127, lowest);
       const newHigh = Math.max(prev.range.highestMidi ?? 0, highest);
+      // Derive the voice type from the detected floor + midpoint, and the
+      // range center the practice/ear-training engines transpose to. These
+      // were defined in the type but never computed — so voice classification
+      // and range-aware exercises were dead features until now.
+      const voiceType = classifyVoiceType(newLow, newHigh);
+      const rangeCenterMidi = Math.round((newLow + newHigh) / 2);
       return {
         ...prev,
-        range: { lowestMidi: newLow, highestMidi: newHigh, detectedAt: Date.now() },
+        range: { lowestMidi: newLow, highestMidi: newHigh, detectedAt: Date.now(), voiceType },
+        settings: { ...prev.settings, rangeCenterMidi },
       };
     });
   }, []);

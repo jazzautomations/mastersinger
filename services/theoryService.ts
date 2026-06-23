@@ -2,6 +2,8 @@
 // Music theory helpers — note names, MIDI conversions, scales, intervals
 // ──────────────────────────────────────────────────────────────────────────
 
+import type { VoiceType, Exercise } from '../types';
+
 export const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 export const NOTE_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
@@ -110,6 +112,68 @@ export const CHORD_TYPES: Record<string, { name: string; intervals: number[]; sy
   dominant7:  { name: 'Dominant 7',     intervals: [0, 4, 7, 10],   symbol: '7' },
   minor7:     { name: 'Minor 7',        intervals: [0, 3, 7, 10],   symbol: 'm7' },
 };
+
+// ── Voice classification + range-aware transposition ──
+
+/**
+ * Classify a singer's voice type from their detected range (lowest & highest
+ * MIDI notes). Uses the comfortable middle of the range as the primary signal,
+ * which is more stable than either extreme alone (people undershoot/overshoot
+ * the true ceiling/floor). Falls back to the lowest note when the midpoint is
+ * ambiguous. MIDI anchors (C4=60, A4=69):
+ *   Bass      lowest ~ C2(36)  center ~ G2(43)
+ *   Baritone  lowest ~ G2(43)  center ~ D3(50)
+ *   Tenor     lowest ~ C3(48)  center ~ G3(55)
+ *   Alto      lowest ~ G3(55)  center ~ D4(62)
+ *   Mezzo     lowest ~ A3(57)  center ~ E4(64)
+ *   Soprano   lowest ~ C4(60)  center ~ A4(69)
+ */
+export function classifyVoiceType(lowestMidi: number, highestMidi: number): VoiceType {
+  if (!Number.isFinite(lowestMidi) || !Number.isFinite(highestMidi) || highestMidi < lowestMidi) {
+    return 'unknown';
+  }
+  const center = (lowestMidi + highestMidi) / 2;
+  // Decide primarily on the lowest comfortable note ( tessitura floor ),
+  // refined by the midpoint. Soprano/mezzo are very close on the floor, so the
+  // center breaks the tie (soprano centers higher).
+  if (lowestMidi >= 59) return center >= 66 ? 'soprano' : 'mezzo';   // floor ~ A3/B3 and up
+  if (lowestMidi >= 54) return 'alto';                                // floor ~ Gb3..Ab3
+  if (lowestMidi >= 47) return 'tenor';                               // floor ~ B2..Gb3
+  if (lowestMidi >= 41) return 'baritone';                            // floor ~ F2..Ab2
+  return 'bass';                                                       // floor below F2
+}
+
+/**
+ * Semitone offset that moves `sourceCenterMidi` onto `targetCenterMidi`,
+ * clamped to ±18 semitones (1.5 octaves) so a wildly-misdetected range never
+ * shoves an exercise into bat-only or dog-only territory.
+ */
+export function transposeOffset(sourceCenterMidi: number, targetCenterMidi: number | undefined): number {
+  if (targetCenterMidi == null || !Number.isFinite(targetCenterMidi)) return 0;
+  const raw = Math.round(targetCenterMidi - sourceCenterMidi);
+  return Math.max(-18, Math.min(18, raw));
+}
+
+/** Geometric-ish center (arithmetic mean of min & max) of a set of MIDI notes. */
+export function centerOfMidis(midis: number[]): number {
+  if (midis.length === 0) return 60;
+  const min = Math.min(...midis);
+  const max = Math.max(...midis);
+  return (min + max) / 2;
+}
+
+/**
+ * Return a NEW Exercise with every target transposed by `offset` semitones.
+ * Pure: leaves the original exercise object untouched. Used so practice scales
+ * sit in the singer's detected range instead of a fixed C4.
+ */
+export function transposeExercise(ex: Exercise, offset: number): Exercise {
+  if (offset === 0) return ex;
+  return {
+    ...ex,
+    targets: ex.targets.map(t => ({ ...t, midi: t.midi + offset })),
+  };
+}
 
 // ── Helpers ──
 export function todayISO(date = new Date()): string {

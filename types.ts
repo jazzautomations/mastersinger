@@ -76,6 +76,7 @@ export interface Exercise {
   level: StudentLevel;
   key?: string;          // e.g. "C", "G"
   scaleName?: string;    // e.g. "Major", "Minor Harmonic"
+  direction?: 'ascending' | 'descending' | 'both';  // scale/arpeggio travel direction (default 'both')
   targets: ExerciseTarget[];
   tempoBpm?: number;
   xp: number;
@@ -103,6 +104,10 @@ export interface EarQuestion {
   id: string;
   type: EarQuestionType;
   audioSequence: { midi: number; durationMs: number; simultaneous?: boolean }[];
+  // Per-option reference audio so a learner who answered wrong can listen to
+  // every alternative and assimilate the difference before moving on.
+  optionAudios?: Record<string, { midi: number; durationMs: number; simultaneous?: boolean }[]>;
+  rootMidi?: number;       // root the question was built on (for transposition)
   options: string[];
   answer: string;
   level: StudentLevel;

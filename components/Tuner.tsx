@@ -5,6 +5,7 @@ import { t } from '../i18n/strings';
 import { NOTE_NAMES_SHARP, midiToFrequency } from '../services/theoryService';
 import { playDrone, stopDrone, ensureAudioStarted } from '../services/audioService';
 import { PitchMeter } from '../components/PitchMeter';
+import type { PitchFrame } from '../types';
 
 // Reference tones offered in the tuner (C4..A4 span — comfortable singing range).
 const REFERENCE_NOTES = [
@@ -15,13 +16,34 @@ const REFERENCE_NOTES = [
 ];
 
 export function Tuner() {
-  const { profile, unlockBadge: unlock } = useStore();
+  const { profile, unlockBadge: unlock, updateRange } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
-  const pitch = usePitchDetection({ a4, record: true });
+
+  // ── Precision tuning for the TUNER (not the studio): a larger analysis
+  //    window (8192 ≈ 186 ms) gives YIN more periods to average → fewer octave
+  //    errors on low notes and a steadier cents reading, at the cost of latency
+  //    a tuner can absorb. A lower voiced gate (0.35 vs the smoother's 0.45
+  //    default) keeps the needle alive on ordinary laptop/phone mics instead
+  //    of dropping to "no signal" the moment the room isn't silent. ──
+  const pitch = usePitchDetection({ a4, record: true, bufferSize: 8192, minConfidence: 0.35 });
 
   const [refMidi, setRefMidi] = useState<number>(69);
   const [refPlaying, setRefPlaying] = useState<boolean>(false);
+
+  // ── Range tracking: keep the lowest/highest CONFIDENT midi seen this session
+  //    in refs (no per-frame profile writes — that would re-render the whole
+  //    tree at 60fps) and flush to the store once when listening stops. This is
+  //    what makes the Progress range card, voice-type classification and
+  //    range-aware exercise transposition actually work. ──
+  const rangeLowRef = useRef<number | null>(null);
+  const rangeHighRef = useRef<number | null>(null);
+  const lastFrameRef = useRef<PitchFrame | null>(null);
+
+  // ── Stability: a short rolling buffer of recent cents, surfaced as a % so
+  //    the singer can SEE "precise and steady" vs "shaky" — directly the
+  //    "precisão" the user asked for. ──
+  const centsHistoryRef = useRef<number[]>([]);
 
   const toggleRef = async () => {
     if (refPlaying) {
@@ -49,13 +71,53 @@ export function Tuner() {
     }
   }, [pitch.isListening]);
 
-  const cents = pitch.currentFrame?.cents ?? 0;
-  const note = pitch.currentFrame?.noteName ?? '—';
-  const freq = pitch.currentFrame?.frequency ?? 0;
-  const conf = pitch.currentFrame?.confidence ?? 0;
-  const color = !pitch.currentFrame || freq === 0 ? 'text-slate-500'
+  // ── Track range + stability from each voiced frame. Refs only → zero
+  //    re-render cost; the range is flushed to the store when listening ends. ──
+  useEffect(() => {
+    const f = pitch.currentFrame;
+    lastFrameRef.current = f;
+    if (!f || f.frequency <= 0 || f.confidence < 0.5) return;
+    const m = Math.round(f.midi);
+    if (rangeLowRef.current == null || m < rangeLowRef.current) rangeLowRef.current = m;
+    if (rangeHighRef.current == null || m > rangeHighRef.current) rangeHighRef.current = m;
+    // rolling cents history (last ~1.5s of frames) for the stability readout
+    const hist = centsHistoryRef.current;
+    hist.push(f.cents);
+    if (hist.length > 90) hist.shift();
+  }, [pitch.currentFrame]);
+
+  // ── Flush the detected range to the store when the user stops listening. ──
+  useEffect(() => {
+    if (pitch.isListening) return;
+    const lo = rangeLowRef.current;
+    const hi = rangeHighRef.current;
+    if (lo != null && hi != null && hi >= lo) {
+      updateRange(lo, hi);
+    }
+    rangeLowRef.current = null;
+    rangeHighRef.current = null;
+    centsHistoryRef.current = [];
+  }, [pitch.isListening, updateRange]);
+
+  // ── Fractional cents from the (already EMA-smoothed) float midi → sub-cent
+  //    precision for the needle + readout, instead of the integer cents that
+  //    made the display jump in 1-cent steps. ──
+  const frame = pitch.currentFrame;
+  const voicedNow = !!frame && frame.frequency > 0 && frame.confidence > 0.35;
+  const cents = voicedNow ? Math.round((frame!.midi - Math.round(frame!.midi)) * 1000) / 10 : 0;
+  const note = frame?.noteName ?? '—';
+  const freq = frame?.frequency ?? 0;
+  const conf = frame?.confidence ?? 0;
+  const color = !voicedNow ? 'text-slate-500'
     : Math.abs(cents) < 10 ? 'text-green-400'
     : Math.abs(cents) < 25 ? 'text-amber-400' : 'text-red-400';
+
+  // Stability %: 100 minus the spread of the recent cents (MAD * 6, capped).
+  // A held, dead-center note reads ~100%; a wavering one drops toward 0%.
+  const hist = centsHistoryRef.current;
+  const med = hist.length ? [...hist].sort((a, b) => a - b)[Math.floor(hist.length / 2)] : 0;
+  const mad = hist.length ? hist.reduce((s, c) => s + Math.abs(c - med), 0) / hist.length : 0;
+  const stability = Math.max(0, Math.min(100, Math.round(100 - mad * 6)));
 
   return (
     <div className="space-y-6 pb-24">
@@ -66,11 +128,11 @@ export function Tuner() {
 
       {/* Big note display */}
       <div className="card p-8 text-center space-y-2">
-        <div className={`text-7xl font-black font-mono ${color} ${pitch.isListening && freq > 0 ? 'pulse-soft' : ''}`}>
-          {pitch.isListening && freq > 0 ? note : '—'}
+        <div className={`text-7xl font-black font-mono ${color} ${voicedNow ? 'pulse-soft' : ''}`}>
+          {voicedNow ? note : '—'}
         </div>
         <div className="text-sm text-slate-400 font-mono">
-          {pitch.isListening && freq > 0 ? `${freq.toFixed(1)} Hz` : t(lang, 'tuner.noSignal')}
+          {voicedNow ? `${freq.toFixed(1)} Hz` : t(lang, 'tuner.noSignal')}
         </div>
       </div>
 
@@ -79,7 +141,7 @@ export function Tuner() {
         <div className="flex justify-between items-baseline">
           <span className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'tuner.cents')}</span>
           <span className={`text-2xl font-black font-mono ${color}`}>
-            {pitch.isListening && freq > 0 ? `${cents > 0 ? '+' : ''}${cents}` : '0'}
+            {voicedNow ? `${cents > 0 ? '+' : ''}${cents.toFixed(1)}` : '0.0'}
           </span>
         </div>
         <div className="relative h-4 rounded-full gauge-bg overflow-hidden">
@@ -89,7 +151,7 @@ export function Tuner() {
             style={{
               left: `${Math.max(0, Math.min(100, ((cents + 50) / 100) * 100))}%`,
               transform: 'translateX(-50%)',
-              transition: 'left 40ms linear',
+              transition: 'left 60ms linear',
             }}
           />
           {/* center mark */}
@@ -136,8 +198,8 @@ export function Tuner() {
         </button>
       </div>
 
-      {/* Confidence / Mic level */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Precision readouts — confidence, stability (precisão), mic level */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="card p-4 text-center">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">
             {lang === 'pt-BR' ? 'Confiança' : 'Confidence'}
@@ -146,7 +208,15 @@ export function Tuner() {
         </div>
         <div className="card p-4 text-center">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">
-            {lang === 'pt-BR' ? 'Nível do microfone' : 'Mic level'}
+            {lang === 'pt-BR' ? 'Estabilidade' : 'Stability'}
+          </div>
+          <div className={`text-xl font-black font-mono ${stability >= 80 ? 'text-green-400' : stability >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+            {voicedNow ? `${stability}%` : '—'}
+          </div>
+        </div>
+        <div className="card p-4 text-center">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">
+            {lang === 'pt-BR' ? 'Nível mic' : 'Mic level'}
           </div>
           <div className="text-xl font-black font-mono neon-text">{(pitch.micLevel * 100).toFixed(0)}</div>
         </div>

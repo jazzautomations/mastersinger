@@ -10,6 +10,7 @@ export function EarTraining() {
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
   const level = profile.settings.level;
+  const rangeCenterMidi = profile.settings.rangeCenterMidi;
 
   const [selectedType, setSelectedType] = useState<EarQuestionType | null>(null);
   const [question, setQuestion] = useState<EarQuestion | null>(null);
@@ -39,7 +40,7 @@ export function EarTraining() {
 
   const startQuestion = (type: EarQuestionType) => {
     const seed = Math.random() * 1000;
-    const q = makeEarQuestion(type, level, seed);
+    const q = makeEarQuestion(type, level, seed, rangeCenterMidi);
     setQuestion(q);
     setSelectedAnswer(null);
     setShowResult(false);
@@ -67,6 +68,27 @@ export function EarTraining() {
       seq.forEach((s, i) => {
         const delay = i * s.durationMs;
         const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4); }, delay);
+        noteTimersRef.current.push(id);
+      });
+    }
+  };
+
+  // Play one alternative's reference audio (after answering) so the learner
+  // can audition every option and absorb the difference before moving on.
+  const playOption = async (opt: string) => {
+    if (!question) return;
+    const seq = question.optionAudios?.[opt];
+    if (!seq || seq.length === 0) return;
+    clearTimers();
+    stopAll();
+    await ensureAudioStarted();
+    const a4l = a4Ref.current;
+    if (question.type === 'interval-harmonic' || question.type === 'chord-identify') {
+      playChord(seq.map(s => s.midi), seq[0]?.durationMs ?? 1200, a4l);
+    } else {
+      const token = beginPlayback();
+      seq.forEach((s, i) => {
+        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4); }, i * s.durationMs);
         noteTimersRef.current.push(id);
       });
     }
@@ -160,18 +182,26 @@ export function EarTraining() {
             else cls = 'bg-white/5 opacity-50';
           }
           return (
-            <button
+            <div
               key={opt}
-              onClick={() => handleAnswer(opt)}
-              disabled={showResult}
-              className={`p-4 rounded-xl text-left transition-all ${cls}`}
+              onClick={() => { if (!showResult) handleAnswer(opt); }}
+              className={`p-4 rounded-xl text-left transition-all ${cls} flex items-center justify-between gap-3 ${showResult ? 'cursor-default' : 'cursor-pointer'}`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold">{opt}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-bold truncate">{opt}</span>
                 {showResult && isCorrect && <span className="text-green-400">✓</span>}
                 {showResult && isSelected && !isCorrect && <span className="text-red-400">✗</span>}
               </div>
-            </button>
+              {showResult && question.optionAudios?.[opt] && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); playOption(opt); }}
+                  className="shrink-0 w-9 h-9 rounded-lg bg-white/10 hover:bg-violet-500/30 flex items-center justify-center active:scale-95"
+                  title={lang === 'pt-BR' ? 'Ouvir esta alternativa' : 'Play this option'}
+                >
+                  <i className="fas fa-volume-up text-cyan-300"></i>
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
@@ -184,6 +214,9 @@ export function EarTraining() {
           </div>
           {selectedAnswer === question.answer && (
             <div className="text-sm text-violet-400">+{question.xp} XP</div>
+          )}
+          {selectedAnswer !== question.answer && (
+            <div className="text-xs text-slate-400">{lang === 'pt-BR' ? 'Toque no 🔊 de cada alternativa pra ouvir a diferença e gravar.' : 'Tap 🔊 on each option to hear the difference and learn.'}</div>
           )}
           <button onClick={next} className="btn-primary mx-auto">
             {lang === 'pt-BR' ? 'Próxima pergunta' : 'Next question'} <i className="fas fa-arrow-right ml-2"></i>

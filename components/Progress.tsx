@@ -2,6 +2,18 @@ import { useStore, getLevelTitle, getLeague, xpForLevel } from '../store/store';
 import { t } from '../i18n/strings';
 import { BADGES, getEarnedBadges } from '../data/badges';
 import { midiToNoteName, weekStartISO } from '../services/theoryService';
+import type { VoiceType } from '../types';
+
+// Friendly labels for the classified voice type — shown in the range card.
+const VOICE_LABELS: Record<VoiceType, { pt: string; en: string; icon: string }> = {
+  soprano:   { pt: 'Soprano',   en: 'Soprano',   icon: '🎵' },
+  mezzo:     { pt: 'Mezzo',     en: 'Mezzo',     icon: '🎵' },
+  alto:      { pt: 'Contralto', en: 'Alto',      icon: '🎵' },
+  tenor:     { pt: 'Tenor',     en: 'Tenor',     icon: '🎙️' },
+  baritone:  { pt: 'Barítono',  en: 'Baritone',  icon: '🎙️' },
+  bass:      { pt: 'Baixo',     en: 'Bass',      icon: '🎙️' },
+  unknown:   { pt: '—',         en: '—',         icon: '❓' },
+};
 
 export function Progress() {
   const { profile } = useStore();
@@ -21,6 +33,8 @@ export function Progress() {
   const highMidi = profile.range.highestMidi;
   const rangeSpan = (lowMidi && highMidi) ? (highMidi - lowMidi) : 0;
   const rangeOctaves = rangeSpan / 12;
+  const voiceType = profile.range.voiceType ?? 'unknown';
+  const voiceLabel = VOICE_LABELS[voiceType];
 
   return (
     <div className="space-y-6 pb-24">
@@ -82,6 +96,19 @@ export function Progress() {
             <div className="text-center text-sm font-mono text-slate-300">
               {rangeOctaves.toFixed(1)} {lang === 'pt-BR' ? 'oitavas' : 'octaves'} · {rangeSpan} {lang === 'pt-BR' ? 'semitons' : 'semitones'}
             </div>
+            {voiceType !== 'unknown' && (
+              <div className="text-center pt-1">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-500/15 border border-violet-500/30">
+                  <span>{voiceLabel.icon}</span>
+                  <span className="text-sm font-bold text-violet-200 font-mono">
+                    {lang === 'pt-BR' ? 'Classificação vocal' : 'Voice type'}: {lang === 'pt-BR' ? voiceLabel.pt : voiceLabel.en}
+                  </span>
+                </span>
+                <div className="text-[11px] text-slate-500 mt-1.5">
+                  {lang === 'pt-BR' ? 'Detectada pelo afinador — cante do grave ao agudo pra refinar.' : 'Detected from the tuner — sing low to high to refine it.'}
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="text-center text-sm text-slate-400 py-4">{t(lang, 'progress.rangeUnknown')}</div>

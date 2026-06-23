@@ -11,6 +11,9 @@ interface UsePitchDetectionOptions {
   maxFreq?: number;
   threshold?: number;        // YIN threshold
   smoothing?: boolean;       // apply temporal smoothing (default true)
+  minConfidence?: number;    // smoother voiced gate (default 0.45). Lower it (e.g. 0.35)
+                             // for a live tuner so the needle doesn't drop out on
+                             // imperfect mics; the octave guard still rejects junk.
   record?: boolean;          // also capture raw audio for playback (default false)
   onFrame?: (frame: PitchFrame) => void;
 }
@@ -41,6 +44,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     maxFreq = 1200,
     threshold = 0.12,
     smoothing = true,
+    minConfidence,       // undefined → smoother uses its own default (0.45)
     record = false,
     onFrame,
   } = options;
@@ -60,7 +64,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const rafRef = useRef<number | null>(null);
   const bufferRef = useRef<Float32Array>(new Float32Array(bufferSize));
   const startTimeRef = useRef<number>(0);
-  const smootherRef = useRef<PitchSmoother>(new PitchSmoother({ a4 }));
+  const smootherRef = useRef<PitchSmoother>(new PitchSmoother(minConfidence != null ? { a4, minConfidence } : { a4 }));
   const onFrameRef = useRef(onFrame);
   onFrameRef.current = onFrame;
 
@@ -73,8 +77,8 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
 
   // keep smoother a4 in sync if the user changes tuning reference
   useEffect(() => {
-    if (smoothing) smootherRef.current = new PitchSmoother({ a4 });
-  }, [a4, smoothing]);
+    if (smoothing) smootherRef.current = new PitchSmoother(minConfidence != null ? { a4, minConfidence } : { a4 });
+  }, [a4, smoothing, minConfidence]);
 
   const processFrame = useCallback(() => {
     if (!analyserRef.current) return;

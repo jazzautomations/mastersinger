@@ -134,8 +134,11 @@ export function framesToNotes(
 
   // ── Pre-smooth with a short median window so a single jittery frame can't
   //    fragment a sustained note or invent a pitch blip. Frames arrive ~every
-  //    16ms (rAF); a 5-frame window ≈ 80ms of context. ──
-  const WIN = 5;
+  //    16ms (rAF); a 7-frame window ≈ 110ms of context — wider than before (5)
+  //    because the studio skips the live smoother, so it needs more local
+  //    averaging here to absorb the single-frame octave jumps YIN still lets
+  //    through on soft/breathy phonation. ──
+  const WIN = 7;
   const voiced: { ts: number; midi: number; freq: number; conf: number }[] = [];
   for (let i = 0; i < frames.length; i++) {
     const f = frames[i];
@@ -189,13 +192,30 @@ export function framesToNotes(
   let lastTs = voiced[0].ts;
 
   const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  // Median of a sample — used for the note's representative cents so the
+  // attack (often under-pitched) and the release (often flat as air runs out)
+  // don't drag the readout away from the note you actually held. The old code
+  // averaged every frame's frequency, which made a clean sustained note look
+  // ~10–20 cents off whenever the onset or tail was imperfect — the core
+  // "estúdio não é preciso" complaint.
   const closeCurrent = (endTs: number) => {
     if (!cur) return;
     if (endTs - cur.start >= minNoteMs) {
+      // Representative cents from the STABLE MIDDLE 60% of the note's frames,
+      // dropping the first 20% (onset settle) and last 20% (release decay).
+      // The old code averaged every frame's frequency, which made a clean
+      // sustained note look ~10–20 cents off whenever the onset or tail was
+      // imperfect — the core "estúdio não é preciso" complaint.
+      const n = cur.freqs.length;
+      let lo = Math.floor(n * 0.2);
+      let hi = Math.ceil(n * 0.8);
+      if (hi - lo < 1) { lo = 0; hi = n; }
+      const stableFreqs = cur.freqs.slice(lo, hi);
+      const repFreq = stableFreqs.length ? medianOf(stableFreqs) : avg(cur.freqs);
       notes.push({
         startTime: cur.start, endTime: endTs,
-        frequency: avg(cur.freqs), midi: cur.midi,
-        cents: centsOf(avg(cur.freqs)),
+        frequency: repFreq, midi: cur.midi,
+        cents: centsOf(repFreq),
         velocity: 90, confidence: avg(cur.confs),
       });
     }

@@ -7,3 +7,5 @@ dist/
 .vite/
 coverage/
 *.tsbuildinfo
+.full-page
+--full-page

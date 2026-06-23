@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '../store/store';
 import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
 import { EXERCISES, getExercisesByType, getExercisesByLevel } from '../data/exercises';
 import { scoreExercise } from '../services/scoringService';
 import { playNote, stopAll, ensureAudioStarted, beginPlayback, isPlaybackActive } from '../services/audioService';
-import { midiToNoteName } from '../services/theoryService';
+import { midiToNoteName, transposeExercise, centerOfMidis, transposeOffset } from '../services/theoryService';
 import { PitchMeter } from './PitchMeter';
 import type { Exercise, ExerciseType, PitchFrame, ExerciseResult } from '../types';
 
@@ -22,6 +22,17 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
   const userLevel = profile.settings.level;
+  const rangeCenterMidi = profile.settings.rangeCenterMidi;
+
+  // ── Range-aware transposition: shift each exercise so its pitch center sits
+  //    on the singer's detected range center (clamped to ±1.5 octaves). A bass
+  //    no longer has to sing a C-major scale pegged at C4, and a soprano isn't
+  //    dragged into the cellar. No-op until the range is mapped (Tuner). ──
+  const fitExercise = useCallback((ex: Exercise): Exercise => {
+    if (!rangeCenterMidi || ex.targets.length === 0) return ex;
+    const offset = transposeOffset(centerOfMidis(ex.targets.map(t => t.midi)), rangeCenterMidi);
+    return transposeExercise(ex, offset);
+  }, [rangeCenterMidi]);
 
   const [phase, setPhase] = useState<Phase>('select');
   const [selectedType, setSelectedType] = useState<ExerciseType | null>(null);
@@ -75,7 +86,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         .filter(Boolean) as Exercise[];
       setExerciseQueue(queue);
       if (queue.length > 0) {
-        setCurrentExercise(queue[0]);
+        setCurrentExercise(fitExercise(queue[0]));
         setCurrentIdx(0);
         setPhase('ready');
       }
@@ -208,7 +219,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     clearAllTimers();
     pitch.stop();
     stopAll();
-    setCurrentExercise(next);
+    setCurrentExercise(fitExercise(next));
     setCurrentIdx(currentIdx + 1);
     setResult(null);
     endedRef.current = false;
@@ -245,7 +256,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           {types.map(({ type, icon, titleKey, descKey }) => (
             <button
               key={type}
-              onClick={() => { setSelectedType(type); setCurrentExercise(getExercisesByType(type)[0] ?? null); setPhase('ready'); }}
+              onClick={() => { setSelectedType(type); setCurrentExercise(fitExercise(getExercisesByType(type)[0] ?? null as any)); setPhase('ready'); }}
               className="card p-5 text-left hover:border-violet-500/40 transition-all"
             >
               <div className="flex items-center gap-4">
@@ -263,7 +274,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{L('Sugerido para o seu nível', 'Suggested for your level')}</div>
           <div className="grid gap-2">
             {getExercisesByLevel(userLevel).slice(0, 6).map(ex => (
-              <button key={ex.id} onClick={() => { setSelectedType(ex.type); setCurrentExercise(ex); setPhase('ready'); }} className="card p-3 text-left hover:border-white/20 transition-all">
+              <button key={ex.id} onClick={() => { setSelectedType(ex.type); setCurrentExercise(fitExercise(ex)); setPhase('ready'); }} className="card p-3 text-left hover:border-white/20 transition-all">
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-slate-500 font-mono uppercase">{ex.type.split('-')[0]}</span>
                   <div className="flex-1">
@@ -288,6 +299,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           <h1 className="text-2xl font-black display tracking-tight">{currentExercise.title}</h1>
           <p className="text-slate-400 text-sm">{currentExercise.description}</p>
           {isDaily && <div className="text-xs text-violet-400 mt-1 font-mono">{L(`Desafio do dia · exercício ${currentIdx + 1} de ${exerciseQueue.length}`, `Daily challenge · exercise ${currentIdx + 1} of ${exerciseQueue.length}`)}</div>}
+          {rangeCenterMidi != null && <div className="text-xs text-cyan-400 mt-1 font-mono">{L('🎧 Ajustado pra sua tessitura', '🎧 Adjusted to your range')}</div>}
         </div>
         <div className="card p-5 space-y-3">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{L('Notas alvo', 'Target notes')}</div>
