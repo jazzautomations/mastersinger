@@ -11,6 +11,22 @@ function rand(seed: number): number {
   return x - Math.floor(x);
 }
 
+// Deterministic Fisher-Yates shuffle. The old code used
+// `.sort((a,b) => rand(seed + a.charCodeAt(0)) - 0.5)`, which is biased in
+// two ways: a random comparator is non-transitive (V8 TimSort produces a
+// non-uniform permutation), and keying only on the first charCode made
+// options that share an initial letter tie and keep their original order, so
+// the correct answer (pushed first) stayed first far too often. A per-index
+// seeded Fisher-Yates gives a uniform, reproducible shuffle.
+function shuffle<T>(arr: T[], seed: number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand(seed + i) * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 // ── Reverse lookups: option string → definition object ──
 // Option strings are the human-readable .name of an interval/scale/chord, so to
 // play an alternative we map the name back to its semitone intervals.
@@ -116,7 +132,7 @@ export function makeIntervalMelodic(level: EarQuestion['level'], seed: number, r
     options.push(candidate);
   }
   // shuffle deterministically
-  const shuffled = [...options].sort((a, b) => (rand(seed + a.charCodeAt(0)) - 0.5));
+  const shuffled = shuffle(options, seed);
   return {
     id: `interval-mel-${level}-${seed}`,
     type: 'interval-melodic',
@@ -148,7 +164,7 @@ export function makeIntervalHarmonic(level: EarQuestion['level'], seed: number, 
     const candidate = pick(allNames.filter(n => !options.includes(n)), rand(seed + options.length));
     options.push(candidate);
   }
-  const shuffled = [...options].sort((a, b) => (rand(seed + a.charCodeAt(0)) - 0.5));
+  const shuffled = shuffle(options, seed);
   return {
     id: `interval-harm-${level}-${seed}`,
     type: 'interval-harmonic',
@@ -183,7 +199,7 @@ export function makeScaleIdentify(level: EarQuestion['level'], seed: number, ran
     const candidate = pick(allNames.filter(n => !options.includes(n)), rand(seed + options.length));
     options.push(candidate);
   }
-  const shuffled = [...options].sort((a, b) => (rand(seed + a.charCodeAt(0)) - 0.5));
+  const shuffled = shuffle(options, seed);
   return {
     id: `scale-${level}-${seed}`,
     type: 'scale-identify',
@@ -219,7 +235,7 @@ export function makeChordIdentify(level: EarQuestion['level'], seed: number, ran
     const candidate = pick(allNames.filter(n => !options.includes(n)), rand(seed + options.length));
     options.push(candidate);
   }
-  const shuffled = [...options].sort((a, b) => (rand(seed + a.charCodeAt(0)) - 0.5));
+  const shuffled = shuffle(options, seed);
   return {
     id: `chord-${level}-${seed}`,
     type: 'chord-identify',

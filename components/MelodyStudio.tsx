@@ -361,7 +361,7 @@ export function MelodyStudio() {
         startTime: Math.max(0, drag.orig.startTime + dMs),
         endTime: Math.max(drag.orig.startTime + dMs + MIN_NOTE_MS, drag.orig.endTime + dMs),
         frequency: a4 * Math.pow(2, (Math.max(lowMidi, Math.min(highMidi, drag.orig.midi + dMidi)) - 69) / 12),
-      } : n).sort((a, b) => a.startTime - b.startTime));
+      } : n));
       return;
     }
     if (drag.kind === 'resize') {

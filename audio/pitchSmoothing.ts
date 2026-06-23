@@ -50,7 +50,7 @@ function median(values: number[]): number {
 export class PitchSmoother {
   private opts: Required<PitchSmootherOptions>;
   private history: number[] = [];
-  private emaFreq = 0;
+  private emaMidi = 0;
   private emaConf = 0;
   private hasEma = false;
   private silentFrames = 0;
@@ -64,7 +64,7 @@ export class PitchSmoother {
 
   reset(): void {
     this.history = [];
-    this.emaFreq = 0;
+    this.emaMidi = 0;
     this.emaConf = 0;
     this.hasEma = false;
     this.silentFrames = 0;
@@ -86,7 +86,12 @@ export class PitchSmoother {
       if (this.silentFrames <= holdFrames && this.lastVoiced.voiced) {
         return { ...this.lastVoiced, confidence: this.lastVoiced.confidence * 0.6 };
       }
-      this.history = [];
+      // Keep the last few voiced estimates as an octave reference across the
+      // gap (Fix 7): previously history was wiped on silence, so for the first
+      // ~3 frames after re-entry the octave-jump rejector had no reference and
+      // YIN doubling/halving errors passed straight through. hasEma is still
+      // reset so the EMA re-seeds cleanly instead of dragging a stale value.
+      this.history = this.history.slice(-3);
       this.hasEma = false;
       const silent: SmoothedPitch = { frequency: 0, confidence: 0, midi: 0, cents: 0, voiced: false };
       this.lastVoiced = silent;
@@ -107,8 +112,12 @@ export class PitchSmoother {
         const ratio = freq / ref;
         if (ratio > 1.7 && ratio < 2.3) freq = freq / 2;
         else if (ratio > 0.43 && ratio < 0.59) freq = freq * 2;
-        else if (ratio > 2.3 || ratio < 0.42) {
-          // Wild outlier — trust the recent median rather than this frame.
+        else if (this.hasEma && (ratio > 2.3 || ratio < 0.42)) {
+          // Wild outlier — trust the recent median rather than this frame,
+          // but only while we were continuously tracking (hasEma). Right
+          // after a silent gap the history is a stale reference kept only for
+          // octave-folding, so a legitimate large leap on re-entry must not
+          // be snapped back to it.
           freq = ref;
         }
       }
@@ -119,22 +128,28 @@ export class PitchSmoother {
     if (this.history.length > windowSize) this.history.shift();
     const medFreq = median(this.history);
 
-    // ── EMA on top of the median for a silky-smooth readout. ──
+    // ── EMA in the MIDI (log) domain for a silky-smooth readout (Fix 6).
+    //    Smoothing in Hz made lows jittery (a few Hz is many cents down low)
+    //    and highs sluggish (a few Hz is fractional cents up high); in
+    //    MIDI/cents space the same alpha gives uniform perceptual smoothing
+    //    across the whole range. ──
+    const medMidi = 69 + 12 * Math.log2(medFreq / a4);
     if (!this.hasEma) {
-      this.emaFreq = medFreq;
+      this.emaMidi = medMidi;
       this.emaConf = raw.confidence;
       this.hasEma = true;
     } else {
-      this.emaFreq = emaAlpha * medFreq + (1 - emaAlpha) * this.emaFreq;
+      this.emaMidi = emaAlpha * medMidi + (1 - emaAlpha) * this.emaMidi;
       this.emaConf = emaAlpha * raw.confidence + (1 - emaAlpha) * this.emaConf;
     }
 
-    const midi = 69 + 12 * Math.log2(this.emaFreq / a4);
+    const midi = this.emaMidi;
+    const frequency = a4 * Math.pow(2, (midi - 69) / 12);
     const nearest = Math.round(midi);
     const cents = Math.round((midi - nearest) * 100);
 
     const out: SmoothedPitch = {
-      frequency: this.emaFreq,
+      frequency,
       confidence: this.emaConf,
       midi,
       cents,

@@ -41,3 +41,27 @@ describe('earQuestions data', () => {
     }
   });
 });
+
+describe('earQuestions shuffle (Fix 11 regression)', () => {
+  it('is deterministic for the same seed', () => {
+    expect(makeChordIdentify('advanced', 7).options).toEqual(makeChordIdentify('advanced', 7).options);
+  });
+
+  it('does not pin the answer to the first slot (old charCode-sort bias)', () => {
+    const positions = new Set<number>();
+    for (let seed = 0; seed < 60; seed++) {
+      const q = makeIntervalMelodic('intermediate', seed);
+      positions.add(q.options.indexOf(q.answer));
+    }
+    expect(positions.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('always yields 4 unique options containing the answer', () => {
+    for (let seed = 0; seed < 40; seed++) {
+      const q = makeScaleIdentify('intermediate', seed);
+      expect(q.options.length).toBe(4);
+      expect(new Set(q.options).size).toBe(4);
+      expect(q.options).toContain(q.answer);
+    }
+  });
+});

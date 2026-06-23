@@ -106,3 +106,35 @@ describe('PitchSmoother', () => {
     expect(out.voiced).toBe(false);
   });
 });
+
+describe('PitchSmoother — Fix 6 & 7 regressions', () => {
+  it('folds an octave-up YIN error on the first frame after a silent gap', () => {
+    const s = new PitchSmoother();
+    for (let i = 0; i < 10; i++) s.push({ frequency: 440, confidence: 0.95 });
+    // long silence: beyond holdFrames, so history is sliced to a stale ref
+    for (let i = 0; i < 6; i++) s.push({ frequency: 0, confidence: 0 });
+    // re-entry with a YIN octave-up error (880 instead of 440)
+    const out = s.push({ frequency: 880, confidence: 0.95 });
+    expect(out.voiced).toBe(true);
+    expect(out.frequency).toBeGreaterThan(400);
+    expect(out.frequency).toBeLessThan(500);
+  });
+
+  it('smooths a low voice (D2, 73.42 Hz) with tight cents (MIDI-domain EMA)', () => {
+    // D2 = midi 38 = 73.42 Hz is exactly on-pitch (cents 0), unlike 80 Hz which
+    // sits ~49 cents off D#2. Smoothing a low on-pitch tone must keep cents
+    // tight — the old Hz-domain EMA made low notes wander (a few Hz is many
+    // cents down low); in MIDI space it's as steady as a high note.
+    const raw: { frequency: number; confidence: number }[] = [];
+    for (let i = 0; i < 60; i++) {
+      const noiseCents = (Math.random() - 0.5) * 30;
+      raw.push({ frequency: 73.42 * Math.pow(2, noiseCents / 1200), confidence: 0.9 });
+    }
+    const smoothed = smoothPitchSeries(raw).slice(10);
+    const cents = smoothed.map(s => s.cents);
+    const mean = cents.reduce((a, b) => a + b, 0) / cents.length;
+    const variance = cents.reduce((a, b) => a + (b - mean) ** 2, 0) / cents.length;
+    expect(Math.abs(mean)).toBeLessThan(4);
+    expect(Math.sqrt(variance)).toBeLessThan(6);
+  });
+});

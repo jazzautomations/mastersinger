@@ -1,5 +1,5 @@
 import type { Exercise } from '../types';
-import { SCALES, ARPEGGIO_TYPES, INTERVALS, buildScale, buildArpeggio } from '../services/theoryService';
+import { SCALES, ARPEGGIO_TYPES, INTERVALS, buildScale, buildArpeggio, NOTE_NAMES_SHARP } from '../services/theoryService';
 
 // ── Helper: build a scale-runner exercise ──
 // Tempos are deliberately SLOW so a singer has time to land each note and
@@ -25,7 +25,7 @@ function scaleRunner(
     durationMs: beatMs,
   }));
   const scaleName = SCALES[scaleKey].name;
-  const keyName = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][keyPc];
+  const keyName = NOTE_NAMES_SHARP[keyPc];
   return {
     id,
     type: 'scale-runner',
@@ -60,7 +60,7 @@ function arpeggioDrill(
     ...t,
     startMs: leadIn + (notes.length + i) * beatMs,
   }));
-  const keyName = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'B'][keyPc];
+  const keyName = NOTE_NAMES_SHARP[keyPc];
   return {
     id,
     type: 'arpeggio-drill',

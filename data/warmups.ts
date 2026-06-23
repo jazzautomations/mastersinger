@@ -92,7 +92,7 @@ export const WARMUP_ROUTINES: WarmupRoutine[] = [
   {
     id: 'complete',
     title: 'Aquecimento Completo',
-    description: '10 minutos: relaxamento, fôlego, vibração, ressonância, escala e sustentação.',
+    description: '7 minutos: relaxamento, fôlego, vibração, ressonância, escala e sustentação.',
     totalMinutes: 10,
     steps: [
       {
@@ -181,7 +181,7 @@ export const WARMUP_ROUTINES: WarmupRoutine[] = [
   {
     id: 'high',
     title: 'Aquecimento pra Agudos',
-    description: '6 minutos focados em liberar o registro de cabeça e o mix — pra subir sem apertar nem gritar.',
+    description: '4 minutos focados em liberar o registro de cabeça e o mix — pra subir sem apertar nem gritar.',
     totalMinutes: 6,
     steps: [
       {
@@ -248,7 +248,7 @@ export const WARMUP_ROUTINES: WarmupRoutine[] = [
   {
     id: 'low',
     title: 'Aquecimento pra Graves',
-    description: '6 minutos focados em relaxar as cordas e ativar o registro de peito — pra descer com presença e sem rouquidão.',
+    description: '4 minutos focados em relaxar as cordas e ativar o registro de peito — pra descer com presença e sem rouquidão.',
     totalMinutes: 6,
     steps: [
       {
@@ -311,6 +311,15 @@ export const WARMUP_ROUTINES: WarmupRoutine[] = [
     ],
   },
 ];
+
+// Recompute each routine's totalMinutes from the real sum of its step
+// durations. The hand-written values were inflated, so the progress timer
+// ended well before the advertised duration. ceil() accounts for the brief
+// transitions between steps that aren't modeled as step time.
+for (const r of WARMUP_ROUTINES) {
+  const sumMs = r.steps.reduce((acc, s) => acc + s.durationMs, 0);
+  r.totalMinutes = Math.max(1, Math.ceil(sumMs / 60000));
+}
 
 export function getWarmupById(id: string): WarmupRoutine | undefined {
   return WARMUP_ROUTINES.find(r => r.id === id);

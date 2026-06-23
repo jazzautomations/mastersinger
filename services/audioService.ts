@@ -37,6 +37,12 @@ let playbackGen = 0;
 // idempotent and prevent the "infinite drone" bug.
 let droneFreq = 0;
 
+// Pending future-scheduled note timeouts (Fix 4). Notes scheduled with
+// timeOffsetMs > 0 go through window.setTimeout so stopAll() can cancel them;
+// Tone's absolute-time triggerAttackRelease can't be cancelled once queued, so
+// a second Play used to stack a new sequence on top of the old pending notes.
+const scheduledTimeouts = new Set<number>();
+
 // Single loud, controllable output bus. Created once; every synth connects to
 // it instead of toDestination() directly. Chain: synths → masterGain → limiter
 // → destination. Phone speakers (iPhone especially) are quiet and clip-prone,
@@ -138,8 +144,26 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
   resumeIfSuspended();
   const s = ensureSynth();
   const freq = midiToFrequency(midi, a4);
-  const now = Tone.now() + timeOffsetMs / 1000;
-  s.triggerAttackRelease(freq, Math.max(0.05, durationMs / 1000 - 0.05), now);
+  const durSec = Math.max(0.05, durationMs / 1000 - 0.05);
+
+  // Future-scheduled notes are routed through a tracked setTimeout with a
+  // generation-token guard (Fix 4): stopAll() clears every pending timeout AND
+  // bumps the generation so a callback that already fired self-skips. The old
+  // path used Tone.now() + offset, which couldn't be cancelled. Immediate
+  // plays (offset 0) keep the direct, sample-accurate path.
+  if (timeOffsetMs > 0) {
+    const token = playbackGen;
+    const id = window.setTimeout(() => {
+      scheduledTimeouts.delete(id);
+      if (!isPlaybackActive(token)) return;
+      resumeIfSuspended();
+      s.triggerAttackRelease(freq, durSec, Tone.now());
+    }, timeOffsetMs);
+    scheduledTimeouts.add(id);
+    return;
+  }
+
+  s.triggerAttackRelease(freq, durSec, Tone.now());
 }
 
 export function playChord(midis: number[], durationMs: number, a4 = 440): void {
@@ -152,6 +176,9 @@ export function playChord(midis: number[], durationMs: number, a4 = 440): void {
 export function playSequence(midis: number[], noteDurationMs: number, gapMs = 50, a4 = 440): void {
   resumeIfSuspended();
   ensureSynth();
+  // Fresh session (Fix 4): bumps the generation so any prior sequence's
+  // pending notes self-skip, and the new notes capture this token.
+  beginPlayback();
   midis.forEach((midi, i) => {
     playNote(midi, noteDurationMs - gapMs, i * noteDurationMs, a4);
   });
@@ -195,6 +222,13 @@ export function stopDrone(): void {
  */
 export function stopAll(): void {
   playbackGen++; // invalidate all outstanding scheduled notes
+  // Cancel every still-pending scheduled note (Fix 4): clearTimeout removes
+  // it before it fires; the gen bump above also makes any already-fired
+  // callback self-skip.
+  for (const id of scheduledTimeouts) {
+    clearTimeout(id);
+  }
+  scheduledTimeouts.clear();
   if (synth) {
     synth.releaseAll();
   }

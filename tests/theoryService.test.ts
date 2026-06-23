@@ -4,6 +4,7 @@ import {
   frequencyToMidi,
   midiToNoteName,
   midiToCents,
+  NOTE_NAMES_SHARP,
   buildScale,
   buildArpeggio,
   todayISO,
@@ -200,5 +201,27 @@ describe('transposeExercise', () => {
     expect(out.targets[0].midi).toBe(65);
     expect(out.targets[1].midi).toBe(69);
     expect(ex.targets[0].midi).toBe(60); // original unchanged
+  });
+});
+
+describe('NOTE_NAMES_SHARP (Fix 5 regression)', () => {
+  it('has all 12 pitch classes with A# at index 10', () => {
+    expect(NOTE_NAMES_SHARP.length).toBe(12);
+    expect(NOTE_NAMES_SHARP[0]).toBe('C');
+    expect(NOTE_NAMES_SHARP[10]).toBe('A#');
+    expect(NOTE_NAMES_SHARP[11]).toBe('B');
+  });
+});
+
+describe('buildScale multi-octave (Fix 13 regression)', () => {
+  it('does not duplicate the boundary note across octaves', () => {
+    const notes = buildScale(60, 'major', 2);
+    expect(notes.length).toBe(15);
+    expect(new Set(notes).size).toBe(notes.length);
+    expect(notes[0]).toBe(60);
+    expect(notes[14]).toBe(84);
+  });
+  it('keeps single-octave behaviour unchanged', () => {
+    expect(buildScale(60, 'major', 1)).toEqual([60, 62, 64, 65, 67, 69, 71, 72]);
   });
 });

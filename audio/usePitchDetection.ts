@@ -68,6 +68,21 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const onFrameRef = useRef(onFrame);
   onFrameRef.current = onFrame;
 
+  // Live-config refs (Fix 1): processFrame reschedules itself via RAF, so it
+  // captures a4/threshold/minFreq/maxFreq/smoothing in its closure. When those
+  // changed via deps, the OLD loop kept running with stale values. Reading
+  // from refs keeps the running loop always current without restarting it.
+  const a4Ref = useRef(a4); a4Ref.current = a4;
+  const thresholdRef = useRef(threshold); thresholdRef.current = threshold;
+  const minFreqRef = useRef(minFreq); minFreqRef.current = minFreq;
+  const maxFreqRef = useRef(maxFreq); maxFreqRef.current = maxFreq;
+  const smoothingRef = useRef(smoothing); smoothingRef.current = smoothing;
+  // Guards start() against a double-click racing the awaited getUserMedia
+  // (Fix 2): isListening is state and only flips AFTER the await, so two fast
+  // taps both passed the old `if (isListening)` guard and opened two mic
+  // streams. startingRef flips before the await.
+  const startingRef = useRef(false);
+
   // ── Recording (MediaRecorder) ──
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
@@ -88,16 +103,17 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     const result = detectPitchYin(
       bufferRef.current,
       audioContextRef.current?.sampleRate ?? 44100,
-      threshold,
-      minFreq,
-      maxFreq,
+      thresholdRef.current,
+      minFreqRef.current,
+      maxFreqRef.current,
     );
 
     setMicLevel(result.rms);
 
     const ts = performance.now() - startTimeRef.current;
+    const a4 = a4Ref.current;
 
-    if (smoothing) {
+    if (smoothingRef.current) {
       const smooth = smootherRef.current.push({
         frequency: result.frequency,
         confidence: result.confidence,
@@ -149,10 +165,11 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     }
 
     rafRef.current = requestAnimationFrame(processFrame);
-  }, [a4, threshold, minFreq, maxFreq, smoothing]);
+  }, []);
 
   const start = useCallback(async () => {
-    if (isListening) return;
+    if (startingRef.current || isListening) return;
+    startingRef.current = true;
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -181,7 +198,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      if (smoothing) smootherRef.current.reset();
+      if (smoothingRef.current) smootherRef.current.reset();
       startTimeRef.current = performance.now();
       setIsListening(true);
       rafRef.current = requestAnimationFrame(processFrame);
@@ -227,6 +244,16 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       }
     } catch (err: any) {
       console.error('Microphone access error:', err);
+      // Fix 3: if getUserMedia succeeded but a later step (AudioContext,
+      // source, analyser) threw, the mic stream was leaked — its tracks kept
+      // the mic busy and the recording indicator lit. Tear it all down.
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      if (sourceRef.current) { try { sourceRef.current.disconnect(); } catch { /* ignore */ } sourceRef.current = null; }
+      if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch { /* ignore */ } analyserRef.current = null; }
+      if (audioContextRef.current) { audioContextRef.current.close().catch(() => {}); audioContextRef.current = null; }
       if (err?.name === 'NotAllowedError') {
         setError('Microphone permission denied. Please allow access in your browser settings.');
       } else if (err?.name === 'NotFoundError') {
@@ -235,8 +262,10 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
         setError(err?.message ?? 'Failed to access microphone.');
       }
       setIsListening(false);
+    } finally {
+      startingRef.current = false;
     }
-  }, [isListening, bufferSize, processFrame, smoothing]);
+  }, [isListening, bufferSize, processFrame]);
 
   const stop = useCallback(() => {
     if (rafRef.current) {

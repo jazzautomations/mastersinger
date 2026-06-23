@@ -88,8 +88,13 @@ export function buildScale(rootMidi: number, scaleKey: string, octaveSpan = 1): 
   if (!scale) return [rootMidi];
   const notes: number[] = [];
   for (let oct = 0; oct < octaveSpan; oct++) {
-    for (const interval of scale.intervals) {
-      notes.push(rootMidi + interval + 12 * oct);
+    for (let i = 0; i < scale.intervals.length; i++) {
+      // Skip the root (interval 0) at the start of every octave above the
+      // first: the previous octave already ended on the 12th-semitone root,
+      // so emitting it again duplicates that boundary note. Only affects
+      // octaveSpan > 1; the default single-octave path is unchanged.
+      if (oct > 0 && i === 0) continue;
+      notes.push(rootMidi + scale.intervals[i] + 12 * oct);
     }
   }
   return notes;

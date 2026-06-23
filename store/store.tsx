@@ -63,6 +63,7 @@ interface StoreContextValue {
   setDailyChallenge: (challenge: UserProfile['dailyChallenge']) => void;
   exportProfile: () => string;
   importProfile: (json: string) => boolean;
+  storageWarning: string | null;
   // ── In-app melody library (save / load / play / delete / export) ──
   melodies: SavedMelody[];
   saveMelody: (name: string, notes: Note[], durationMs: number) => SavedMelody;
@@ -83,11 +84,13 @@ function loadProfile(): UserProfile {
   }
 }
 
-function saveProfile(p: UserProfile) {
+function saveProfile(p: UserProfile): boolean {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    return true;
   } catch (e) {
     console.error('Failed to save profile', e);
+    return false;
   }
 }
 
@@ -104,11 +107,13 @@ function loadMelodies(): SavedMelody[] {
   }
 }
 
-function saveMelodiesLib(list: SavedMelody[]) {
+function saveMelodiesLib(list: SavedMelody[]): boolean {
   try {
     localStorage.setItem(MELODIES_KEY, JSON.stringify(list));
+    return true;
   } catch (e) {
     console.error('Failed to save melody library', e);
+    return false;
   }
 }
 
@@ -116,8 +121,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
   const [melodies, setMelodies] = useState<SavedMelody[]>(() => loadMelodies());
 
-  useEffect(() => { saveProfile(profile); }, [profile]);
-  useEffect(() => { saveMelodiesLib(melodies); }, [melodies]);
+  // ── Storage-failure surfacing (Fix 8): localStorage.setItem throws
+  //    silently (QuotaExceeded) when storage is full, so progress/melodies
+  //    vanished with no signal. Track each save's success and show a fixed
+  //    banner when either fails so the user can export + clean up. ──
+  const [profileSaveFailed, setProfileSaveFailed] = useState(false);
+  const [melodiesSaveFailed, setMelodiesSaveFailed] = useState(false);
+
+  useEffect(() => { setProfileSaveFailed(!saveProfile(profile)); }, [profile]);
+  useEffect(() => { setMelodiesSaveFailed(!saveMelodiesLib(melodies)); }, [melodies]);
+
+  const storageWarning = profileSaveFailed || melodiesSaveFailed
+    ? 'O armazenamento do navegador está cheio e seus dados não estão sendo salvos. Exporte seu perfil e remova melodias antigas para liberar espaço.'
+    : null;
 
   const addXp = useCallback((xp: number) => {
     setProfile(prev => {
@@ -241,7 +257,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const importProfile = useCallback((json: string): boolean => {
     try {
       const parsed = JSON.parse(json);
-      setProfile({ ...DEFAULT_PROFILE, ...parsed });
+      // Fix 9: validate essential fields before applying — a malformed or
+      // foreign JSON used to be spread straight into the profile and could
+      // crash later renders (e.g. level/xp as strings, streak as null).
+      if (typeof parsed !== 'object' || parsed === null) return false;
+      if (typeof parsed.level !== 'number' || typeof parsed.xp !== 'number') return false;
+      if (!Array.isArray(parsed.badges)) return false;
+      if (!parsed.streak || typeof parsed.streak !== 'object') return false;
+      if (!parsed.settings || typeof parsed.settings !== 'object') return false;
+      setProfile({ ...DEFAULT_PROFILE, ...parsed, settings: { ...DEFAULT_PROFILE.settings, ...parsed.settings } });
       return true;
     } catch {
       return false;
@@ -284,11 +308,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDailyChallenge,
       exportProfile,
       importProfile,
+      storageWarning,
       melodies,
       saveMelody,
       deleteMelody,
       renameMelody,
     }}>
+      {storageWarning && (
+        <div className="fixed top-0 inset-x-0 z-[100] bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center shadow-lg pointer-events-none" role="alert" aria-live="assertive">
+          ⚠ {storageWarning}
+        </div>
+      )}
       {children}
     </StoreContext.Provider>
   );
