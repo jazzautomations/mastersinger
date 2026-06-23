@@ -167,6 +167,10 @@ export function detectPitchYin(
   //    the gap exceeds the margin and we shift down. Iterating catches a
   //    fundamental masked by the 4th harmonic (two octaves up) too.
   const OCTAVE_SHIFT_MARGIN = 0.05;
+  // A genuine dip at half-tau must be below this — a TRUE low note has NO dip
+  // at half its period (the signal isn't periodic there), so the bound is what
+  // tells a real subharmonic apart from noise. Used by the up-shift below.
+  const SUBHARM_MAX_YIN = 0.30;
   let chosenTau = tauEstimate;
   for (let iter = 0; iter < 2; iter++) {
     const tauDown = chosenTau * 2;            // one octave LOWER in pitch
@@ -176,11 +180,20 @@ export function detectPitchYin(
     }
     break;
   }
-  // Rarer over-high report (absoluteThreshold settled too low): shift UP one
-  // octave only if tau/2 is a meaningfully better dip. Checked after the down
-  // pass so a masked fundamental doesn't get yanked back up.
+  // ── Subharmonic / period-doubling up-correction. Pressed phonation, vocal
+  //    fry edges and certain pathologies make the acoustic waveform repeat at
+  //    2× the true period (a strong sub-frequency component), so YIN locks onto
+  //    the doubled period and reports a full octave too LOW — the other half of
+  //    the "tuner is jumping octaves" complaint. The ear still perceives the
+  //    HIGHER octave (the missing-fundamental effect, inverted). Shift up one
+  //    octave ONLY when:
+  //      • the chosen tau is even (so tau/2 is an integer period candidate), AND
+  //      • yin[tau/2] is a genuine dip (< SUBHARM_MAX_YIN).
+  //    A true low note has no periodicity at half its period, so yin[tau/2]
+  //    stays high and the shift never fires on legitimate low pitches. Run
+  //    AFTER the down pass so a masked fundamental isn't yanked back up. ──
   const tauUp = Math.floor(chosenTau / 2);
-  if (tauUp >= minTau && yin[tauUp] < yin[chosenTau] - OCTAVE_SHIFT_MARGIN) {
+  if (tauUp >= minTau && chosenTau % 2 === 0 && yin[tauUp] < SUBHARM_MAX_YIN) {
     chosenTau = tauUp;
   }
 

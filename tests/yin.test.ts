@@ -127,4 +127,102 @@ describe('YIN pitch detection', () => {
     // must NOT report the octave-down (~131 Hz)
     expect(result.frequency).toBeGreaterThan(200);
   });
+
+  // ── Regression: subharmonic / period-doubling. Pressed phonation and vocal
+  //    fry edges make the waveform repeat at 2× the true period, so YIN locks
+  //    onto the doubled period and reports a full octave too LOW (the other
+  //    half of the "tuner is jumping octaves" complaint). The detector must
+  //    recover the perceived (higher) fundamental.
+  it('corrects subharmonic doubling (period doubled) up to the true fundamental', () => {
+    // Realistic pressed-phonation / fry: a breathy vowel (weak F0, strong
+    // harmonics) with a moderate sub-frequency at F0/2 makes the waveform
+    // repeat at 2x the period on some frames, so YIN flips down an octave.
+    // This is the "tuner is jumping octaves" complaint. The detector must be
+    // correct-DOMINANT so the smoother (which folds octave jumps against the
+    // established reference) can stabilise on the true fundamental.
+    function breathyWithSub(f0: number, ms: number, subAmp: number): Float32Array {
+      const n = Math.floor(sampleRate * ms / 1000);
+      const buf = new Float32Array(n);
+      let phase = 0;
+      for (let i = 0; i < n; i++) {
+        const t = i / sampleRate;
+        const vib = 1 + (12 / 1200) * Math.sin(2 * Math.PI * 5.5 * t);
+        const jit = 1 + 0.012 * (Math.random() - 0.5) * 2;
+        phase += 2 * Math.PI * f0 * vib * jit / sampleRate;
+        let s = 0.18 * Math.sin(phase) + 1.0 * Math.sin(2 * phase)
+          + 0.55 * Math.sin(3 * phase) + 0.25 * Math.sin(4 * phase);
+        s += subAmp * Math.sin(phase / 2);     // subharmonic (period-doubling)
+        s += 0.06 * (Math.random() - 0.5);      // breath noise
+        buf[i] = 0.45 * s;
+      }
+      return buf;
+    }
+    // Frame-by-frame (4096 @ 44.1k = 93ms, like the live detector) over a
+    // sustained tone; the MEDIAN must land on the true fundamental, not an
+    // octave below.
+    const buf = breathyWithSub(196, 600, 0.5);
+    const win = 4096, hop = 512;
+    const freqs: number[] = [];
+    for (let i = 0; i + win <= buf.length; i += hop) {
+      const r = detectPitchYin(buf.subarray(i, i + win), sampleRate, 0.12, 60, 1200);
+      if (r.frequency > 0) freqs.push(r.frequency);
+    }
+    const sorted = [...freqs].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    // median must be the true fundamental (~196), NOT the subharmonic (~98)
+    expect(median).toBeGreaterThan(150);
+    expect(median).toBeLessThan(220);
+  });
+
+  it('stays on the true fundamental across the singing range with a moderate subharmonic', () => {
+    function breathyWithSub(f0: number, ms: number, subAmp: number): Float32Array {
+      const n = Math.floor(sampleRate * ms / 1000);
+      const buf = new Float32Array(n);
+      let phase = 0;
+      for (let i = 0; i < n; i++) {
+        const t = i / sampleRate;
+        const vib = 1 + (12 / 1200) * Math.sin(2 * Math.PI * 5.5 * t);
+        const jit = 1 + 0.012 * (Math.random() - 0.5) * 2;
+        phase += 2 * Math.PI * f0 * vib * jit / sampleRate;
+        let s = 0.18 * Math.sin(phase) + 1.0 * Math.sin(2 * phase)
+          + 0.55 * Math.sin(3 * phase) + 0.25 * Math.sin(4 * phase);
+        s += subAmp * Math.sin(phase / 2);
+        s += 0.06 * (Math.random() - 0.5);
+        buf[i] = 0.45 * s;
+      }
+      return buf;
+    }
+    for (const f0 of [130.81, 196, 261.63, 329.63, 392, 523.25]) {
+      const buf = breathyWithSub(f0, 600, 0.25);
+      const win = 4096, hop = 512;
+      const freqs: number[] = [];
+      for (let i = 0; i + win <= buf.length; i += hop) {
+        const r = detectPitchYin(buf.subarray(i, i + win), sampleRate, 0.12, 60, 1200);
+        if (r.frequency > 0) freqs.push(r.frequency);
+      }
+      const sorted = [...freqs].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      // within ~half a semitone of the true fundamental — never an octave off
+      expect(median, `f0=${f0}Hz`).toBeGreaterThan(f0 * 0.99);
+      expect(median, `f0=${f0}Hz`).toBeLessThan(f0 * 1.01);
+    }
+  });
+
+  it('does NOT over-correct a true low note up an octave', () => {
+    // A genuine 98 Hz fundamental (with its own harmonics at 196, 294...) must
+    // stay at 98 Hz — the up-shift must not fire, because there is no dip at
+    // half the period of a true low note.
+    const freq = 98.0;
+    const samples = Math.floor(sampleRate * 200 / 1000);
+    const buffer = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+      const x = 2 * Math.PI * freq * i / sampleRate;
+      buffer[i] = 0.5 * Math.sin(x) + 0.25 * Math.sin(2 * x) + 0.12 * Math.sin(3 * x);
+    }
+    const result = detectPitchYin(buffer, sampleRate, 0.12, 60, 1200);
+    expect(result.frequency).toBeGreaterThan(94);
+    expect(result.frequency).toBeLessThan(102);
+    // must NOT jump an octave up to ~196 Hz
+    expect(result.frequency).toBeLessThan(150);
+  });
 });

@@ -44,12 +44,21 @@ function buildTrack(notes: Note[], ppq: number, mpq: number): number[] {
   // Sort notes by start time
   const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
 
+  // ── Tick↔time mapping. MIDI ticks are measured per quarter note (ppq) and
+  //    seconds map to ticks via the TEMPO, not via a magic constant. The old
+  //    code used `ppq * 4` (1920 ticks/sec @ ppq480) while writing a 120 BPM
+  //    tempo meta (960 ticks/sec) — so every note landed at 2× the correct
+  //    tick, and the file played back at HALF SPEED. Long melodies stretched
+  //    proportionally and looked/played "bugged". Correct rate:
+  //    ticks/sec = ppq * bpm/60 = ppq * 1e6 / mpq. ──
+  const ticksPerSec = (ppq * 1_000_000) / mpq;
+
   // Build event list: (deltaTicks, midiEvent)
   type Event = { tick: number; data: number[] };
   const events: Event[] = [];
   for (const note of sorted) {
-    const startTick = Math.round((note.startTime / 1000) * (ppq * 4));
-    const durTicks  = Math.max(1, Math.round((note.endTime - note.startTime) / 1000 * ppq * 4));
+    const startTick = Math.round((note.startTime / 1000) * ticksPerSec);
+    const durTicks  = Math.max(1, Math.round((note.endTime - note.startTime) / 1000 * ticksPerSec));
     events.push({ tick: startTick, data: [0x90, note.midi & 0x7F, note.velocity & 0x7F] });               // note on
     events.push({ tick: startTick + durTicks, data: [0x80, note.midi & 0x7F, 0] });                         // note off
   }

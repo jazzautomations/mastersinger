@@ -45,6 +45,16 @@ export interface Note {
   lyric?: string;
 }
 
+// ── Saved melody (in-app library, persisted to localStorage) ──
+export interface SavedMelody {
+  id: string;
+  name: string;
+  notes: Note[];
+  durationMs: number;
+  noteCount: number;
+  createdAt: number;
+}
+
 // ── Practice ──
 export type ExerciseType =
   | 'scale-runner'

@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import type { UserProfile, ExerciseResult, StudentLevel, Language, League } from '../types';
+import type { UserProfile, ExerciseResult, StudentLevel, Language, League, SavedMelody, Note } from '../types';
 import { todayISO, weekStartISO } from '../services/theoryService';
 
 const STORAGE_KEY = 'mastersinger:v1';
+const MELODIES_KEY = 'mastersinger:melodies';
 
 const DEFAULT_PROFILE: UserProfile = {
   level: 1,
@@ -62,6 +63,11 @@ interface StoreContextValue {
   setDailyChallenge: (challenge: UserProfile['dailyChallenge']) => void;
   exportProfile: () => string;
   importProfile: (json: string) => boolean;
+  // ── In-app melody library (save / load / play / delete / export) ──
+  melodies: SavedMelody[];
+  saveMelody: (name: string, notes: Note[], durationMs: number) => SavedMelody;
+  deleteMelody: (id: string) => void;
+  renameMelody: (id: string, name: string) => void;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -85,10 +91,33 @@ function saveProfile(p: UserProfile) {
   }
 }
 
+// ── Melody library lives in its own localStorage key so a large library
+//    never bloats (or overflows) the profile JSON. ──
+function loadMelodies(): SavedMelody[] {
+  try {
+    const raw = localStorage.getItem(MELODIES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMelodiesLib(list: SavedMelody[]) {
+  try {
+    localStorage.setItem(MELODIES_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error('Failed to save melody library', e);
+  }
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
+  const [melodies, setMelodies] = useState<SavedMelody[]>(() => loadMelodies());
 
   useEffect(() => { saveProfile(profile); }, [profile]);
+  useEffect(() => { saveMelodiesLib(melodies); }, [melodies]);
 
   const addXp = useCallback((xp: number) => {
     setProfile(prev => {
@@ -212,6 +241,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // ── Melody library CRUD ──
+  const saveMelody = useCallback((name: string, notes: Note[], durationMs: number): SavedMelody => {
+    const melody: SavedMelody = {
+      id: `mel-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim() || (new Date().toLocaleString()),
+      notes,
+      durationMs,
+      noteCount: notes.length,
+      createdAt: Date.now(),
+    };
+    setMelodies(prev => [melody, ...prev].slice(0, 100));
+    return melody;
+  }, []);
+
+  const deleteMelody = useCallback((id: string) => {
+    setMelodies(prev => prev.filter(m => m.id !== id));
+  }, []);
+
+  const renameMelody = useCallback((id: string, name: string) => {
+    setMelodies(prev => prev.map(m => m.id === id ? { ...m, name: name.trim() || m.name } : m));
+  }, []);
+
   return (
     <StoreContext.Provider value={{
       profile,
@@ -226,6 +277,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDailyChallenge,
       exportProfile,
       importProfile,
+      melodies,
+      saveMelody,
+      deleteMelody,
+      renameMelody,
     }}>
       {children}
     </StoreContext.Provider>

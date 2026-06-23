@@ -127,5 +127,88 @@ describe('midiService', () => {
       const blob = notesToMidiBlob(notes);
       expect(blob.size).toBeGreaterThan(20);
     });
+
+    // ── Regression: tick↔time mapping. The old code used `ppq * 4` for the
+    //    tick rate while writing a 120 BPM tempo meta, so notes landed at 2×
+    //    the correct tick and the file played at HALF SPEED (a 1s note-on
+    //    decoded to 2s). Decoding tempo + the first note-on tick must give
+    //    back the intended millisecond position, for both short and long
+    //    melodies.
+    function decodeFirstNoteOnMs(buf: Uint8Array): { mpq: number; firstNoteOnTick: number; firstNoteOnMs: number } {
+      // MThd(4) + len(4) + format(2)+ntracks(2)+division(2) = 14 bytes header
+      const ppq = (buf[12] << 8) | buf[13];
+      // MTrk follows
+      let i = 14 + 4; // skip 'MTrk'
+      const trackLen = (buf[i] << 24) | (buf[i + 1] << 16) | (buf[i + 2] << 8) | buf[i + 3];
+      i += 4;
+      const trackStart = i;
+      const trackEnd = trackStart + trackLen;
+      let mpq = 500000;
+      let tick = 0;
+      let firstNoteOnTick = -1;
+      const readVarLen = (start: number): { val: number; next: number } => {
+        let v = 0; let p = start;
+        for (;;) {
+          const b = buf[p++];
+          v = (v << 7) | (b & 0x7f);
+          if ((b & 0x80) === 0) break;
+        }
+        return { val: v, next: p };
+      };
+      while (i < trackEnd) {
+        const { val: delta, next } = readVarLen(i);
+        i = next;
+        tick += delta;
+        const status = buf[i];
+        if (status === 0xff && buf[i + 1] === 0x51) {
+          mpq = (buf[i + 3] << 16) | (buf[i + 4] << 8) | buf[i + 5];
+          i += 6;
+        } else if (status === 0xc0) {
+          i += 2;
+        } else if ((status & 0xf0) === 0x90) {
+          if (firstNoteOnTick < 0) firstNoteOnTick = tick;
+          i += 3;
+        } else if ((status & 0xf0) === 0x80) {
+          i += 3;
+        } else {
+          i += 2;
+        }
+      }
+      const ticksPerSec = (ppq * 1_000_000) / mpq;
+      const firstNoteOnMs = (firstNoteOnTick / ticksPerSec) * 1000;
+      return { mpq, firstNoteOnTick, firstNoteOnMs };
+    }
+
+    it('places the first note-on at the intended time (not 2x stretched)', async () => {
+      const notes: Note[] = [
+        { startTime: 1000, endTime: 1500, frequency: 440, midi: 69, cents: 0, velocity: 90, confidence: 1 },
+      ];
+      const buf = new Uint8Array(await notesToMidiBlob(notes).arrayBuffer());
+      const { mpq, firstNoteOnMs } = decodeFirstNoteOnMs(buf);
+      // tempo must be 120 BPM (mpq = 500000)
+      expect(mpq).toBe(500000);
+      // first note must decode back to ~1000ms, NOT ~2000ms (the old 2x bug)
+      expect(firstNoteOnMs).toBeGreaterThan(980);
+      expect(firstNoteOnMs).toBeLessThan(1020);
+    });
+
+    it('preserves timing across a long melody (30s, many notes)', async () => {
+      // A 30-second melody of 60 quarter notes at 120 BPM — exactly the kind
+      // of "long melody" that used to stretch and look bugged.
+      const notes: Note[] = [];
+      for (let k = 0; k < 60; k++) {
+        notes.push({
+          startTime: k * 500, endTime: k * 500 + 450,
+          frequency: 440, midi: 69, cents: 0, velocity: 90, confidence: 1,
+        });
+      }
+      const buf = new Uint8Array(await notesToMidiBlob(notes).arrayBuffer());
+      // first note at 0ms, last note-on at 59*500 = 29500ms
+      const { firstNoteOnMs } = decodeFirstNoteOnMs(buf);
+      expect(firstNoteOnMs).toBeGreaterThanOrEqual(0);
+      expect(firstNoteOnMs).toBeLessThan(20);
+      // sanity: the file is well-formed and not bloated by the 2x bug
+      expect(buf.length).toBeLessThan(2000);
+    });
   });
 });

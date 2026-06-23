@@ -5,7 +5,7 @@ import { t } from '../i18n/strings';
 import { framesToNotes, notesToMidiBlob, downloadBlob } from '../services/midiService';
 import { playNote, ensureAudioStarted, stopAll } from '../services/audioService';
 import { midiToNoteName } from '../services/theoryService';
-import type { Note, PitchFrame } from '../types';
+import type { Note, PitchFrame, SavedMelody } from '../types';
 
 type Tool = 'select' | 'draw' | 'erase';
 
@@ -24,7 +24,7 @@ const QUANT_MS = 250;        // quantize grid (1/4 @ 60bpm)
 const MIN_NOTE_MS = 80;
 
 export function MelodyStudio() {
-  const { profile, unlockBadge } = useStore();
+  const { profile, unlockBadge, melodies, saveMelody, deleteMelody } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
 
@@ -38,6 +38,9 @@ export function MelodyStudio() {
   const [selectedNote, setSelectedNote] = useState<number | null>(null);
   const [liveNote, setLiveNote] = useState('');
   const [liveCents, setLiveCents] = useState(0);
+  const [savingName, setSavingName] = useState('');
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [playingLibId, setPlayingLibId] = useState<string | null>(null);
   const [drag, setDrag] = useState<null | {
     kind: 'move' | 'resize' | 'create';
     noteIdx: number;
@@ -218,15 +221,18 @@ export function MelodyStudio() {
   };
 
   // ── Playback (Tone-scheduled = sample-accurate; rAF only drives the playhead) ──
-  const handlePlay = async () => {
-    if (notes.length === 0) return;
+  // Reusable for both the current edit and saved library melodies.
+  const playMelody = useCallback(async (melodyNotes: Note[], libId?: string) => {
+    if (melodyNotes.length === 0) return;
+    if (playTimerRef.current) { cancelAnimationFrame(playTimerRef.current); playTimerRef.current = null; }
+    stopAll();
     await ensureAudioStarted();
-    setIsPlaying(true);
+    if (libId) setPlayingLibId(libId); else setIsPlaying(true);
     setPlayheadMs(0);
     const startT = performance.now();
-    const totalMs = Math.max(...notes.map(n => n.endTime));
+    const totalMs = Math.max(...melodyNotes.map(n => n.endTime));
 
-    notes.forEach(note => {
+    melodyNotes.forEach(note => {
       playNote(note.midi, Math.max(120, note.endTime - note.startTime), note.startTime, a4);
     });
 
@@ -236,11 +242,48 @@ export function MelodyStudio() {
       if (elapsed < totalMs + 250) {
         playTimerRef.current = requestAnimationFrame(tick);
       } else {
-        setIsPlaying(false);
+        if (libId) setPlayingLibId(null); else setIsPlaying(false);
         setPlayheadMs(0);
+        playTimerRef.current = null;
       }
     };
     playTimerRef.current = requestAnimationFrame(tick);
+  }, [a4]);
+
+  const handlePlay = () => playMelody(notes);
+
+  const handlePlaySaved = (mel: SavedMelody) => {
+    if (playingLibId === mel.id) {
+      // toggle off
+      if (playTimerRef.current) { cancelAnimationFrame(playTimerRef.current); playTimerRef.current = null; }
+      stopAll();
+      setPlayingLibId(null);
+      setPlayheadMs(0);
+      return;
+    }
+    playMelody(mel.notes, mel.id);
+  };
+
+  const handleLoadSaved = (mel: SavedMelody) => {
+    if (isRecording || isPlaying || playingLibId) return;
+    setNotes(mel.notes);
+    setDuration(mel.durationMs);
+    setSelectedNote(null);
+  };
+
+  const handleExportSaved = (mel: SavedMelody) => {
+    if (mel.notes.length === 0) return;
+    const blob = notesToMidiBlob(mel.notes);
+    downloadBlob(blob, sanitizeFilename(mel.name) + '.mid');
+  };
+
+  const handleSave = () => {
+    if (notes.length === 0) return;
+    const dur = notes.length > 0 ? Math.max(...notes.map(n => n.endTime)) : 0;
+    saveMelody(savingName, notes, dur);
+    setSavingName('');
+    setShowSaveForm(false);
+    if (!profile.badges.includes('first-studio')) unlockBadge('first-studio');
   };
 
   useEffect(() => () => {
@@ -250,7 +293,7 @@ export function MelodyStudio() {
 
   // ── Pointer interactions ──
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (isRecording || isPlaying) return;
+    if (isRecording || isPlaying || playingLibId) return;
     const { tMs, midi } = toCoords(e);
     (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
 
@@ -421,6 +464,9 @@ export function MelodyStudio() {
         <button onClick={handleExport} disabled={notes.length === 0} className="btn-primary disabled:opacity-40 whitespace-nowrap">
           <i className="fas fa-download mr-1.5"></i>{t(lang, 'studio.export')}
         </button>
+        <button onClick={() => setShowSaveForm(s => !s)} disabled={notes.length === 0} className="btn-primary disabled:opacity-40 whitespace-nowrap">
+          <i className="fas fa-bookmark mr-1.5"></i>{t(lang, 'studio.save')}
+        </button>
       </div>
 
       {/* Status bar */}
@@ -465,11 +511,68 @@ export function MelodyStudio() {
       <div className="card p-4 text-xs text-slate-400 space-y-2">
         <div className="font-bold text-slate-300">{lang === 'pt-BR' ? 'Como usar' : 'How to use'}</div>
         <div>{lang === 'pt-BR'
-          ? '1. Toque em Gravar e cante uma melodia — a nota aparece em tempo real. 2. As notas surgem no piano roll (verde = afinado, roxo = fora); o piano se encaixa sozinho na sua tessitura. 3. Selecionar: arraste a nota pra mover, borda direita pra redimensionar. 4. Desenhar: toque e arraste pra criar. 5. Exporte como .mid.'
-          : '1. Tap Record and sing a melody — the note shows live. 2. Notes appear in the piano roll (green = in tune, purple = off); the piano auto-fits your range. 3. Select tool: drag a note to move, the right edge to resize. 4. Draw tool: tap and drag to create. 5. Export as .mid.'}</div>
+          ? '1. Toque em Gravar e cante uma melodia — a nota aparece em tempo real. 2. As notas surgem no piano roll (verde = afinado, roxo = fora); o piano se encaixa sozinho na sua tessitura. 3. Selecionar: arraste a nota pra mover, borda direita pra redimensionar. 4. Desenhar: toque e arraste pra criar. 5. Salve no app pra ouvir depois, ou exporte como .mid.'
+          : '1. Tap Record and sing a melody — the note shows live. 2. Notes appear in the piano roll (green = in tune, purple = off); the piano auto-fits your range. 3. Select tool: drag a note to move, the right edge to resize. 4. Draw tool: tap and drag to create. 5. Save in-app to listen later, or export as .mid.'}</div>
+      </div>
+
+      {/* Save form */}
+      {showSaveForm && notes.length > 0 && (
+        <div className="card p-4 space-y-3">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Salvar melodia' : 'Save melody'}</div>
+          <input
+            type="text"
+            value={savingName}
+            onChange={e => setSavingName(e.target.value)}
+            placeholder={lang === 'pt-BR' ? 'Nome (ex.: Refrão novo)' : 'Name (e.g. New chorus)'}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+            maxLength={60}
+          />
+          <div className="flex gap-2">
+            <button onClick={handleSave} className="btn-primary flex-1"><i className="fas fa-check mr-1.5"></i>{t(lang, 'common.save')}</button>
+            <button onClick={() => { setShowSaveForm(false); setSavingName(''); }} className="btn-ghost">{t(lang, 'common.cancel')}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Saved melody library */}
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Suas melodias' : 'Your melodies'}</div>
+          <div className="text-[11px] text-slate-500 font-mono">{melodies.length}</div>
+        </div>
+        {melodies.length === 0 ? (
+          <div className="text-xs text-slate-500 text-center py-4">{lang === 'pt-BR' ? 'Nenhuma melodia salva ainda. Grave e toque em Salvar.' : 'No saved melodies yet. Record and tap Save.'}</div>
+        ) : (
+          <div className="space-y-2">
+            {melodies.map(mel => (
+              <div key={mel.id} className="bg-white/5 rounded-lg p-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate">{mel.name}</div>
+                  <div className="text-[11px] text-slate-500 font-mono">{mel.noteCount} {lang === 'pt-BR' ? 'notas' : 'notes'} · {(mel.durationMs / 1000).toFixed(1)}s</div>
+                </div>
+                <button onClick={() => handlePlaySaved(mel)} className={`w-9 h-9 rounded-lg flex items-center justify-center active:scale-95 ${playingLibId === mel.id ? 'bg-red-500 text-white' : 'bg-violet-500 text-white'}`} title={lang === 'pt-BR' ? 'Ouvir' : 'Play'}>
+                  <i className={`fas ${playingLibId === mel.id ? 'fa-stop' : 'fa-play'}`}></i>
+                </button>
+                <button onClick={() => handleLoadSaved(mel)} disabled={isRecording || isPlaying || !!playingLibId} className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center active:bg-white/20 disabled:opacity-30" title={lang === 'pt-BR' ? 'Carregar no editor' : 'Load into editor'}>
+                  <i className="fas fa-pen"></i>
+                </button>
+                <button onClick={() => handleExportSaved(mel)} className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center active:bg-white/20" title={lang === 'pt-BR' ? 'Exportar .mid' : 'Export .mid'}>
+                  <i className="fas fa-download"></i>
+                </button>
+                <button onClick={() => deleteMelody(mel.id)} className="w-9 h-9 bg-red-500/15 text-red-400 rounded-lg flex items-center justify-center active:bg-red-500/25" title={t(lang, 'common.delete')}>
+                  <i className="fas fa-trash"></i>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '');
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

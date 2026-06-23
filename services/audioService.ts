@@ -38,10 +38,16 @@ let playbackGen = 0;
 let droneFreq = 0;
 
 // Single loud, controllable output bus. Created once; every synth connects to
-// it instead of toDestination() directly.
+// it instead of toDestination() directly. Chain: synths → masterGain → limiter
+// → destination. Phone speakers (iPhone especially) are quiet and clip-prone,
+// so we push the master gain ABOVE unity and let a -1 dB limiter catch peaks —
+// perceptibly louder without distortion. (Synth volume knobs alone left iOS
+// output too quiet, the #1 "áudio baixo no iPhone" complaint.)
+let limiter: Tone.Limiter | null = null;
 function ensureMaster(): Tone.Gain {
   if (!master) {
-    master = new Tone.Gain(1).toDestination();
+    limiter = new Tone.Limiter(-1).toDestination();
+    master = new Tone.Gain(1.6).connect(limiter);
   }
   return master;
 }

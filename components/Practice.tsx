@@ -94,7 +94,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   }, [phase, countdown]);
 
   // ── Begin (runs once when countdown reaches 0) ──
-  const beginExercise = () => {
+  const beginExercise = async () => {
     const ex = currentExerciseRef.current;
     if (!ex || ex.targets.length === 0) return;
     clearAllTimers();
@@ -118,7 +118,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
       });
     }
 
-    pitch.start();
+    await pitch.start();
 
     const last = ex.targets[ex.targets.length - 1];
     const totalDuration = last.startMs + last.durationMs;
