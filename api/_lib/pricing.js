@@ -1,31 +1,4 @@
-// ──────────────────────────────────────────────────────────────────────────
-// MasterSinger — pricing & offer (single source of truth).
-// Reused by the landing page, the checkout and the Asaas backend (api/checkout).
-// Anchoring: 1 year of MasterSinger = the price of ~1 month of private lessons.
-// ──────────────────────────────────────────────────────────────────────────
-
-export type PlanId = 'free' | 'pro-monthly' | 'pro-yearly' | 'lifetime';
-export type Currency = 'BRL';
-export type BillingCycle = 'monthly' | 'yearly';
-
-export interface Plan {
-  id: PlanId;
-  name: string;
-  tagline: string;
-  price: number;            // in BRL
-  currency: Currency;
-  period: string;           // "/mês", "/ano"
-  pricePerMonth?: number;   // effective monthly (for display)
-  discountPct?: number;     // vs monthly
-  billingCycle?: BillingCycle; // maps to Asaas charge + access duration
-  trialDays?: number;       // free trial granted before charge (annual)
-  popular?: boolean;
-  cta: string;
-  features: string[];
-  highlight?: string;
-}
-
-export const PLANS: Plan[] = [
+const PLANS = [
   {
     id: 'free',
     name: 'Free',
@@ -85,17 +58,18 @@ export const PLANS: Plan[] = [
       'Prioridade no suporte',
     ],
   },
-  // Lifetime is intentionally NOT listed — reserved for Black Friday 2026.
 ];
 
-export function getPlan(id: PlanId): Plan | undefined {
-  return PLANS.find(p => p.id === id);
+function getPlan(id) {
+  return PLANS.find(function (p) { return p.id === id; });
 }
 
-export function formatBRL(value: number): string {
+function formatBRL(value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: value % 1 === 0 ? 0 : 2,
   }).format(value);
 }
+
+module.exports = { PLANS, getPlan, formatBRL };
