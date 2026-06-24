@@ -53,15 +53,23 @@ body {
   font-family: 'Inter', sans-serif;
   background-color: #050510;
   color: #f4f4fc;
-  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
-html { -webkit-tap-highlight-color: transparent; }
+html {
+  -webkit-tap-highlight-color: transparent;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 button, [role="button"] {
   -webkit-user-select: none;
   user-select: none;
-  touch-action: manipulation;
+}
+
+input, textarea, select {
+  -webkit-user-select: auto;
+  user-select: auto;
 }
 
 /* Studio light: violet glow from above, cyan halo in the corner */

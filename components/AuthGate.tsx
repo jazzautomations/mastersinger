@@ -7,7 +7,7 @@ import { getSupabaseClient } from '../services/supabase';
 // Jornada: Landing → AuthGate → Onboarding → Dashboard
 // ──────────────────────────────────────────────────────────────────────────
 
-export function AuthGate({ onDone }: { onDone: () => void }) {
+export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const { signIn, signUp, authUser } = useStore();
   const [mode, setMode] = useState<'signin' | 'signup'>('signup');
   const [email, setEmail] = useState('');
@@ -55,7 +55,7 @@ export function AuthGate({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 overflow-y-auto">
+    <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="text-center space-y-2">
@@ -136,7 +136,7 @@ export function AuthGate({ onDone }: { onDone: () => void }) {
         {/* Skip (free tier, local only) — navigates to app without auth */}
         <div className="text-center">
           <button
-            onClick={() => { window.location.hash = '#app'; }}
+            onClick={onSkip}
             className="text-xs text-slate-500 hover:text-slate-300 transition-all"
           >
             Pular por enquanto (só local)

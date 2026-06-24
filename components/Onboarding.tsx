@@ -127,7 +127,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 overflow-y-auto">
+    <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md card p-8 space-y-6">
         <div>
           <h1 className="text-2xl font-black display tracking-tight">{current.title}</h1>

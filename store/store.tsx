@@ -287,7 +287,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncStatus(loadSyncEnabled() ? 'connected' : 'local');
       }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const user = session?.user;
       if (user) {
         setSupabaseUser({ id: user.id, email: user.email });
@@ -296,6 +296,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncStatus(enabled ? 'connected' : 'local');
         saveSyncEnabled(enabled);
         if (enabled) void hydrateFromSupabase();
+        // After OAuth redirect, the URL hash contains Supabase tokens
+        // (e.g. #app&access_token=...). Clean it up to just #app.
+        if (event === 'SIGNED_IN' && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname + '#app');
+        }
       } else {
         setSupabaseUser(null);
         setSyncEnabled(false);

@@ -20,6 +20,7 @@ import { warmAudioOnUserGesture } from './services/audioService';
 import type { View } from './types';
 
 const ONBOARDED_KEY = 'mastersinger:onboarded';
+const GUEST_KEY = 'mastersinger:guest';
 
 function MainApp() {
   const { profile, canAccessView, openUpgrade, isPro, authUser } = useStore();
@@ -28,14 +29,15 @@ function MainApp() {
   // ── Hash routing: "/" shows the marketing landing, "/#app" shows the app.
   //    The landing is the public, SEO-facing surface; the app is gated behind
   //    the "Entrar no app" CTA. Plain hash check — no router dependency.
+  const hashIsApp = () => window.location.hash.toLowerCase().startsWith('#app');
+
   const [showApp, setShowApp] = useState<boolean>(() => {
-    try { return window.location.hash.toLowerCase() === '#app'; } catch { return false; }
+    try { return hashIsApp(); } catch { return false; }
   });
 
   useEffect(() => {
     const onHash = () => {
-      const isApp = window.location.hash.toLowerCase() === '#app';
-      setShowApp(isApp);
+      setShowApp(hashIsApp());
       window.scrollTo(0, 0);
     };
     window.addEventListener('hashchange', onHash);
@@ -43,10 +45,17 @@ function MainApp() {
   }, []);
 
   const enterApp = () => { window.location.hash = '#app'; };
-  const enterLanding = () => { window.location.hash = ''; };
+  const enterLanding = () => {
+    window.location.hash = '';
+    // Clear guest mode so auth gate shows next time
+    try { localStorage.removeItem(GUEST_KEY); } catch {}
+  };
 
   const [onboarded, setOnboarded] = useState<boolean>(() => {
     try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch { return false; }
+  });
+  const [isGuest, setIsGuest] = useState<boolean>(() => {
+    try { return localStorage.getItem(GUEST_KEY) === '1'; } catch { return false; }
   });
   const [view, setView] = useState<View>('home');
   const [viewOpts, setViewOpts] = useState<any>(null);
@@ -85,8 +94,12 @@ function MainApp() {
   }
 
   // ── Auth gate: login/signup before entering the app ──
-  if (!authUser) {
-    return <AuthGate onDone={() => {}} />;
+  // After Google OAuth redirect, authUser is set automatically.
+  if (!authUser && !isGuest) {
+    return <AuthGate onDone={() => {}} onSkip={() => {
+      try { localStorage.setItem(GUEST_KEY, '1'); } catch {}
+      setIsGuest(true);
+    }} />;
   }
 
   if (!onboarded) {
@@ -104,7 +117,7 @@ function MainApp() {
   ];
 
   return (
-    <div className="min-h-screen overflow-y-auto">
+    <div className="min-h-screen">
       {/* Top bar */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">

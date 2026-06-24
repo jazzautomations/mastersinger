@@ -71,7 +71,7 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
-    <div className="min-h-screen text-slate-100 overflow-y-auto">
+    <div className="min-h-screen text-slate-100">
       {/* ── Top nav ── */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-white/5">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
