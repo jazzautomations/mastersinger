@@ -2,11 +2,6 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../store/store';
 import { getSupabaseClient } from '../services/supabase';
 
-// ──────────────────────────────────────────────────────────────────────────
-// AuthGate — login/signup screen shown when entering the app.
-// Jornada: Landing → AuthGate → Onboarding → Dashboard
-// ──────────────────────────────────────────────────────────────────────────
-
 export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const { signIn, signUp, authUser } = useStore();
   const [email, setEmail] = useState('');
@@ -15,7 +10,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
   const [error, setError] = useState<string | null>(null);
   const [googleBusy, setGoogleBusy] = useState(false);
 
-  // If already logged in, skip (useEffect to avoid render-phase side effect)
   useEffect(() => {
     if (authUser) onDone();
   }, [authUser, onDone]);
@@ -27,7 +21,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
     setBusy(true);
     const res = await signUp(email.trim(), password);
     if (!res.ok) {
-      // If email already exists, try signing in instead
       if (res.error?.includes('already') || res.error?.includes('registered') || res.error?.includes('exists')) {
         const signInRes = await signIn(email.trim(), password);
         setBusy(false);
@@ -49,19 +42,24 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
     try {
       const sb = getSupabaseClient();
       if (!sb) { setError('Backend não configurado'); setGoogleBusy(false); return; }
-      // redirectTo must be a clean origin — no hash fragments.
-      // Supabase appends #access_token=... to whatever URL we give it.
-      // Using the plain origin avoids double-hash issues (#app#access_token=...)
-      // and matches what's registered in Supabase Dashboard → Auth → URL Config.
-      const { error: authError } = await sb.auth.signInWithOAuth({
+      const { data, error: authError } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
-          skipBrowserRedirect: false,
+          skipBrowserRedirect: true,
         },
       });
-      if (authError) { setError(authError.message); setGoogleBusy(false); }
-      // If successful, browser navigates to Google → Supabase callback → back here with tokens
+      if (authError) {
+        setError(authError.message);
+        setGoogleBusy(false);
+        return;
+      }
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        setError('Não foi possível iniciar login com Google');
+        setGoogleBusy(false);
+      }
     } catch (e: any) {
       setError(e.message || 'Falha ao conectar com Google');
       setGoogleBusy(false);
@@ -71,7 +69,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
-        {/* Logo */}
         <div className="text-center space-y-2">
           <span className="text-4xl">🎤</span>
           <h1 className="text-2xl font-black display neon-text">MasterSinger</h1>
@@ -80,13 +77,11 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
           </p>
         </div>
 
-        {/* Form */}
         <div className="card p-6 space-y-4">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-300 text-xs rounded-xl p-3">{error}</div>
           )}
 
-          {/* Google sign-in */}
           <button
             onClick={handleGoogle}
             disabled={googleBusy}
@@ -101,7 +96,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
             {googleBusy ? 'Aguarde...' : 'Continuar com Google'}
           </button>
 
-          {/* Divider */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-white/10"></div>
             <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono">ou</span>
@@ -138,7 +132,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
           </button>
         </div>
 
-        {/* Skip (free tier, local only) — navigates to app without auth */}
         <div className="text-center">
           <button
             onClick={onSkip}

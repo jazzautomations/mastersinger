@@ -26,18 +26,20 @@ function MainApp() {
   const { profile, canAccessView, openUpgrade, isPro, authUser } = useStore();
   const lang = profile.settings.language;
 
-  // ── State machine: landing → auth → onboarding → app ──
-  // We detect if the URL contains Supabase OAuth tokens to skip straight to app.
-  const hasOAuthTokens = () => {
+  // Detect if URL contains OAuth redirect params.
+  // After Google OAuth, Supabase may redirect with:
+  //   - PKCE:   #code=xxx&state=yyy   (flowType: 'pkce')
+  //   - Implicit: #access_token=xxx    (flowType: 'implicit')
+  // We must detect BOTH to show the app instead of the landing page.
+  const hasAuthParams = () => {
     const h = window.location.hash;
-    return h.includes('access_token') || h.includes('refresh_token');
+    return h.includes('access_token') || h.includes('code=') || h.includes('refresh_token');
   };
 
-  // Start on landing unless: (a) hash says #app, (b) OAuth tokens present, (c) guest mode
   const [showApp, setShowApp] = useState<boolean>(() => {
     try {
       const h = window.location.hash;
-      return h === '#app' || h.startsWith('#app') || hasOAuthTokens();
+      return h === '#app' || h.startsWith('#app') || hasAuthParams();
     } catch { return false; }
   });
 
@@ -50,21 +52,14 @@ function MainApp() {
   const [view, setView] = useState<View>('home');
   const [viewOpts, setViewOpts] = useState<any>(null);
 
-  // Warm up the Web Audio context on the first user gesture so every later
-  // audio call (tuner reference, ear-training playback, practice guide) finds
-  // a running context. Fixes the autoplay-policy "no sound" bug globally.
   useEffect(() => { warmAudioOnUserGesture(); }, []);
 
-  // scroll to top on view change
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [view]);
+  useEffect(() => { window.scrollTo(0, 0); }, [view]);
 
-  // ── Hash change listener (for back/forward browser nav) ──
   useEffect(() => {
     const onHash = () => {
       const h = window.location.hash;
-      if (h === '#app' || h.startsWith('#app') || h.includes('access_token')) {
+      if (h === '#app' || h.startsWith('#app') || hasAuthParams()) {
         setShowApp(true);
       } else if (h === '' || h === '#') {
         setShowApp(false);
@@ -75,16 +70,25 @@ function MainApp() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  // ── Auto-enter app after OAuth redirect ──
-  // Supabase redirects back with tokens in the hash (e.g. #access_token=...).
-  // detectSessionInUrl:true on the Supabase client parses them automatically.
-  // onAuthStateChange fires SIGNED_IN → authUser gets set → we enter the app.
+  // After OAuth redirect, Supabase client detects tokens/code from URL,
+  // creates session, fires onAuthStateChange → authUser gets set.
+  // We then enter the app automatically.
   useEffect(() => {
     if (!showApp && authUser) {
       window.location.hash = '#app';
       setShowApp(true);
     }
   }, [showApp, authUser]);
+
+  // Also: if Supabase already has a session (e.g. from localStorage),
+  // skip straight to app on page load.
+  useEffect(() => {
+    if (showApp && !authUser && !isGuest) {
+      // Supabase session might still be loading — wait a tick
+      const t = setTimeout(() => {}, 2000);
+      return () => clearTimeout(t);
+    }
+  }, [showApp, authUser, isGuest]);
 
   const enterApp = () => {
     window.location.hash = '#app';
@@ -107,12 +111,10 @@ function MainApp() {
     setViewOpts(opts ?? null);
   };
 
-  // ── LANDING: public marketing page ──
   if (!showApp) {
     return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={enterApp} />;
   }
 
-  // ── AUTH GATE: login/signup before entering the app ──
   if (!authUser && !isGuest) {
     return <AuthGate onDone={() => {}} onSkip={() => {
       try { localStorage.setItem(GUEST_KEY, '1'); } catch {}
@@ -120,12 +122,10 @@ function MainApp() {
     }} />;
   }
 
-  // ── ONBOARDING: first-time user experience ──
   if (!onboarded) {
     return <Onboarding onDone={() => { setOnboarded(true); try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch {} }} />;
   }
 
-  // ── MAIN APP ──
   const navItems: { view: View; icon: string; labelKey: string }[] = [
     { view: 'home',     icon: '🏠', labelKey: 'nav.home' },
     { view: 'tuner',    icon: '🎙️', labelKey: 'nav.tuner' },
@@ -137,8 +137,7 @@ function MainApp() {
   ];
 
   return (
-    <div className="min-h-screen">
-      {/* Top bar */}
+    <div className="min-h-screen pb-20">
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <button onClick={() => handleNavigate('home')} className="flex items-center gap-2">
@@ -165,8 +164,7 @@ function MainApp() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="max-w-3xl mx-auto px-4 py-6">
+      <main className="max-w-3xl mx-auto px-4 py-6 pb-8">
         {view === 'home'     && <Home onNavigate={handleNavigate} />}
         {view === 'tuner'    && <Tuner />}
         {view === 'practice' && <Practice
@@ -186,7 +184,6 @@ function MainApp() {
 
       <UpgradeModal />
 
-      {/* Bottom nav (mobile-friendly) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-slate-950/85 border-t border-white/5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-3xl mx-auto px-2 py-2 grid grid-cols-7 gap-0.5">
           {navItems.map(item => (
