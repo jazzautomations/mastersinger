@@ -256,7 +256,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           {types.map(({ type, icon, titleKey, descKey }) => (
             <button
               key={type}
-              onClick={() => { setSelectedType(type); setCurrentExercise(fitExercise(getExercisesByType(type)[0] ?? null as any)); setPhase('ready'); }}
+              onClick={() => { const exercises = getExercisesByType(type); if (exercises.length > 0) { setSelectedType(type); setCurrentExercise(fitExercise(exercises[0])); setPhase('ready'); } }}
               className="card p-5 text-left hover:border-violet-500/40 transition-all"
             >
               <div className="flex items-center gap-4">

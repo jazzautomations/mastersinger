@@ -62,7 +62,8 @@ export function UpgradeModal() {
     setError(null); setInfo(null); setBusy(true);
     try {
       const sb = getSupabaseClient();
-      const { data: session } = await sb!.auth.getSession();
+      if (!sb) { setError('Backend não configurado'); setBusy(false); return; }
+      const { data: session } = await sb.auth.getSession();
       const token = session.session?.access_token;
       const resp = await fetch('/api/trial', {
         method: 'POST',
@@ -90,7 +91,8 @@ export function UpgradeModal() {
     setError(null); setInfo(null); setBusy(true);
     try {
       const sb = getSupabaseClient();
-      const { data: session } = await sb!.auth.getSession();
+      if (!sb) { setError('Backend não configurado'); setBusy(false); return; }
+      const { data: session } = await sb.auth.getSession();
       const token = session.session?.access_token;
       const resp = await fetch('/api/checkout', {
         method: 'POST',

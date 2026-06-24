@@ -3,7 +3,11 @@
 // Asaas authenticates with the `access_token` header (not Bearer).
 // ──────────────────────────────────────────────────────────────────────────
 
-const BASE = () => process.env.ASAAS_BASE_URL || 'https://sandbox.asaas.com/api/v3';
+const BASE = () => {
+  const url = process.env.ASAAS_BASE_URL;
+  if (!url) throw new Error('ASAAS_BASE_URL not configured — refusing to default to sandbox');
+  return url;
+};
 const TOKEN = () => process.env.ASAAS_ACCESS_TOKEN;
 
 export interface AsaasCustomer { id: string; name?: string; email?: string; }

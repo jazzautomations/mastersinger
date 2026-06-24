@@ -4,6 +4,7 @@ import { supabaseAdmin, getUserFromRequest, json } from './_lib/supabaseAdmin';
 // - Without a code: activates the 7-day trial (only if not already used).
 // - With a valid teacher code: validates it against teacher_codes, checks
 //   max_uses, increments usage, and grants a 30-day trial.
+// IMPORTANT: never overwrites an active paid subscription.
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const user = await getUserFromRequest(req);
@@ -19,6 +20,11 @@ export default async function handler(req: any, res: any) {
   // Read the current subscription row (created on signup).
   const { data: sub } = await admin.from('subscriptions')
     .select('*').eq('user_id', user.id).maybeSingle();
+
+  // ── BLOCK: never overwrite an active paid subscription ──
+  if (sub?.status === 'active' && sub.plan !== 'free' && sub.plan !== 'trial') {
+    return json(res, 409, { error: 'Você já possui uma assinatura ativa.' });
+  }
 
   if (code) {
     // ── Teacher code path: validate against teacher_codes ──
@@ -42,7 +48,7 @@ export default async function handler(req: any, res: any) {
       asaas_customer_id: null,
     }, { onConflict: 'user_id' });
     if (error) return json(res, 500, { error: error.message });
-    // Increment usage (atomic-ish; acceptable at this scale).
+    // Increment usage
     await admin.from('teacher_codes').update({ uses: tc.uses + 1 }).eq('code', code);
     return json(res, 200, { ok: true, trialEndsAt, days, via: 'teacher_code' });
   }

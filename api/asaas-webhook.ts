@@ -1,6 +1,7 @@
 import { supabaseAdmin } from './_lib/supabaseAdmin';
 import { getPayment } from './_lib/asaas';
 import { getPlan } from '../data/pricing';
+import { timingSafeEqual } from 'crypto';
 
 // POST /api/asaas-webhook
 // Security: verify the shared secret you set in the Asaas webhook config.
@@ -18,7 +19,14 @@ export default async function handler(req: any, res: any) {
   }
 
   const headerSecret = req.headers['x-webhook-secret'] || req.headers['x-asaas-webhook-secret'] || req.headers['asaas-webhook-secret'];
-  if (headerSecret !== secret) {
+  if (typeof headerSecret !== 'string') {
+    res.status(401);
+    return res.json({ error: 'Assinatura inválida' });
+  }
+  // Timing-safe comparison to prevent timing attacks
+  const a = Buffer.from(headerSecret);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     res.status(401);
     return res.json({ error: 'Assinatura inválida' });
   }
@@ -57,7 +65,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    await admin.from('payment_events').insert({
+    const { error: insertError } = await admin.from('payment_events').insert({
       user_id: userId,
       asaas_payment_id: payment.id,
       amount: payment.value,
@@ -65,6 +73,10 @@ export default async function handler(req: any, res: any) {
       event_type: activated ? 'PAYMENT_RECEIVED' : 'PAYMENT_UPDATE',
       payload: event,
     });
+    if (insertError) {
+      console.error('webhook: payment_events insert failed:', insertError.message);
+      // Continue anyway — the subscription activation is more important than the audit log
+    }
 
     if (activated) {
       // Find the plan from the checkout intent so we know the access duration.
@@ -92,6 +104,6 @@ export default async function handler(req: any, res: any) {
   } catch (e: any) {
     console.error('webhook error', e);
     res.status(500);
-    return res.json({ error: 'Falha no webhook', detail: e.message });
+    return res.json({ error: 'Falha no webhook' });
   }
 }

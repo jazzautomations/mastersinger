@@ -1,11 +1,13 @@
 import { supabaseAdmin, getUserFromRequest, json } from './_lib/supabaseAdmin';
 import { findOrCreateCustomer, createPayment } from './_lib/asaas';
-import { getPlan } from '../data/pricing';
+import { getPlan, type PlanId } from '../data/pricing';
 
 // POST /api/checkout  { planId: 'pro-monthly' | 'pro-yearly' }
 //   Authorization: Bearer <supabase access_token>
 // → { invoiceUrl, paymentId }
 // Creates a one-time Asaas charge (payer chooses Pix/card/boleto on checkout).
+// Includes idempotency: if a pending CHECKOUT_CREATED event exists for this
+// user+plan, returns the existing invoice URL instead of creating a duplicate.
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
@@ -13,7 +15,10 @@ export default async function handler(req: any, res: any) {
   if (!user) return json(res, 401, { error: 'Não autenticado. Faça login para assinar.' });
 
   const { planId } = req.body || {};
-  const plan = getPlan(planId);
+  if (typeof planId !== 'string') {
+    return json(res, 400, { error: 'planId inválido.' });
+  }
+  const plan = getPlan(planId as PlanId);
   if (!plan || plan.price === 0 || !plan.billingCycle) {
     return json(res, 400, { error: 'Plano inválido para checkout.' });
   }
@@ -22,6 +27,20 @@ export default async function handler(req: any, res: any) {
   if (!admin) return json(res, 500, { error: 'Backend não configurado (SUPABASE_SERVICE_ROLE_KEY ausente).' });
 
   try {
+    // ── Idempotency: check for existing pending checkout ──
+    const { data: existing } = await admin.from('payment_events')
+      .select('payload, asaas_payment_id')
+      .eq('user_id', user.id)
+      .eq('event_type', 'CHECKOUT_CREATED')
+      .eq('plan', plan.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing?.payload?.invoiceUrl) {
+      return json(res, 200, { invoiceUrl: existing.payload.invoiceUrl, paymentId: existing.asaas_payment_id });
+    }
+
     const customer = await findOrCreateCustomer(user.email || user.id);
     const dueDate = new Date().toISOString().slice(0, 10);
     const payment = await createPayment({
@@ -33,7 +52,7 @@ export default async function handler(req: any, res: any) {
     });
 
     // Audit the checkout intent. The webhook activates access on PAYMENT_RECEIVED.
-    await admin.from('payment_events').insert({
+    const { error: insertError } = await admin.from('payment_events').insert({
       user_id: user.id,
       asaas_payment_id: payment.id,
       plan: plan.id,
@@ -42,6 +61,7 @@ export default async function handler(req: any, res: any) {
       event_type: 'CHECKOUT_CREATED',
       payload: { invoiceUrl: payment.invoiceUrl, billingCycle: plan.billingCycle },
     });
+    if (insertError) console.error('payment_events insert failed:', insertError.message);
 
     // Remember the pending plan + Asaas ids so the webhook can complete activation.
     await admin.from('subscriptions').upsert({
@@ -54,6 +74,6 @@ export default async function handler(req: any, res: any) {
     return json(res, 200, { invoiceUrl: payment.invoiceUrl, paymentId: payment.id });
   } catch (e: any) {
     console.error('checkout error', e);
-    return json(res, 500, { error: 'Falha ao criar cobrança.', detail: e.message });
+    return json(res, 500, { error: 'Falha ao criar cobrança.' });
   }
 }

@@ -3,6 +3,7 @@ import { entitlementLabel, isSubscriptionActive } from '../services/entitlements
 
 // GET /api/subscription
 // Returns current subscription row + derived entitlement info for the logged-in user.
+// Only returns safe fields — never expose asaas_payment_id, asaas_customer_id, etc.
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
   const user = await getUserFromRequest(req);
@@ -13,7 +14,7 @@ export default async function handler(req: any, res: any) {
 
   const { data, error } = await admin
     .from('subscriptions')
-    .select('*')
+    .select('user_id, plan, status, current_period_end, trial_ends_at, trial_used, teacher_code, updated_at')
     .eq('user_id', user.id)
     .maybeSingle();
   if (error) return json(res, 500, { error: error.message });

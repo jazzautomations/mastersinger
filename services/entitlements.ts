@@ -19,8 +19,8 @@ export interface Subscription {
   current_period_end: string | null;   // ISO when paid access expires
   trial_ends_at: string | null;        // ISO when trial expires
   teacher_code: string | null;         // referral code that granted an extended trial
-  asaas_payment_id: string | null;     // last Asaas payment that activated this
-  asaas_customer_id: string | null;
+  asaas_payment_id?: string | null;    // last Asaas payment that activated this (server-only)
+  asaas_customer_id?: string | null;   // (server-only)
   updated_at: string | null;
 }
 

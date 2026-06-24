@@ -73,10 +73,11 @@ function MainApp() {
 
   // ── If user is authenticated but on landing (e.g. after Google OAuth redirect),
   //    auto-redirect to the app ──
-  if (!showApp && authUser) {
-    enterApp();
-    return null;
-  }
+  useEffect(() => {
+    if (!showApp && authUser) {
+      enterApp();
+    }
+  }, [showApp, authUser]);
 
   // ── Landing is the public home page ──
   if (!showApp) {

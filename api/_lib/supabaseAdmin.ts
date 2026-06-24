@@ -16,11 +16,16 @@ export function supabaseAdmin(): SupabaseClient | null {
   return cached;
 }
 
+export type AuthResult =
+  | { ok: true; user: { id: string; email: string | null } }
+  | { ok: false; reason: 'missing_env' | 'no_token' | 'invalid_token' };
+
 // Validate the caller's Supabase JWT from the Authorization header and return
-// the authenticated user id + email. Returns null when missing/invalid.
+// the authenticated user id + email. Distinguishes between server misconfig,
+// missing token, and invalid token.
 export async function getUserFromRequest(req: any): Promise<{ id: string; email: string | null } | null> {
   const admin = supabaseAdmin();
-  if (!admin) return null;
+  if (!admin) return null; // server misconfigured — callers should return 500
   const auth = req.headers?.authorization || req.headers?.Authorization;
   const raw = Array.isArray(auth) ? auth[0] : auth;
   if (typeof raw !== 'string' || !raw.startsWith('Bearer ')) return null;
@@ -28,6 +33,13 @@ export async function getUserFromRequest(req: any): Promise<{ id: string; email:
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data?.user) return null;
   return { id: data.user.id, email: data.user.email ?? null };
+}
+
+// Check if backend env vars are configured (for distinguishing 500 vs 401).
+export function isBackendConfigured(): boolean {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return !!(url && key);
 }
 
 export function json(res: any, status: number, body: unknown) {

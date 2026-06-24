@@ -16,8 +16,12 @@ export function AuthGate({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [googleBusy, setGoogleBusy] = useState(false);
 
-  // If already logged in, skip
-  if (authUser) { onDone(); return null; }
+  // If already logged in, skip (useEffect to avoid render-phase side effect)
+  useEffect(() => {
+    if (authUser) onDone();
+  }, [authUser, onDone]);
+
+  if (authUser) return null;
 
   const handleSubmit = async () => {
     setError(null);
@@ -98,13 +102,16 @@ export function AuthGate({ onDone }: { onDone: () => void }) {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="seu@email.com"
+              aria-label="Email"
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:border-violet-500 focus:outline-none"
+              onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }}
             />
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Senha (mín. 6 caracteres)"
+              aria-label="Senha"
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:border-violet-500 focus:outline-none"
               onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }}
             />
@@ -126,10 +133,10 @@ export function AuthGate({ onDone }: { onDone: () => void }) {
           </button>
         </div>
 
-        {/* Skip (free tier, local only) */}
+        {/* Skip (free tier, local only) — navigates to app without auth */}
         <div className="text-center">
           <button
-            onClick={onDone}
+            onClick={() => { window.location.hash = '#app'; }}
             className="text-xs text-slate-500 hover:text-slate-300 transition-all"
           >
             Pular por enquanto (só local)
