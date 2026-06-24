@@ -9,7 +9,6 @@ import { getSupabaseClient } from '../services/supabase';
 
 export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const { signIn, signUp, authUser } = useStore();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,10 +25,21 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
   const handleSubmit = async () => {
     setError(null);
     setBusy(true);
-    const fn = mode === 'signin' ? signIn : signUp;
-    const res = await fn(email.trim(), password);
+    const res = await signUp(email.trim(), password);
+    if (!res.ok) {
+      // If email already exists, try signing in instead
+      if (res.error?.includes('already') || res.error?.includes('registered') || res.error?.includes('exists')) {
+        const signInRes = await signIn(email.trim(), password);
+        setBusy(false);
+        if (!signInRes.ok) { setError(signInRes.error || 'Falha no login. Verifique sua senha.'); return; }
+        onDone();
+        return;
+      }
+      setBusy(false);
+      setError(res.error || 'Falha na autenticação');
+      return;
+    }
     setBusy(false);
-    if (!res.ok) { setError(res.error || 'Falha na autenticação'); return; }
     onDone();
   };
 
@@ -62,9 +72,7 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
           <span className="text-4xl">🎤</span>
           <h1 className="text-2xl font-black display neon-text">MasterSinger</h1>
           <p className="text-sm text-slate-400">
-            {mode === 'signup'
-              ? 'Crie sua conta gratuita e comece a cantar melhor.'
-              : 'Entre na sua conta pra continuar treinando.'}
+            Crie sua conta gratuita ou entre na sua existente.
           </p>
         </div>
 
@@ -122,14 +130,7 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
             disabled={busy || !email || password.length < 6}
             className="btn-primary w-full text-sm py-3 disabled:opacity-40"
           >
-            {busy ? 'Aguarde...' : mode === 'signup' ? 'Criar conta e começar' : 'Entrar'}
-          </button>
-
-          <button
-            onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(null); }}
-            className="w-full text-xs text-slate-400 hover:text-violet-300 transition-all"
-          >
-            {mode === 'signup' ? 'Já tem conta? Entrar' : 'Não tem conta? Criar agora'}
+            {busy ? 'Aguarde...' : 'Criar conta ou entrar'}
           </button>
         </div>
 

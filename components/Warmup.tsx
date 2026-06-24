@@ -329,5 +329,17 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
     );
   }
 
+  // Fallback: running phase but routine/step missing (shouldn't happen, but recover gracefully)
+  if (phase === 'running') {
+    return (
+      <div className="space-y-6 pb-24 text-center">
+        <p className="text-slate-400 text-sm">{lang === 'pt-BR' ? 'Algo deu errado. Tente novamente.' : 'Something went wrong. Please try again.'}</p>
+        <button onClick={() => { setPhase('select'); setRoutine(null); }} className="btn-primary">
+          {lang === 'pt-BR' ? 'Voltar' : 'Go back'}
+        </button>
+      </div>
+    );
+  }
+
   return null;
 }

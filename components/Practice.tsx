@@ -24,6 +24,10 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const userLevel = profile.settings.level;
   const rangeCenterMidi = profile.settings.rangeCenterMidi;
 
+  // Keep a ref to always have the latest profile for badge checks in endExercise
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+
   // ── Range-aware transposition: shift each exercise so its pitch center sits
   //    on the singer's detected range center (clamped to ±1.5 octaves). A bass
   //    no longer has to sing a C-major scale pegged at C4, and a soprano isn't
@@ -162,13 +166,15 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setAllResults(prev => [...prev, exResult]);
     touchStreak();
 
-    if (!profile.badges.includes('first-practice')) unlockBadge('first-practice');
-    if (score.score === 100 && !profile.badges.includes('perfect-score')) unlockBadge('perfect-score');
-    if (score.accuracyPct >= 95 && !profile.badges.includes('accuracy-95')) unlockBadge('accuracy-95');
-    const newStreak = profile.streak.current + 1;
-    if (newStreak >= 3 && !profile.badges.includes('streak-3')) unlockBadge('streak-3');
-    if (newStreak >= 7 && !profile.badges.includes('streak-7')) unlockBadge('streak-7');
-    if (newStreak >= 30 && !profile.badges.includes('streak-30')) unlockBadge('streak-30');
+    // Read current profile via ref to avoid stale closure issues
+    const p = profileRef.current;
+    if (!p.badges.includes('first-practice')) unlockBadge('first-practice');
+    if (score.score === 100 && !p.badges.includes('perfect-score')) unlockBadge('perfect-score');
+    if (score.accuracyPct >= 95 && !p.badges.includes('accuracy-95')) unlockBadge('accuracy-95');
+    const newStreak = p.streak.current + 1;
+    if (newStreak >= 3 && !p.badges.includes('streak-3')) unlockBadge('streak-3');
+    if (newStreak >= 7 && !p.badges.includes('streak-7')) unlockBadge('streak-7');
+    if (newStreak >= 30 && !p.badges.includes('streak-30')) unlockBadge('streak-30');
   };
 
   // ── Actions ──

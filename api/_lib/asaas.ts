@@ -77,5 +77,9 @@ export async function createPayment(opts: {
 
 // Re-fetch a payment — used by the webhook to PROVE authenticity (anti-forgery).
 export async function getPayment(id: string): Promise<AsaasPayment> {
+  // Validate payment ID format to prevent path injection
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new Error('Invalid payment ID format');
+  }
   return asaas<AsaasPayment>(`/payments/${id}`);
 }

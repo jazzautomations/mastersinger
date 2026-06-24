@@ -67,7 +67,7 @@ export function EarTraining() {
       const token = beginPlayback();
       seq.forEach((s, i) => {
         const delay = i * s.durationMs;
-        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4); }, delay);
+        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4l); }, delay);
         noteTimersRef.current.push(id);
       });
     }

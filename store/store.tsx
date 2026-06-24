@@ -358,13 +358,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [addXp]);
 
   const unlockBadge = useCallback((badgeId: string): boolean => {
-    let unlocked = false;
+    let wasNew = false;
     setProfile(prev => {
       if (prev.badges.includes(badgeId)) return prev;
-      unlocked = true;
+      wasNew = true;
       return { ...prev, badges: [...prev.badges, badgeId] };
     });
-    return unlocked;
+    return wasNew;
   }, []);
 
   const updateRange = useCallback((lowest: number, highest: number) => {

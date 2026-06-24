@@ -29,7 +29,12 @@ function MainApp() {
   // ── Hash routing: "/" shows the marketing landing, "/#app" shows the app.
   //    The landing is the public, SEO-facing surface; the app is gated behind
   //    the "Entrar no app" CTA. Plain hash check — no router dependency.
-  const hashIsApp = () => window.location.hash.toLowerCase().startsWith('#app');
+  const hashIsApp = () => {
+    const h = window.location.hash.toLowerCase();
+    // After Google OAuth redirect, Supabase puts tokens in the hash
+    // (e.g. #access_token=...), NOT #app. So check for that too.
+    return h.startsWith('#app') || h.includes('access_token');
+  };
 
   const [showApp, setShowApp] = useState<boolean>(() => {
     try { return hashIsApp(); } catch { return false; }

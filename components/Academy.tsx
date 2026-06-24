@@ -204,6 +204,7 @@ function LessonView({ lesson, course, lang, onBack, onComplete }: LessonViewProp
 }
 
 function LessonBlockView({ block, lang, course, lesson, blockIdx }: { block: LessonBlock; lang: 'pt-BR' | 'en'; course: Course; lesson: Lesson; blockIdx: number }) {
+  const { profile } = useStore();
   const bt = blockText(course, lesson, blockIdx, block, lang);
   switch (block.kind) {
     case 'heading':
@@ -235,7 +236,7 @@ function LessonBlockView({ block, lang, course, lesson, blockIdx }: { block: Les
         <div className="bg-white/5 p-4 rounded-xl space-y-2">
           <div className="text-xs text-slate-400 font-mono">{bt.label ?? block.label}</div>
           <button
-            onClick={async () => { await ensureAudioStarted(); playNote(block.midi, block.durationMs); }}
+            onClick={async () => { await ensureAudioStarted(); playNote(block.midi, block.durationMs, 0, profile.settings.a4); }}
             className="btn-ghost"
           >
             <i className="fas fa-play mr-2"></i>{midiToNoteName(block.midi)}

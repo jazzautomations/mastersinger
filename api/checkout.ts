@@ -41,7 +41,11 @@ export default async function handler(req: any, res: any) {
       return json(res, 200, { invoiceUrl: existing.payload.invoiceUrl, paymentId: existing.asaas_payment_id });
     }
 
-    const customer = await findOrCreateCustomer(user.email || user.id);
+    if (!user.email || !user.email.includes('@')) {
+      return json(res, 400, { error: 'E-mail inválido na conta. Atualize seu perfil.' });
+    }
+
+    const customer = await findOrCreateCustomer(user.email);
     const dueDate = new Date().toISOString().slice(0, 10);
     const payment = await createPayment({
       customer: customer.id,
