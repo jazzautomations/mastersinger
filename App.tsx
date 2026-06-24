@@ -13,6 +13,7 @@ import { Academy } from './components/Academy';
 import { Warmup } from './components/Warmup';
 import { Progress } from './components/Progress';
 import { Settings } from './components/Settings';
+import { UpgradeModal } from './components/UpgradeModal';
 import { t } from './i18n/strings';
 import { warmAudioOnUserGesture } from './services/audioService';
 import type { View } from './types';
@@ -20,7 +21,7 @@ import type { View } from './types';
 const ONBOARDED_KEY = 'mastersinger:onboarded';
 
 function MainApp() {
-  const { profile } = useStore();
+  const { profile, canAccessView, openUpgrade, isPro, authUser } = useStore();
   const lang = profile.settings.language;
 
   // ── Hash routing: "/" shows the marketing landing, "/#app" shows the app.
@@ -60,13 +61,18 @@ function MainApp() {
   }, [view]);
 
   const handleNavigate = (v: View, opts?: any) => {
+    // Paywall: Pro-only views open the upgrade modal instead of navigating.
+    if (!canAccessView(v)) {
+      openUpgrade();
+      return;
+    }
     setView(v);
     setViewOpts(opts ?? null);
   };
 
   // ── Landing is the public home page ──
   if (!showApp) {
-    return <Landing onEnterApp={enterApp} />;
+    return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} />;
   }
 
   if (!onboarded) {
@@ -99,6 +105,9 @@ function MainApp() {
             <button onClick={() => handleNavigate('harmony')} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all">
               {t(lang, 'nav.harmony')}
             </button>
+            <button onClick={() => openUpgrade()} className="px-3 py-1.5 rounded-lg text-xs font-mono text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 transition-all font-bold" title={isPro ? 'Você é Pro' : 'Assinar Pro'}>
+              {isPro ? '👑 Pro' : '⚡ Pro'}
+            </button>
             <button onClick={enterLanding} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all" title="Voltar à página inicial">
               <i className="fas fa-globe"></i>
             </button>
@@ -127,6 +136,8 @@ function MainApp() {
         {view === 'progress' && <Progress />}
         {view === 'settings' && <Settings />}
       </main>
+
+      <UpgradeModal />
 
       {/* Bottom nav (mobile-friendly) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-slate-950/85 border-t border-white/5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>

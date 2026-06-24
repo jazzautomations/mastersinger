@@ -54,9 +54,9 @@ const FAQ = [
   { q: 'Funciona no celular?', a: 'Sim. É um web app responsivo — funciona no navegador do celular, tablet e computador. Melhor experiência no Chrome/Safari atualizados.' },
   { q: 'Minha voz é gravada ou enviada pra algum lugar?', a: 'Nunca. A detecção de pitch roda 100% local no seu navegador via Web Audio API. Nenhum áudio sai do seu dispositivo.' },
   { q: 'Qual a precisão do afinador?', a: 'Usamos o algoritmo YIN (de Cheveigné & Kawahara, 2002) com suavização anti-oitava e filtro de mediana. Precisão de cents, dentro de ±2 cents quando travado.' },
-  { q: 'Posso cancelar a assinatura?', a: 'Sim, quando quiser, sem multa. O plano anual tem garantia de 7 dias com reembolso total. O vitalício tem 14 dias.' },
+  { q: 'Posso cancelar a assinatura?', a: 'Sim, quando quiser, sem multa. O plano anual tem garantia de 7 dias com reembolso total.' },
   { q: 'MasterSinger substitui aula com professor?', a: 'Complementa. É o treino diário entre as aulas — e pra muitos, a porta de entrada acessível antes de investir em aulas. Muitos professores já recomendam apps assim.' },
-  { q: 'Como funciona o pagamento?', a: 'Via Asaas ou AbacatePay (Pix, cartão, boleto). Em breve você poderá assinar direto no app com alguns cliques.' },
+  { q: 'Como funciona o pagamento?', a: 'Via Asaas — Pix, cartão ou boleto. Você assina direto no app: escolhe o plano, paga no checkout seguro da Asaas e o acesso Pro libera na hora.' },
 ];
 
 const SOCIAL_STATS = [
@@ -66,7 +66,7 @@ const SOCIAL_STATS = [
   { value: '100%', label: 'local e privado' },
 ];
 
-export function Landing({ onEnterApp }: { onEnterApp: () => void }) {
+export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onUpgrade?: () => void }) {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
@@ -315,7 +315,7 @@ export function Landing({ onEnterApp }: { onEnterApp: () => void }) {
                 )}
               </div>
               <button
-                onClick={onEnterApp}
+                onClick={() => plan.id === 'free' ? onEnterApp() : (onUpgrade ? onUpgrade() : onEnterApp())}
                 className={`w-full text-xs py-3 rounded-xl font-bold uppercase tracking-wider transition-all ${
                   plan.popular
                     ? 'btn-primary'
@@ -339,8 +339,8 @@ export function Landing({ onEnterApp }: { onEnterApp: () => void }) {
         </div>
 
         <div className="card p-5 mt-6 text-center text-xs text-slate-400 space-y-1">
-          <p>💳 Pagamento via Pix, cartão ou boleto (Asaas/AbacatePay) — em breve direto no app.</p>
-          <p>↩️ Pro Anual: garantia de 7 dias com reembolso total. Vitalício: 14 dias.</p>
+          <p>💳 Pagamento seguro via Asaas · Pix, cartão ou boleto · direto no app</p>
+          <p>↩️ Pro Anual: 7 dias grátis + garantia de reembolso de 7 dias</p>
         </div>
       </section>
 

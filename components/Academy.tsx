@@ -15,7 +15,7 @@ interface AcademyProps {
 }
 
 export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
-  const { profile, completeLesson, unlockBadge } = useStore();
+  const { profile, completeLesson, unlockBadge, canAccessCourse, openUpgrade } = useStore();
   const lang = profile.settings.language;
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
@@ -45,10 +45,18 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
           {COURSES.map(course => {
             const completed = course.lessons.filter(l => profile.completedLessons.includes(l.id)).length;
             const pct = Math.round((completed / course.lessons.length) * 100);
+            const locked = !canAccessCourse(course.id);
             return (
-              <button key={course.id} onClick={() => setSelectedCourse(course)} className="card p-5 text-left hover:border-white/20 transition-all">
+              <button
+                key={course.id}
+                onClick={() => locked ? openUpgrade() : setSelectedCourse(course)}
+                className={`card p-5 text-left transition-all ${locked ? 'opacity-60 hover:opacity-90' : 'hover:border-white/20'}`}
+              >
                 <div className="flex items-start gap-4">
-                  <div className="text-4xl">{course.icon}</div>
+                  <div className="text-4xl relative">
+                    {course.icon}
+                    {locked && <span className="absolute -top-1 -right-1 text-sm">🔒</span>}
+                  </div>
                   <div className="flex-1">
                     <div className="text-xs font-mono mb-1" style={{ color: course.color }}>{course.level.toUpperCase()}</div>
                     <div className="text-base font-bold">{courseTitle(course, lang)}</div>
@@ -61,6 +69,9 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
                   </div>
                   <div className="text-xs text-slate-400 font-mono">{completed}/{course.lessons.length}</div>
                 </div>
+                {locked && (
+                  <div className="mt-2 text-[10px] text-violet-300 font-mono uppercase tracking-wider">Pro · toque para desbloquear</div>
+                )}
               </button>
             );
           })}

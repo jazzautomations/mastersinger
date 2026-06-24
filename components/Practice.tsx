@@ -18,7 +18,7 @@ interface PracticeProps {
 type Phase = 'select' | 'ready' | 'countdown' | 'listening' | 'result';
 
 export function Practice({ preselectedExerciseIds, isDaily, onComplete }: PracticeProps) {
-  const { profile, recordResult, touchStreak, unlockBadge } = useStore();
+  const { profile, recordResult, touchStreak, unlockBadge, canAccessExercise, openUpgrade } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
   const userLevel = profile.settings.level;
@@ -273,18 +273,33 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         <div className="space-y-3">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{L('Sugerido para o seu nível', 'Suggested for your level')}</div>
           <div className="grid gap-2">
-            {getExercisesByLevel(userLevel).slice(0, 6).map(ex => (
-              <button key={ex.id} onClick={() => { setSelectedType(ex.type); setCurrentExercise(fitExercise(ex)); setPhase('ready'); }} className="card p-3 text-left hover:border-white/20 transition-all">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500 font-mono uppercase">{ex.type.split('-')[0]}</span>
-                  <div className="flex-1">
-                    <div className="text-sm font-bold">{ex.title}</div>
-                    <div className="text-[11px] text-slate-400">{ex.description}</div>
+            {getExercisesByLevel(userLevel).slice(0, 6).map(ex => {
+              const locked = !canAccessExercise(ex.id);
+              return (
+                <button
+                  key={ex.id}
+                  onClick={() => {
+                    if (locked) return openUpgrade();
+                    setSelectedType(ex.type);
+                    setCurrentExercise(fitExercise(ex));
+                    setPhase('ready');
+                  }}
+                  className={`card p-3 text-left hover:border-white/20 transition-all ${locked ? 'opacity-70' : ''}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-500 font-mono uppercase">{ex.type.split('-')[0]}</span>
+                    <div className="flex-1">
+                      <div className="text-sm font-bold flex items-center gap-2">
+                        {locked && <span>🔒</span>}
+                        <span>{ex.title}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400">{ex.description}</div>
+                    </div>
+                    <span className="text-xs text-violet-400 font-mono">+{ex.xp} XP</span>
                   </div>
-                  <span className="text-xs text-violet-400 font-mono">+{ex.xp} XP</span>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

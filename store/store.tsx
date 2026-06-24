@@ -1,7 +1,15 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import type { UserProfile, ExerciseResult, StudentLevel, Language, League, SavedMelody, Note } from '../types';
+import type { UserProfile, ExerciseResult, StudentLevel, Language, League, SavedMelody, Note, View } from '../types';
 import { todayISO, weekStartISO, classifyVoiceType } from '../services/theoryService';
 import { getSupabaseClient } from '../services/supabase';
+import {
+  type Subscription,
+  isSubscriptionActive,
+  canAccessView as entCanAccessView,
+  canAccessCourse as entCanAccessCourse,
+  canAccessExercise as entCanAccessExercise,
+} from '../services/entitlements';
+import type { PlanId } from '../data/pricing';
 
 const STORAGE_KEY = 'mastersinger:v1';
 const MELODIES_KEY = 'mastersinger:melodies';
@@ -49,6 +57,21 @@ interface StoreContextValue {
   connectSupabase: () => Promise<boolean>;
   disconnectSupabase: () => void;
   forceSyncToSupabase: () => Promise<boolean>;
+  // ── Monetização / entitlements ──
+  subscription: Subscription | null;
+  isPro: boolean;
+  authUser: { id: string; email?: string | null } | null;
+  upgradeOpen: boolean;
+  upgradeDefaultPlan: PlanId | null;
+  openUpgrade: (plan?: PlanId) => void;
+  closeUpgrade: () => void;
+  refreshSubscription: () => Promise<void>;
+  canAccessView: (view: View) => boolean;
+  canAccessCourse: (courseId: string) => boolean;
+  canAccessExercise: (exerciseId: string) => boolean;
+  signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signUp: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signOut: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -126,6 +149,65 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [supabaseUser, setSupabaseUser] = useState<SupabaseAuthUser | null>(null);
   const [syncEnabled, setSyncEnabled] = useState<boolean>(loadSyncEnabled());
   const supabase = getSupabaseClient();
+
+  // ── Entitlements / monetização state ──
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeDefaultPlan, setUpgradeDefaultPlan] = useState<PlanId | null>(null);
+  const isPro = isSubscriptionActive(subscription);
+  const authUser = supabaseUser;
+
+  const refreshSubscription = useCallback(async () => {
+    if (!supabase || !supabaseUser) { setSubscription(null); return; }
+    try {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', supabaseUser.id)
+        .maybeSingle();
+      setSubscription((data as Subscription) ?? null);
+    } catch (e) {
+      console.error('refreshSubscription failed', e);
+    }
+  }, [supabase, supabaseUser]);
+
+  // Load subscription whenever the auth user changes.
+  useEffect(() => { void refreshSubscription(); }, [refreshSubscription]);
+
+  const openUpgrade = useCallback((plan?: PlanId) => {
+    setUpgradeDefaultPlan(plan ?? null);
+    setUpgradeOpen(true);
+  }, []);
+  const closeUpgrade = useCallback(() => setUpgradeOpen(false), []);
+
+  const canAccessView = useCallback((view: View) => entCanAccessView(view, subscription), [subscription]);
+  const canAccessCourse = useCallback((courseId: string) => entCanAccessCourse(courseId, subscription), [subscription]);
+  const canAccessExercise = useCallback((exerciseId: string) => entCanAccessExercise(exerciseId, subscription), [subscription]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    if (!supabase) return { ok: false, error: 'Backend não configurado.' };
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }, [supabase]);
+
+  const signUp = useCallback(async (email: string, password: string) => {
+    if (!supabase) return { ok: false, error: 'Backend não configurado.' };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { ok: false, error: error.message };
+    // Auto-sign-in if signup returned a session (email confirmation disabled).
+    if (data.session) {
+      setSupabaseUser({ id: data.user!.id, email: data.user!.email });
+    }
+    return { ok: true };
+  }, [supabase]);
+
+  const signOut = useCallback(async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setSubscription(null);
+    setSupabaseUser(null);
+  }, [supabase]);
 
   useEffect(() => { setProfileSaveFailed(!saveProfile(profile)); }, [profile]);
   useEffect(() => { setMelodiesSaveFailed(!saveMelodiesLib(melodies)); }, [melodies]);
@@ -457,6 +539,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       connectSupabase,
       disconnectSupabase,
       forceSyncToSupabase,
+      // ── Monetização / entitlements ──
+      subscription,
+      isPro,
+      authUser,
+      upgradeOpen,
+      upgradeDefaultPlan,
+      openUpgrade,
+      closeUpgrade,
+      canAccessView,
+      canAccessCourse,
+      canAccessExercise,
+      refreshSubscription,
+      signIn,
+      signUp,
+      signOut,
     }}>
       {storageWarning && (
         <div className="fixed top-0 inset-x-0 z-[100] bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center shadow-lg pointer-events-none" role="alert" aria-live="assertive">
