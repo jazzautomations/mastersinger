@@ -36,10 +36,21 @@ function MainApp() {
     return h.includes('access_token') || h.includes('refresh_token');
   };
 
+  // Track whether this page load is an OAuth redirect (has ?code= or #access_token).
+  // Used to auto-enter the app only after OAuth, not on normal page loads.
+  const [isOAuthRedirect] = useState(() => {
+    try {
+      const h = window.location.hash;
+      const q = window.location.search;
+      return h.includes('access_token') || h.includes('refresh_token') || q.includes('code=');
+    } catch { return false; }
+  });
+
   const [showApp, setShowApp] = useState<boolean>(() => {
     try {
       const h = window.location.hash;
-      return h === '#app' || h.startsWith('#app') || hasAuthParams();
+      const q = window.location.search;
+      return h === '#app' || h.startsWith('#app') || h.includes('access_token') || h.includes('refresh_token') || q.includes('code=');
     } catch { return false; }
   });
 
@@ -72,13 +83,14 @@ function MainApp() {
 
   // After OAuth redirect, Supabase client detects tokens/code from URL,
   // creates session, fires onAuthStateChange → authUser gets set.
-  // We then enter the app automatically.
+  // Only auto-enter the app if we came from an OAuth redirect,
+  // not on normal page loads (where we want to show the landing).
   useEffect(() => {
-    if (!showApp && authUser) {
+    if (!showApp && authUser && isOAuthRedirect) {
       window.location.hash = '#app';
       setShowApp(true);
     }
-  }, [showApp, authUser]);
+  }, [showApp, authUser, isOAuthRedirect]);
 
   // Also: if Supabase already has a session (e.g. from localStorage),
   // skip straight to app on page load.
@@ -123,7 +135,11 @@ function MainApp() {
   }
 
   if (!onboarded) {
-    return <Onboarding onDone={() => { setOnboarded(true); try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch {} }} />;
+    return <Onboarding onDone={() => {
+      setOnboarded(true);
+      try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch {}
+      openUpgrade();
+    }} />;
   }
 
   const navItems: { view: View; icon: string; labelKey: string }[] = [

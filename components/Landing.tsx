@@ -285,7 +285,7 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
               <span className="text-2xl">👑</span>
               <div>
                 <h3 className="text-base font-black">Plano Pro</h3>
-                <p className="text-[11px] text-violet-300 font-mono">R$29/mês · plano anual</p>
+                <p className="text-[11px] text-violet-300 font-mono">R$29/mês ou R$347/ano (47% OFF)</p>
               </div>
             </div>
             <ul className="space-y-2 text-xs text-slate-300">
@@ -296,9 +296,14 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
               <li className="flex gap-2"><span className="text-violet-400">✓</span><span>Treino de ouvido + harmonia e terças</span></li>
               <li className="flex gap-2"><span className="text-violet-400">✓</span><span>Progresso detalhado e gamificação completa</span></li>
             </ul>
-            <button onClick={() => onUpgrade ? onUpgrade() : onEnterApp()} className="btn-primary w-full text-sm py-3">
-              Assinar Pro Anual · R$347/ano
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => onUpgrade ? onUpgrade() : onEnterApp()} className="bg-white/5 border border-violet-500/30 text-violet-200 rounded-xl py-3 text-xs font-bold hover:bg-violet-500/10 transition-all">
+                Pro Mensal · R$54,90/mês
+              </button>
+              <button onClick={() => onUpgrade ? onUpgrade() : onEnterApp()} className="btn-primary text-xs py-3">
+                Pro Anual · R$347/ano
+              </button>
+            </div>
           </div>
         </div>
       </section>
