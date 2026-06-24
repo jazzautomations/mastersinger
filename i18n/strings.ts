@@ -222,6 +222,19 @@ const en: Dict = {
   'warmup.targetNote': 'Target note',
   'warmup.yourPitch': 'Your pitch',
   'warmup.duration': 'Duration',
+
+  // ── Recorder ──
+  'recorder.title': 'Record video',
+  'recorder.desc': 'Record yourself singing with the tuner overlay. Share on social media!',
+  'recorder.start': 'Start recording',
+  'recorder.stop': 'Stop',
+  'recorder.share': 'Share video',
+  'recorder.download': 'Download',
+  'recorder.recording': 'Recording...',
+  'recorder.done': 'Video ready!',
+  'recorder.retake': 'Record again',
+  'recorder.noCamera': 'Camera access denied. Please allow camera and microphone.',
+  'recorder.duration': 'Duration',
 };
 
 const pt: Dict = {
@@ -431,6 +444,19 @@ const pt: Dict = {
   'warmup.targetNote': 'Nota alvo',
   'warmup.yourPitch': 'Sua afinação',
   'warmup.duration': 'Duração',
+
+  // ── Gravador ──
+  'recorder.title': 'Gravar vídeo',
+  'recorder.desc': 'Grave você cantando com o afinador na tela. Compartilhe nas redes sociais!',
+  'recorder.start': 'Começar gravação',
+  'recorder.stop': 'Parar',
+  'recorder.share': 'Compartilhar vídeo',
+  'recorder.download': 'Baixar',
+  'recorder.recording': 'Gravando...',
+  'recorder.done': 'Vídeo pronto!',
+  'recorder.retake': 'Gravar de novo',
+  'recorder.noCamera': 'Acesso à câmera negado. Permita câmera e microfone.',
+  'recorder.duration': 'Duração',
 };
 
 const DICTS: Record<Language, Dict> = { en, 'pt-BR': pt };

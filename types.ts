@@ -18,7 +18,8 @@ export type View =
   | 'academy'
   | 'progress'
   | 'settings'
-  | 'warmup';     // guided interactive vocal warmup
+  | 'warmup'      // guided interactive vocal warmup
+  | 'recorder';   // video recording with tuner overlay
 
 export type Language = 'pt-BR' | 'en';
 

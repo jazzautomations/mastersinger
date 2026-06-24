@@ -137,6 +137,22 @@ export function Home({ onNavigate }: HomeProps) {
         </button>
       </div>
 
+      {/* ── Record video ── */}
+      <button
+        onClick={() => onNavigate('recorder')}
+        className="card p-5 w-full text-left hover:border-pink-500/40 transition-all"
+      >
+        <div className="flex items-center gap-4">
+          <span className="text-3xl">🎬</span>
+          <div className="flex-1">
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'recorder.title')}</div>
+            <div className="text-sm font-bold">{lang === 'pt-BR' ? 'Grave com o afinador na tela' : 'Record with tuner overlay'}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">{lang === 'pt-BR' ? 'Compartilhe nas redes sociais' : 'Share on social media'}</div>
+          </div>
+          <span className="text-pink-400"><i className="fas fa-chevron-right"></i></span>
+        </div>
+      </button>
+
       {/* ── Continue learning ── */}
       {nextCourse && nextLesson && (
         <div className="space-y-3">

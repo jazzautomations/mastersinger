@@ -12,6 +12,7 @@ import { Theory } from './components/Theory';
 import { Harmony } from './components/Harmony';
 import { Academy } from './components/Academy';
 import { Warmup } from './components/Warmup';
+import { Recorder } from './components/Recorder';
 import { Progress } from './components/Progress';
 import { Settings } from './components/Settings';
 import { UpgradeModal } from './components/UpgradeModal';
@@ -211,6 +212,7 @@ function MainApp() {
         {view === 'harmony'  && <Harmony />}
         {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} />}
         {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
+        {view === 'recorder' && <Recorder />}
         {view === 'progress' && <Progress />}
         {view === 'settings' && <Settings />}
       </main>
