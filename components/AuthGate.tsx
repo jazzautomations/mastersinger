@@ -39,6 +39,7 @@ export function AuthGate({ onDone }: { onDone: () => void }) {
         provider: 'google',
         options: {
           redirectTo: window.location.origin + '/#app',
+          skipBrowserRedirect: false,
         },
       });
       if (authError) { setError(authError.message); setGoogleBusy(false); }
