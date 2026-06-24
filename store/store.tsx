@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import type { UserProfile, ExerciseResult, StudentLevel, Language, League, SavedMelody, Note, View } from '../types';
 import { todayISO, weekStartISO, classifyVoiceType } from '../services/theoryService';
 import { getSupabaseClient } from '../services/supabase';
@@ -275,6 +275,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [supabase, supabaseUser]);
 
+  // Keep a ref to the latest hydrateFromSupabase so the auth useEffect
+  // doesn't need it as a dependency (which would cause infinite re-renders).
+  const hydrateRef = useRef(hydrateFromSupabase);
+  hydrateRef.current = hydrateFromSupabase;
+
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
@@ -310,7 +315,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncEnabled(enabled);
         setSyncStatus(enabled ? 'connected' : 'local');
         saveSyncEnabled(enabled);
-        if (enabled) void hydrateFromSupabase();
+        if (enabled) void hydrateRef.current();
         // Clean up any auth tokens from the URL after successful auth
         const h = window.location.hash;
         const q = window.location.search;
@@ -334,7 +339,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       mounted = false;
       sub.subscription.unsubscribe();
     };
-  }, [hydrateFromSupabase, supabase]);
+  }, [supabase]);
 
   useEffect(() => {
     if (!syncEnabled) return;
