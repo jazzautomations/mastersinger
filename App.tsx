@@ -133,6 +133,10 @@ function MainApp() {
     setViewOpts(opts ?? null);
   };
 
+  // 404 for unknown views
+  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','academy','progress','settings','warmup','recorder'];
+  const is404 = !validViews.includes(view);
+
   if (!showApp) {
     return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={enterApp} />;
   }
@@ -209,6 +213,14 @@ function MainApp() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 pb-8">
+        {is404 && (
+          <div className="text-center py-20 space-y-4">
+            <div className="text-6xl">🎤</div>
+            <h2 className="text-2xl font-black display">Página não encontrada</h2>
+            <p className="text-sm text-slate-400">O que você procura não existe aqui.</p>
+            <button onClick={() => handleNavigate('home')} className="btn-primary text-xs px-6 py-3 mt-4">Voltar ao início</button>
+          </div>
+        )}
         {view === 'home'     && <Home onNavigate={handleNavigate} />}
         {view === 'tuner'    && <Tuner />}
         {view === 'practice' && <Practice

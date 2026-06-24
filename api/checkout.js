@@ -74,6 +74,7 @@ module.exports = async function handler(req, res) {
     return json(res, 200, { invoiceUrl: payment.invoiceUrl, paymentId: payment.id });
   } catch (e) {
     console.error('checkout error', e);
-    return json(res, 500, { error: 'Falha ao criar cobrança.' });
+    const detail = e && e.message ? e.message : String(e);
+    return json(res, 500, { error: 'Falha ao criar cobrança.', detail });
   }
 };

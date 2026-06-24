@@ -184,15 +184,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const canAccessCourse = useCallback((courseId: string) => entCanAccessCourse(courseId, subscription), [subscription]);
   const canAccessExercise = useCallback((exerciseId: string) => entCanAccessExercise(exerciseId, subscription), [subscription]);
 
+  // ── Rate limiting for auth attempts (max 5 per 10 min per email) ──
+  const authAttempts = useRef<Map<string, number[]>>(new Map());
+
+  const checkRateLimit = useCallback((email: string): boolean => {
+    const now = Date.now();
+    const window = 10 * 60 * 1000; // 10 minutes
+    const maxAttempts = 5;
+    const attempts = authAttempts.current.get(email) || [];
+    const recent = attempts.filter(t => now - t < window);
+    if (recent.length >= maxAttempts) return false;
+    recent.push(now);
+    authAttempts.current.set(email, recent);
+    return true;
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string) => {
     if (!supabase) return { ok: false, error: 'Backend não configurado.' };
+    if (!checkRateLimit(email)) return { ok: false, error: 'Muitas tentativas. Aguarde 10 minutos.' };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { ok: false, error: error.message };
     return { ok: true };
-  }, [supabase]);
+  }, [supabase, checkRateLimit]);
 
   const signUp = useCallback(async (email: string, password: string) => {
     if (!supabase) return { ok: false, error: 'Backend não configurado.' };
+    if (!checkRateLimit(email)) return { ok: false, error: 'Muitas tentativas. Aguarde 10 minutos.' };
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { ok: false, error: error.message };
     // Auto-sign-in if signup returned a session (email confirmation disabled).
@@ -200,7 +217,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSupabaseUser({ id: data.user!.id, email: data.user!.email });
     }
     return { ok: true };
-  }, [supabase]);
+  }, [supabase, checkRateLimit]);
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
@@ -294,14 +311,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // We only need to: (a) read the initial session, (b) listen for auth
     // state changes, and (c) clean up stale URL params.
 
-    console.log('[Auth] init, hash:', window.location.hash, 'query:', window.location.search || 'none');
+    if (import.meta.env.DEV) console.log('[Auth] init, hash:', window.location.hash, 'query:', window.location.search || 'none');
 
     supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
       const sessionUser = data.session?.user;
-      console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
+      if (import.meta.env.DEV) console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
       if (error) {
-        console.warn('[Auth] clearing invalid session:', error.message);
+        if (import.meta.env.DEV) console.warn('[Auth] clearing invalid session:', error.message);
         void supabase.auth.signOut({ scope: 'local' });
         try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
         return;
@@ -311,7 +328,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // stale (user deleted on server). Validate against the server.
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData?.user) {
-          console.warn('[Auth] session invalid on server, clearing:', userError?.message ?? 'no user');
+          if (import.meta.env.DEV) console.warn('[Auth] session invalid on server, clearing:', userError?.message ?? 'no user');
           void supabase.auth.signOut({ scope: 'local' });
           try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
           return;
@@ -323,7 +340,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
+      if (import.meta.env.DEV) console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
       if (event === 'SIGNED_OUT') {
         setSupabaseUser(null);
         setSubscription(null);
@@ -497,6 +514,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!Array.isArray(parsed.badges)) return false;
       if (!parsed.streak || typeof parsed.streak !== 'object') return false;
       if (!parsed.settings || typeof parsed.settings !== 'object') return false;
+      // Cap imported values to prevent cheating
+      parsed.level = Math.min(Math.max(1, Math.floor(parsed.level)), 99);
+      parsed.xp = Math.min(Math.max(0, Math.floor(parsed.xp)), 100000);
+      parsed.badges = parsed.badges.filter((b: unknown) => typeof b === 'string').slice(0, 50);
       const next = { ...DEFAULT_PROFILE, ...parsed, settings: { ...DEFAULT_PROFILE.settings, ...parsed.settings } };
       setProfile(next);
       if (Array.isArray(parsed.melodies)) setMelodies(parsed.melodies);

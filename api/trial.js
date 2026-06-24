@@ -1,9 +1,24 @@
 const { supabaseAdmin, getUserFromRequest, json } = require('./_lib/supabaseAdmin');
 
+// Simple in-memory rate limit: max 5 trial attempts per IP per 10 minutes
+const rateLimit = {};
+function isRateLimited(ip) {
+  const now = Date.now();
+  const window = 10 * 60 * 1000;
+  if (!rateLimit[ip]) rateLimit[ip] = [];
+  rateLimit[ip] = rateLimit[ip].filter(t => now - t < window);
+  if (rateLimit[ip].length >= 5) return true;
+  rateLimit[ip].push(now);
+  return false;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const user = await getUserFromRequest(req);
   if (!user) return json(res, 401, { error: 'Não autenticado. Faça login para ativar o teste.' });
+
+  const clientIp = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
+  if (isRateLimited(clientIp)) return json(res, 429, { error: 'Muitas tentativas. Aguarde 10 minutos.' });
 
   const admin = supabaseAdmin();
   if (!admin) return json(res, 500, { error: 'Backend não configurado.' });

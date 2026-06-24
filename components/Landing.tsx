@@ -39,7 +39,7 @@ const COMPARISON = [
   { feature: 'Estúdio de melodias (MIDI)', ms: true, lesson: false, others: false },
   { feature: 'Treine quando e onde quiser', ms: true, lesson: false, others: true },
   { feature: 'Gamificação e progresso', ms: true, lesson: false, others: 'parcial' },
-  { feature: 'Custo mensal', ms: 'R$29', lesson: 'R$400+', others: 'R$40+' },
+  { feature: 'Custo mensal', ms: 'a partir de R$29', lesson: 'R$400+', others: 'R$40+' },
 ];
 
 const PERSONAS = [
@@ -69,25 +69,56 @@ const SOCIAL_STATS = [
 
 export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => void; onUpgrade?: () => void; onLogin: () => void }) {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen text-slate-100">
       {/* ── Top nav ── */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-white/5">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+        <nav className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">🎤</span>
             <span className="text-sm font-black display neon-text">MasterSinger</span>
           </div>
-          <div className="flex items-center gap-2">
-            <a href="#planos" className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">Planos</a>
-            <a href="#como-funciona" className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">Como funciona</a>
-            <a href="#faq" className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">FAQ</a>
-            <button onClick={onLogin} className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-300 hover:text-white transition-all">Entrar</button>
+          {/* Desktop nav */}
+          <div className="hidden sm:flex items-center gap-2">
+            <a href="#planos" className="px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">Planos</a>
+            <a href="#como-funciona" className="px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">Como funciona</a>
+            <a href="#faq" className="px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">FAQ</a>
+            <button onClick={onLogin} className="px-3 py-1.5 text-xs font-mono text-slate-300 hover:text-white transition-all">Entrar</button>
             <button onClick={onLogin} className="btn-primary text-[11px] px-4 py-2">Cadastre-se</button>
           </div>
-        </div>
+          {/* Mobile hamburger */}
+          <button onClick={() => setMenuOpen(!menuOpen)} className="sm:hidden p-2 text-slate-400 hover:text-white transition-all" aria-label="Menu">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              {menuOpen ? (
+                <>
+                  <line x1="4" y1="4" x2="16" y2="16" />
+                  <line x1="16" y1="4" x2="4" y2="16" />
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="5" x2="17" y2="5" />
+                  <line x1="3" y1="10" x2="17" y2="10" />
+                  <line x1="3" y1="15" x2="17" y2="15" />
+                </>
+              )}
+            </svg>
+          </button>
+        </nav>
+        {/* Mobile menu drawer */}
+        {menuOpen && (
+          <div className="sm:hidden border-t border-white/5 bg-slate-950/95 backdrop-blur-xl px-4 py-4 space-y-2">
+            <a href="#planos" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm font-mono text-slate-300 hover:text-violet-300 transition-all rounded-lg hover:bg-white/5">Planos</a>
+            <a href="#como-funciona" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm font-mono text-slate-300 hover:text-violet-300 transition-all rounded-lg hover:bg-white/5">Como funciona</a>
+            <a href="#faq" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm font-mono text-slate-300 hover:text-violet-300 transition-all rounded-lg hover:bg-white/5">FAQ</a>
+            <button onClick={() => { setMenuOpen(false); onLogin(); }} className="w-full text-left px-3 py-2 text-sm font-mono text-slate-300 hover:text-violet-300 transition-all rounded-lg hover:bg-white/5">Entrar</button>
+            <button onClick={() => { setMenuOpen(false); onLogin(); }} className="w-full btn-primary text-xs py-3 mt-2">Cadastre-se</button>
+          </div>
+        )}
       </header>
+
+      <main>
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden">
@@ -104,7 +135,7 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
 
           <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
             O treinador vocal completo que cabe no seu bolso. Afinador preciso em tempo real,
-            exercícios gamificados, aquecimentos guiados e cursos — por <span className="text-violet-300 font-bold">menos de R$29/mês</span>.
+            exercícios gamificados, aquecimentos guiados e cursos — por <span className="text-violet-300 font-bold">a partir de R$29/mês</span>.
             Ou comece <span className="text-green-300 font-bold">grátis</span> agora.
           </p>
 
@@ -285,7 +316,7 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
               <span className="text-2xl">👑</span>
               <div>
                 <h3 className="text-base font-black">Plano Pro</h3>
-                <p className="text-[11px] text-violet-300 font-mono">R$29/mês ou R$347/ano (47% OFF)</p>
+                <p className="text-[11px] text-violet-300 font-mono">R$54,90/mês ou R$347/ano (47% OFF)</p>
               </div>
             </div>
             <ul className="space-y-2 text-xs text-slate-300">
@@ -447,6 +478,8 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
           ))}
         </div>
       </section>
+
+      </main>
 
       {/* ── Footer ── */}
       <footer className="border-t border-white/5 mt-10">
