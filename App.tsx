@@ -105,8 +105,8 @@ function MainApp() {
             <button onClick={() => handleNavigate('harmony')} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all">
               {t(lang, 'nav.harmony')}
             </button>
-            <button onClick={() => openUpgrade()} className="px-3 py-1.5 rounded-lg text-xs font-mono text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 transition-all font-bold" title={isPro ? 'Você é Pro' : 'Assinar Pro'}>
-              {isPro ? '👑 Pro' : '⚡ Pro'}
+            <button onClick={() => openUpgrade()} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all font-bold ${isPro ? 'text-amber-300 bg-amber-500/10 hover:bg-amber-500/20' : 'text-slate-400 hover:text-amber-300 hover:bg-amber-500/10'}`} title={isPro ? 'Você é Pro' : 'Assinar Pro'}>
+              {isPro ? '👑 Pro' : '⚡ Upgrade'}
             </button>
             <button onClick={enterLanding} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all" title="Voltar à página inicial">
               <i className="fas fa-globe"></i>

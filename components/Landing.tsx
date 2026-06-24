@@ -39,7 +39,7 @@ const COMPARISON = [
   { feature: 'Estúdio de melodias (MIDI)', ms: true, lesson: false, others: false },
   { feature: 'Treine quando e onde quiser', ms: true, lesson: false, others: true },
   { feature: 'Gamificação e progresso', ms: true, lesson: false, others: 'parcial' },
-  { feature: 'Custo mensal', ms: 'R$16', lesson: 'R$400+', others: 'R$40+' },
+  { feature: 'Custo mensal', ms: 'R$29', lesson: 'R$400+', others: 'R$40+' },
 ];
 
 const PERSONAS = [
@@ -102,7 +102,7 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
 
           <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
             O treinador vocal completo que cabe no seu bolso. Afinador preciso em tempo real,
-            exercícios gamificados, aquecimentos guiados e cursos — por <span className="text-violet-300 font-bold">menos de R$17/mês</span>.
+            exercícios gamificados, aquecimentos guiados e cursos —             por <span className="text-violet-300 font-bold">menos de R$29/mês</span>.
             A evolução que uma aula de R$400/mês te dá, sem o preço.
           </p>
 
@@ -271,7 +271,7 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
           ))}
         </div>
         <p className="text-center mt-5 text-sm text-slate-400">
-          Um ano de MasterSinger Pro = <span className="text-violet-300 font-bold">R$197</span>.
+          Um ano de MasterSinger Pro = <span className="text-violet-300 font-bold">R$347</span>.
           Um mês de aula particular = <span className="text-red-300 font-bold">R$400+</span>.
         </p>
       </section>

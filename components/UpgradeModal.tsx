@@ -10,7 +10,7 @@ import { entitlementLabel } from '../services/entitlements';
 // open this.
 // ──────────────────────────────────────────────────────────────────────────
 
-type Step = 'auth' | 'plans';
+type Step = 'plans' | 'auth' | 'checkout';
 
 export function UpgradeModal() {
   const { upgradeOpen, closeUpgrade, authUser, subscription, isPro, refreshSubscription, signIn, signUp, upgradeDefaultPlan } = useStore();
@@ -25,11 +25,12 @@ export function UpgradeModal() {
   const [password, setPassword] = useState('');
   // ── teacher code ──
   const [teacherCode, setTeacherCode] = useState('');
+  // ── pending checkout (plan selected before auth) ──
+  const [pendingCheckout, setPendingCheckout] = useState<'pro-monthly' | 'pro-yearly' | null>(null);
 
   useEffect(() => {
-    if (!upgradeOpen) { setError(null); setInfo(null); setBusy(false); }
-    setStep(authUser ? 'plans' : 'auth');
-  }, [upgradeOpen, authUser]);
+    if (!upgradeOpen) { setError(null); setInfo(null); setBusy(false); setStep('plans'); setPendingCheckout(null); }
+  }, [upgradeOpen]);
 
   if (!upgradeOpen) return null;
 
@@ -42,10 +43,22 @@ export function UpgradeModal() {
     setBusy(false);
     if (!res.ok) { setError(res.error || 'Falha na autenticação'); return; }
     await refreshSubscription();
-    setStep('plans');
+    // If there's a pending checkout, proceed with it after auth
+    if (pendingCheckout) {
+      setStep('checkout');
+      await checkout(pendingCheckout);
+    } else {
+      setStep('plans');
+    }
   };
 
   const startTrial = async () => {
+    // If not logged in, show auth first
+    if (!authUser) {
+      setPendingCheckout(null);
+      setStep('auth');
+      return;
+    }
     setError(null); setInfo(null); setBusy(true);
     try {
       const sb = getSupabaseClient();
@@ -68,6 +81,12 @@ export function UpgradeModal() {
   };
 
   const checkout = async (planId: 'pro-monthly' | 'pro-yearly') => {
+    // If not logged in, save pending plan and show auth
+    if (!authUser) {
+      setPendingCheckout(planId);
+      setStep('auth');
+      return;
+    }
     setError(null); setInfo(null); setBusy(true);
     try {
       const sb = getSupabaseClient();
@@ -122,7 +141,11 @@ export function UpgradeModal() {
             <div className="space-y-4">
               <div className="text-center space-y-1">
                 <h2 className="text-lg font-black display">{mode === 'signup' ? 'Crie sua conta' : 'Entrar'}</h2>
-                <p className="text-xs text-slate-400">Necessário pra ativar o trial e assinar. Seus dados ficam salvos no nuvem.</p>
+                <p className="text-xs text-slate-400">
+                  {pendingCheckout
+                    ? 'Faça login pra continuar com a assinatura. Seus dados ficam salvos na nuvem.'
+                    : 'Necessário pra ativar o trial e assinar. Seus dados ficam salvos na nuvem.'}
+                </p>
               </div>
               <div className="space-y-2">
                 <input
@@ -140,6 +163,9 @@ export function UpgradeModal() {
               </button>
               <button onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(null); }} className="w-full text-xs text-slate-400 hover:text-violet-300 transition-all">
                 {mode === 'signup' ? 'Já tem conta? Entrar' : 'Não tem conta? Criar agora'}
+              </button>
+              <button onClick={() => { setStep('plans'); setPendingCheckout(null); setError(null); }} className="w-full text-xs text-slate-500 hover:text-slate-300 transition-all">
+                ← Voltar aos planos
               </button>
             </div>
           )}

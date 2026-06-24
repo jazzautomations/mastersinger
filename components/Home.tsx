@@ -12,7 +12,7 @@ interface HomeProps {
 }
 
 export function Home({ onNavigate }: HomeProps) {
-  const { profile } = useStore();
+  const { profile, isPro, openUpgrade } = useStore();
   const lang = profile.settings.language;
   const today = todayISO();
   const weekStart = weekStartISO();
@@ -71,6 +71,20 @@ export function Home({ onNavigate }: HomeProps) {
           </div>
         </div>
       </div>
+
+      {/* ── Upgrade banner for free users ── */}
+      {!isPro && (
+        <button onClick={() => openUpgrade()} className="card p-4 w-full text-left hover:border-amber-500/40 transition-all border-amber-500/20 bg-gradient-to-r from-amber-500/5 to-violet-500/5">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⚡</span>
+            <div className="flex-1">
+              <div className="text-sm font-bold text-amber-200">Desbloqueie todo o app</div>
+              <div className="text-[11px] text-slate-400">30+ exercícios, 8 cursos, estúdio MIDI e mais. Teste grátis por 7 dias.</div>
+            </div>
+            <span className="text-amber-400 text-xs font-mono font-bold">PRO →</span>
+          </div>
+        </button>
+      )}
 
       {/* ── Guided journey: today's mission ── */}
       <Journey onNavigate={onNavigate} />

@@ -478,30 +478,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSyncMessage('Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
       return false;
     }
-    const email = typeof window !== 'undefined' ? window.prompt('Email') : null;
-    if (!email) return false;
-    const password = typeof window !== 'undefined' ? window.prompt('Senha') : null;
-    if (!password) return false;
-    setSyncStatus('syncing');
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setSyncStatus('error');
-      setSyncMessage(error.message);
-      return false;
-    }
-    const user = data.user;
-    if (user) {
-      setSupabaseUser({ id: user.id, email: user.email });
-      setSyncEnabled(true);
-      saveSyncEnabled(true);
+    // Check if already logged in
+    if (supabaseUser) {
       setSyncStatus('connected');
-      setSyncMessage('Conectado ao Supabase.');
-      await hydrateFromSupabase();
-      await syncToSupabase(profile, melodies);
+      setSyncMessage('Já conectado ao Supabase.');
       return true;
     }
+    // For sync purposes, use the existing auth state from the upgrade modal
+    // The user should be logged in via the UpgradeModal before connecting sync
+    setSyncStatus('error');
+    setSyncMessage('Faça login no app primeiro (via botão Pro) para conectar a sincronização.');
     return false;
-  }, [hydrateFromSupabase, melodies, profile, supabase, syncToSupabase]);
+  }, [supabase, supabaseUser]);
 
   const disconnectSupabase = useCallback(() => {
     setSupabaseUser(null);
