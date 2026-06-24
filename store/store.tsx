@@ -279,29 +279,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     let mounted = true;
 
-    // After Google OAuth with PKCE, the URL has ?code=XXX&state=YYY in the
-    // QUERY STRING. detectSessionInUrl:true should handle this, but if it
-    // fails silently we need an explicit fallback.
-    const urlParams = new URLSearchParams(window.location.search);
-    const authCode = urlParams.get('code');
-    const hasAuthCode = !!authCode;
+    // Supabase client is created with detectSessionInUrl:true, which
+    // automatically processes ?code= (PKCE) or #access_token= (implicit)
+    // from the URL on initialization. We do NOT need to call
+    // exchangeCodeForSession manually — it would race with the built-in
+    // handler and fail (code verifier already consumed).
+    //
+    // We only need to: (a) read the initial session, (b) listen for auth
+    // state changes, and (c) clean up stale URL params.
 
-    console.log('[Auth] init, hash:', window.location.hash, 'query code:', hasAuthCode ? authCode!.slice(0, 8) + '...' : 'none');
-
-    if (hasAuthCode) {
-      // Explicitly exchange the PKCE code for a session
-      console.log('[Auth] attempting explicit PKCE code exchange...');
-      supabase.auth.exchangeCodeForSession(authCode!).then(({ data, error }) => {
-        if (!mounted) return;
-        if (error) {
-          console.error('[Auth] PKCE exchange FAILED:', error.message);
-        } else {
-          console.log('[Auth] PKCE exchange SUCCESS, user:', data.session?.user?.email);
-          // Clean up the URL - remove ?code= params
-          window.history.replaceState(null, '', window.location.pathname + '#app');
-        }
-      });
-    }
+    console.log('[Auth] init, hash:', window.location.hash, 'query:', window.location.search || 'none');
 
     supabase.auth.getSession().then(({ data, error }) => {
       if (!mounted) return;
@@ -324,19 +311,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncStatus(enabled ? 'connected' : 'local');
         saveSyncEnabled(enabled);
         if (enabled) void hydrateFromSupabase();
-        // Clean up any remaining auth tokens from the URL
-        if (event === 'SIGNED_IN') {
-          const h = window.location.hash;
-          const q = window.location.search;
-          if (h.includes('access_token') || q.includes('code=')) {
-            window.history.replaceState(null, '', window.location.pathname + '#app');
-          }
+        // Clean up any auth tokens from the URL after successful auth
+        const h = window.location.hash;
+        const q = window.location.search;
+        if (h.includes('access_token') || h.includes('refresh_token') || q.includes('code=')) {
+          window.history.replaceState(null, '', window.location.pathname + '#app');
         }
       } else {
         setSupabaseUser(null);
         setSyncEnabled(false);
         saveSyncEnabled(false);
         setSyncStatus('local');
+        // Clean up stale auth params even when there's no session
+        // (e.g. expired PKCE code sitting in the URL)
+        const q = window.location.search;
+        if (q.includes('code=') || q.includes('state=')) {
+          window.history.replaceState(null, '', window.location.pathname + (window.location.hash || ''));
+        }
       }
     });
     return () => {

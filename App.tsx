@@ -28,14 +28,12 @@ function MainApp() {
 
   // Detect if URL contains OAuth redirect params.
   // After Google OAuth, Supabase redirects with auth params in:
-  //   - Query string:  ?code=xxx&state=yyy   (PKCE - the actual flow used)
-  //   - Hash fragment: #access_token=xxx      (implicit fallback)
-  // We must detect BOTH to show the app instead of the landing page.
+  //   - Hash fragment: #access_token=xxx      (implicit)
+  //   - Query string:  ?code=xxx              (PKCE — auto-processed by detectSessionInUrl)
+  // We show the app for hash-based tokens; ?code= is handled by the store.
   const hasAuthParams = () => {
     const h = window.location.hash;
-    const q = window.location.search;
-    return h.includes('access_token') || h.includes('refresh_token')
-        || q.includes('code=') || q.includes('access_token');
+    return h.includes('access_token') || h.includes('refresh_token');
   };
 
   const [showApp, setShowApp] = useState<boolean>(() => {
@@ -61,8 +59,7 @@ function MainApp() {
   useEffect(() => {
     const onHash = () => {
       const h = window.location.hash;
-      const q = window.location.search;
-      if (h === '#app' || h.startsWith('#app') || h.includes('access_token') || q.includes('code=')) {
+      if (h === '#app' || h.startsWith('#app')) {
         setShowApp(true);
       } else if (h === '' || h === '#') {
         setShowApp(false);
