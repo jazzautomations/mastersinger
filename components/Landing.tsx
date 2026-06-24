@@ -67,7 +67,7 @@ const SOCIAL_STATS = [
   { value: '100%', label: 'local e privado' },
 ];
 
-export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onUpgrade?: () => void }) {
+export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => void; onUpgrade?: () => void; onLogin: () => void }) {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
@@ -83,7 +83,8 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
             <a href="#planos" className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">Planos</a>
             <a href="#como-funciona" className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">Como funciona</a>
             <a href="#faq" className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-400 hover:text-violet-300 transition-all">FAQ</a>
-            <button onClick={onEnterApp} className="btn-primary text-[11px] px-4 py-2">Entrar no app</button>
+            <button onClick={onLogin} className="hidden sm:block px-3 py-1.5 text-xs font-mono text-slate-300 hover:text-white transition-all">Entrar</button>
+            <button onClick={onLogin} className="btn-primary text-[11px] px-4 py-2">Cadastre-se</button>
           </div>
         </div>
       </header>

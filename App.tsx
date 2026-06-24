@@ -73,7 +73,7 @@ function MainApp() {
 
   // ── Landing is the public home page ──
   if (!showApp) {
-    return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} />;
+    return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={() => { window.location.hash = '#app'; }} />;
   }
 
   // ── Auth gate: login/signup before entering the app ──
