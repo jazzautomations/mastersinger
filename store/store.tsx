@@ -295,19 +295,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     console.log('[Auth] init, hash:', window.location.hash, 'query:', window.location.search || 'none');
 
-    supabase.auth.getSession().then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
       const sessionUser = data.session?.user;
       console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
       if (error) {
-        // Stale or invalid session (e.g. user was deleted from Supabase).
-        // Clear it so the user sees the auth gate instead of a broken state.
         console.warn('[Auth] clearing invalid session:', error.message);
         void supabase.auth.signOut({ scope: 'local' });
         return;
       }
       if (sessionUser) {
-        setSupabaseUser({ id: sessionUser.id, email: sessionUser.email });
+        // getSession() returns cached session from localStorage — it might be
+        // stale (user deleted on server). Validate against the server.
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData?.user) {
+          console.warn('[Auth] session invalid on server, clearing:', userError?.message ?? 'no user');
+          void supabase.auth.signOut({ scope: 'local' });
+          return;
+        }
+        setSupabaseUser({ id: userData.user.id, email: userData.user.email });
         setSyncEnabled(loadSyncEnabled());
         setSyncStatus(loadSyncEnabled() ? 'connected' : 'local');
       }
