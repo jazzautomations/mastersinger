@@ -45,7 +45,7 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
       const { data, error: authError } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + '/#app',
+          redirectTo: window.location.origin,
           skipBrowserRedirect: true,
         },
       });

@@ -204,7 +204,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
-    await supabase.auth.signOut();
+    try { await supabase.auth.signOut(); } catch { /* session may already be invalid */ }
     setSubscription(null);
     setSupabaseUser(null);
   }, [supabase]);
@@ -299,6 +299,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       const sessionUser = data.session?.user;
       console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
+      if (error) {
+        // Stale or invalid session (e.g. user was deleted from Supabase).
+        // Clear it so the user sees the auth gate instead of a broken state.
+        console.warn('[Auth] clearing invalid session:', error.message);
+        void supabase.auth.signOut({ scope: 'local' });
+        return;
+      }
       if (sessionUser) {
         setSupabaseUser({ id: sessionUser.id, email: sessionUser.email });
         setSyncEnabled(loadSyncEnabled());
@@ -308,6 +315,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
+      if (event === 'SIGNED_OUT') {
+        setSupabaseUser(null);
+        setSubscription(null);
+        setSyncEnabled(false);
+        saveSyncEnabled(false);
+        setSyncStatus('local');
+        return;
+      }
       const user = session?.user;
       if (user) {
         setSupabaseUser({ id: user.id, email: user.email });
