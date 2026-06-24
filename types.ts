@@ -186,6 +186,13 @@ export interface UserProfile {
     level: StudentLevel;
     rangeCenterMidi?: number;  // midpoint of detected range; exercises transpose to sit here
     audioInputDeviceId?: string;
+    onboarding?: {
+      singsAlready?: boolean;
+      singingTime?: string;
+      favoriteStyles?: string[];
+      hadLessons?: boolean;
+      lessonsTime?: string;
+    };
   };
   results: ExerciseResult[];   // recent N results
   completedLessons: string[];

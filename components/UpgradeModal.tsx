@@ -187,7 +187,7 @@ export function UpgradeModal() {
                   <div className="text-sm font-bold">Teste grátis primeiro</div>
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Ative <span className="text-cyan-300 font-semibold">7 dias grátis</span> sem cartão. Tenha um código de professor? Ganhe <span className="text-cyan-300 font-semibold">30 dias</span>.
+                  Ative <span className="text-cyan-300 font-semibold">7 dias grátis</span> sem cartão de crédito. <span className="text-green-400 font-semibold">Nenhuma cobrança agora.</span> Cancele a qualquer momento.
                 </p>
                 <input
                   type="text" value={teacherCode} onChange={e => setTeacherCode(e.target.value)}
@@ -197,6 +197,11 @@ export function UpgradeModal() {
                 <button onClick={startTrial} disabled={busy} className="w-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 rounded-xl py-3 text-sm font-bold hover:bg-cyan-500/30 transition-all disabled:opacity-40">
                   {busy ? 'Aguarde...' : teacherCode.trim() ? 'Ativar 30 dias com o código' : 'Ativar 7 dias grátis'}
                 </button>
+                <p className="text-center text-[10px] text-slate-500 font-mono">
+                  {teacherCode.trim()
+                    ? 'Código do professor: 30 dias de acesso completo'
+                    : 'Cobrança automática após 7 dias · Cancele quando quiser'}
+                </p>
               </div>
 
               {/* Paid plans */}
@@ -215,6 +220,7 @@ export function UpgradeModal() {
                       {plan.pricePerMonth != null && (
                         <div className="text-[10px] text-violet-300 font-mono">≈ {formatBRL(plan.pricePerMonth)}/mês {plan.discountPct ? `· ${plan.discountPct}% OFF` : ''}</div>
                       )}
+                      <div className="text-[10px] text-green-400 font-mono mt-1">✓ 7 dias grátis inclusos · Cobrança após 7 dias</div>
                     </div>
                     <button
                       onClick={() => checkout(plan.id as 'pro-monthly' | 'pro-yearly')}
@@ -227,9 +233,14 @@ export function UpgradeModal() {
                 ))}
               </div>
 
-              <p className="text-center text-[10px] text-slate-500 font-mono">
-                Pagamento seguro via Asaas · Pix, cartão ou boleto · Cancele quando quiser
-              </p>
+              <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500 font-mono">
+                <span>🔒</span>
+                <span>Pagamento seguro via Asaas · Pix, cartão ou boleto</span>
+              </div>
+
+              <button onClick={closeUpgrade} className="w-full text-xs text-slate-500 hover:text-slate-300 transition-all py-2">
+                Continuar com o plano gratuito
+              </button>
             </div>
           )}
 

@@ -2,7 +2,15 @@ import React, { useState } from 'react';
 import { useStore } from '../store/store';
 import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
-import type { Language, StudentLevel } from '../types';
+import type { StudentLevel } from '../types';
+
+const MUSICAL_STYLES = [
+  'Pop', 'MPB', 'Sertanejo', 'Gospel', 'Rock',
+  'Forró', 'Bossa Nova', 'Clássico', 'K-Pop', 'Funk',
+];
+
+const SINGING_TIME_OPTIONS = ['onb.singsTimeOptions'];
+const LESSONS_TIME_OPTIONS = ['onb.lessonsTimeOptions'];
 
 interface OnboardingProps {
   onDone: () => void;
@@ -15,125 +23,228 @@ export function Onboarding({ onDone }: OnboardingProps) {
   const [micOk, setMicOk] = useState(false);
   const pitch = usePitchDetection({ a4: profile.settings.a4 });
 
-  const steps = [
-    // 0: welcome
-    {
-      title: t(lang, 'onb.welcome'),
-      desc: t(lang, 'onb.welcomeDesc'),
-      body: (
-        <div className="text-center space-y-6">
-          <div className="text-7xl ring-pop">🎤</div>
-          <p className="text-slate-300 leading-relaxed max-w-md mx-auto">{t(lang, 'onb.welcomeDesc')}</p>
-          <div className="flex items-center justify-center gap-2 text-xs text-slate-500 font-mono">
-            <span>{t(lang, 'onb.step')} {step + 1} {t(lang, 'onb.of')} 4</span>
-          </div>
-        </div>
-      ),
-    },
-    // 1: language
-    {
-      title: t(lang, 'onb.lang.title'),
-      desc: '',
-      body: (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            {(['pt-BR', 'en'] as Language[]).map(l => (
-              <button
-                key={l}
-                onClick={() => updateSettings({ language: l })}
-                className={`p-6 rounded-2xl border-2 transition-all ${lang === l ? 'border-violet-500 bg-violet-500/10' : 'border-white/10 hover:border-white/20'}`}
-              >
-                <div className="text-3xl mb-2">{l === 'pt-BR' ? '🇧🇷' : '🇺🇸'}</div>
-                <div className="text-sm font-bold">{l === 'pt-BR' ? 'Português' : 'English'}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ),
-    },
-    // 2: level
-    {
-      title: t(lang, 'onb.level.title'),
-      desc: t(lang, 'onb.level.desc'),
-      body: (
-        <div className="space-y-3">
-          {([
-            { v: 'beginner',     label: t(lang, 'settings.level.beginner'),     icon: '🌱' },
-            { v: 'intermediate', label: t(lang, 'settings.level.intermediate'), icon: '🔥' },
-            { v: 'advanced',     label: t(lang, 'settings.level.advanced'),     icon: '💎' },
-          ] as { v: StudentLevel; label: string; icon: string }[]).map(opt => (
-            <button
-              key={opt.v}
-              onClick={() => updateSettings({ level: opt.v })}
-              className={`w-full p-5 rounded-2xl border-2 flex items-center gap-4 transition-all ${profile.settings.level === opt.v ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/10 hover:border-white/20'}`}
-            >
-              <span className="text-3xl">{opt.icon}</span>
-              <span className="text-base font-bold flex-1 text-left">{opt.label}</span>
-              {profile.settings.level === opt.v && <span className="text-cyan-400"><i className="fas fa-check-circle"></i></span>}
-            </button>
-          ))}
-        </div>
-      ),
-    },
-    // 3: mic
-    {
-      title: t(lang, 'onb.mic.title'),
-      desc: t(lang, 'onb.mic.desc'),
-      body: (
-        <div className="space-y-6">
-          <div className="text-center space-y-3">
-            <div className="text-6xl">🎙️</div>
-            <p className="text-slate-300 text-sm leading-relaxed">{t(lang, 'onb.mic.desc')}</p>
-          </div>
-          {micOk && pitch.isListening && pitch.currentFrame && (
-            <div className="card p-6 text-center space-y-2">
-              <div className="text-4xl font-black neon-text font-mono">{pitch.currentFrame.noteName}</div>
-              <div className="text-xs text-slate-400">{pitch.currentFrame.frequency.toFixed(1)} Hz · {pitch.currentFrame.cents} cents</div>
-              <div className="text-xs text-green-400 font-mono">✓ {lang === 'pt-BR' ? 'Microfone funcionando' : 'Microphone working'}</div>
-            </div>
-          )}
-          {pitch.error && (
-            <div className="text-center text-red-400 text-sm">{pitch.error}</div>
-          )}
-          {!micOk ? (
-            <button
-              onClick={async () => {
-                await pitch.start();
-                setTimeout(() => setMicOk(true), 500);
-              }}
-              className="btn-primary w-full"
-            >
-              {t(lang, 'onb.mic.allow')}
-            </button>
-          ) : (
-            <div className="text-center text-sm text-slate-400">{lang === 'pt-BR' ? 'Tudo pronto!' : 'All set!'}</div>
-          )}
-        </div>
-      ),
-    },
-  ];
+  // ── Onboarding answers ──
+  const [singsAlready, setSingsAlready] = useState<boolean | null>(null);
+  const [singingTime, setSingingTime] = useState('');
+  const [favoriteStyles, setFavoriteStyles] = useState<string[]>([]);
+  const [hadLessons, setHadLessons] = useState<boolean | null>(null);
+  const [lessonsTime, setLessonsTime] = useState('');
 
-  const current = steps[step];
-  const isLast = step === steps.length - 1;
+  const totalSteps = 5;
+
+  const toggleStyle = (style: string) => {
+    setFavoriteStyles(prev =>
+      prev.includes(style) ? prev.filter(s => s !== style) : [...prev, style]
+    );
+  };
+
+  const saveAnswers = () => {
+    updateSettings({
+      onboarding: {
+        singsAlready: singsAlready ?? undefined,
+        singingTime: singingTime || undefined,
+        favoriteStyles: favoriteStyles.length > 0 ? favoriteStyles : undefined,
+        hadLessons: hadLessons ?? undefined,
+        lessonsTime: lessonsTime || undefined,
+      },
+    });
+  };
 
   const handleNext = () => {
-    if (isLast) {
+    if (step < totalSteps - 1) {
+      setStep(step + 1);
+    } else {
+      saveAnswers();
       pitch.stop();
       touchStreak();
       onDone();
-    } else {
-      setStep(step + 1);
     }
   };
+
+  const handleSkip = () => {
+    saveAnswers();
+    pitch.stop();
+    touchStreak();
+    onDone();
+  };
+
+  const renderStep = () => {
+    switch (step) {
+      case 0: // Welcome
+        return (
+          <div className="text-center space-y-6">
+            <div className="text-7xl ring-pop">🎤</div>
+            <p className="text-slate-300 leading-relaxed max-w-md mx-auto">
+              {t(lang, 'onb.welcomeDesc')}
+            </p>
+          </div>
+        );
+
+      case 1: // Sing already?
+        return (
+          <div className="space-y-4">
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-black display">{t(lang, 'onb.singsTitle')}</h2>
+              <p className="text-sm text-slate-400">{t(lang, 'onb.singsDesc')}</p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => setSingsAlready(true)}
+                className={`w-full p-5 rounded-2xl border-2 flex items-center gap-4 transition-all ${singsAlready === true ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/10 hover:border-white/20'}`}
+              >
+                <span className="text-3xl">🎵</span>
+                <span className="text-base font-bold flex-1 text-left">{t(lang, 'onb.singsYes')}</span>
+                {singsAlready === true && <span className="text-cyan-400"><i className="fas fa-check-circle"></i></span>}
+              </button>
+              <button
+                onClick={() => { setSingsAlready(false); setSingingTime(''); }}
+                className={`w-full p-5 rounded-2xl border-2 flex items-center gap-4 transition-all ${singsAlready === false ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/10 hover:border-white/20'}`}
+              >
+                <span className="text-3xl">🌱</span>
+                <span className="text-base font-bold flex-1 text-left">{t(lang, 'onb.singsNo')}</span>
+                {singsAlready === false && <span className="text-cyan-400"><i className="fas fa-check-circle"></i></span>}
+              </button>
+            </div>
+            {singsAlready === true && (
+              <div className="space-y-2 mt-4">
+                <div className="text-xs text-slate-400 font-mono">{t(lang, 'onb.singsTime')}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {t(lang, 'onb.singsTimeOptions').split('|').map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => setSingingTime(opt)}
+                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${singingTime === opt ? 'border-violet-500 bg-violet-500/10 text-violet-200' : 'border-white/10 hover:border-white/20 text-slate-300'}`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 2: // Musical styles
+        return (
+          <div className="space-y-4">
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-black display">{t(lang, 'onb.stylesTitle')}</h2>
+              <p className="text-sm text-slate-400">{t(lang, 'onb.stylesDesc')}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {MUSICAL_STYLES.map(style => (
+                <button
+                  key={style}
+                  onClick={() => toggleStyle(style)}
+                  className={`px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${favoriteStyles.includes(style) ? 'border-violet-500 bg-violet-500/10 text-violet-200' : 'border-white/10 hover:border-white/20 text-slate-300'}`}
+                >
+                  {favoriteStyles.includes(style) && <span className="mr-1.5">✓</span>}
+                  {style}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 3: // Vocal lessons
+        return (
+          <div className="space-y-4">
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-black display">{t(lang, 'onb.lessonsTitle')}</h2>
+              <p className="text-sm text-slate-400">{t(lang, 'onb.lessonsDesc')}</p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => setHadLessons(true)}
+                className={`w-full p-5 rounded-2xl border-2 flex items-center gap-4 transition-all ${hadLessons === true ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/10 hover:border-white/20'}`}
+              >
+                <span className="text-3xl">🎓</span>
+                <span className="text-base font-bold flex-1 text-left">{t(lang, 'onb.lessonsYes')}</span>
+                {hadLessons === true && <span className="text-cyan-400"><i className="fas fa-check-circle"></i></span>}
+              </button>
+              <button
+                onClick={() => { setHadLessons(false); setLessonsTime(''); }}
+                className={`w-full p-5 rounded-2xl border-2 flex items-center gap-4 transition-all ${hadLessons === false ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/10 hover:border-white/20'}`}
+              >
+                <span className="text-3xl">🎤</span>
+                <span className="text-base font-bold flex-1 text-left">{t(lang, 'onb.lessonsNo')}</span>
+                {hadLessons === false && <span className="text-cyan-400"><i className="fas fa-check-circle"></i></span>}
+              </button>
+            </div>
+            {hadLessons === true && (
+              <div className="space-y-2 mt-4">
+                <div className="text-xs text-slate-400 font-mono">{t(lang, 'onb.lessonsTime')}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {t(lang, 'onb.lessonsTimeOptions').split('|').map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => setLessonsTime(opt)}
+                      className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${lessonsTime === opt ? 'border-violet-500 bg-violet-500/10 text-violet-200' : 'border-white/10 hover:border-white/20 text-slate-300'}`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 4: // Microphone test
+        return (
+          <div className="space-y-6">
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-black display">{t(lang, 'onb.mic.title')}</h2>
+              <p className="text-sm text-slate-400">{t(lang, 'onb.mic.desc')}</p>
+            </div>
+            <div className="text-center space-y-3">
+              <div className="text-6xl">🎙️</div>
+            </div>
+            {micOk && pitch.isListening && pitch.currentFrame && (
+              <div className="card p-6 text-center space-y-2">
+                <div className="text-4xl font-black neon-text font-mono">{pitch.currentFrame.noteName}</div>
+                <div className="text-xs text-slate-400">{pitch.currentFrame.frequency.toFixed(1)} Hz · {pitch.currentFrame.cents} cents</div>
+                <div className="text-xs text-green-400 font-mono">✓ Microfone funcionando</div>
+              </div>
+            )}
+            {pitch.error && (
+              <div className="text-center text-red-400 text-sm">{pitch.error}</div>
+            )}
+            {!micOk ? (
+              <button
+                onClick={async () => {
+                  await pitch.start();
+                  setTimeout(() => setMicOk(true), 500);
+                }}
+                className="btn-primary w-full"
+              >
+                {t(lang, 'onb.mic.allow')}
+              </button>
+            ) : (
+              <div className="text-center text-sm text-green-400">✓ Tudo pronto!</div>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const canProceed = step === 4 ? micOk : true;
+  const isLast = step === totalSteps - 1;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md card p-8 space-y-6">
         <div>
-          <h1 className="text-2xl font-black display tracking-tight">{current.title}</h1>
-          {current.desc && <p className="text-slate-400 text-sm mt-1">{current.desc}</p>}
+          <h1 className="text-2xl font-black display tracking-tight">
+            {step === 0 ? t(lang, 'onb.welcome') : ''}
+          </h1>
         </div>
-        {current.body}
+
+        {renderStep()}
+
         <div className="flex gap-3">
           {step > 0 && (
             <button onClick={() => setStep(step - 1)} className="btn-ghost flex-1">
@@ -142,15 +253,22 @@ export function Onboarding({ onDone }: OnboardingProps) {
           )}
           <button
             onClick={handleNext}
-            disabled={step === 3 && !micOk}
-            className="btn-primary flex-1"
+            disabled={!canProceed}
+            className="btn-primary flex-1 disabled:opacity-40"
           >
             {isLast ? t(lang, 'onb.finish') : t(lang, 'common.next')}
           </button>
         </div>
+
+        {step > 0 && step < totalSteps - 1 && (
+          <button onClick={handleSkip} className="w-full text-xs text-slate-500 hover:text-slate-300 transition-all">
+            {t(lang, 'onb.skip')}
+          </button>
+        )}
+
         {step > 0 && (
           <div className="flex items-center justify-center gap-2 text-xs text-slate-500 font-mono">
-            <span>{t(lang, 'onb.step')} {step + 1} {t(lang, 'onb.of')} {steps.length}</span>
+            <span>{t(lang, 'onb.step')} {step + 1} {t(lang, 'onb.of')} {totalSteps}</span>
           </div>
         )}
       </div>

@@ -15,6 +15,7 @@ import { Warmup } from './components/Warmup';
 import { Progress } from './components/Progress';
 import { Settings } from './components/Settings';
 import { UpgradeModal } from './components/UpgradeModal';
+import { Tutorial, hasTutorialBeenSeen } from './components/Tutorial';
 import { t } from './i18n/strings';
 import { warmAudioOnUserGesture } from './services/audioService';
 import type { View } from './types';
@@ -64,6 +65,10 @@ function MainApp() {
   });
   const [isGuest, setIsGuest] = useState<boolean>(() => {
     try { return localStorage.getItem(GUEST_KEY) === '1'; } catch { return false; }
+  });
+  const [showTutorial, setShowTutorial] = useState<boolean>(() => {
+    if (onboarded) return false;
+    return !hasTutorialBeenSeen();
   });
   const [view, setView] = useState<View>('home');
   const [viewOpts, setViewOpts] = useState<any>(null);
@@ -143,6 +148,13 @@ function MainApp() {
     return <Onboarding onDone={() => {
       setOnboarded(true);
       try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch {}
+      setShowTutorial(true);
+    }} />;
+  }
+
+  if (showTutorial) {
+    return <Tutorial onDone={() => {
+      setShowTutorial(false);
       openUpgrade();
     }} />;
   }
