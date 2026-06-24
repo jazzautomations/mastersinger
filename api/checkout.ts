@@ -1,6 +1,6 @@
 import { supabaseAdmin, getUserFromRequest, json } from './_lib/supabaseAdmin';
 import { findOrCreateCustomer, createPayment } from './_lib/asaas';
-import { getPlan, type PlanId } from '../data/pricing';
+import { getPlan, type PlanId } from './_lib/pricing';
 
 // POST /api/checkout  { planId: 'pro-monthly' | 'pro-yearly' }
 //   Authorization: Bearer <supabase access_token>

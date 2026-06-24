@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './_lib/supabaseAdmin';
 import { getPayment } from './_lib/asaas';
-import { getPlan } from '../data/pricing';
+import { getPlan } from './_lib/pricing';
 import { timingSafeEqual } from 'crypto';
 
 // POST /api/asaas-webhook

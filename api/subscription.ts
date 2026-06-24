@@ -1,5 +1,5 @@
 import { supabaseAdmin, getUserFromRequest, json } from './_lib/supabaseAdmin';
-import { entitlementLabel, isSubscriptionActive } from '../services/entitlements';
+import { entitlementLabel, isSubscriptionActive } from './_lib/entitlements';
 
 // GET /api/subscription
 // Returns current subscription row + derived entitlement info for the logged-in user.
