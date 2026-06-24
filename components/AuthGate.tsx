@@ -55,7 +55,7 @@ export function AuthGate({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 overflow-y-auto">
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="text-center space-y-2">

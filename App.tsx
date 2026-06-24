@@ -104,7 +104,7 @@ function MainApp() {
   ];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-y-auto">
       {/* Top bar */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/70 border-b border-white/5" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
