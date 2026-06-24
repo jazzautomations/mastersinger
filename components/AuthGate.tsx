@@ -49,15 +49,19 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
     try {
       const sb = getSupabaseClient();
       if (!sb) { setError('Backend não configurado'); setGoogleBusy(false); return; }
+      // redirectTo must be a clean origin — no hash fragments.
+      // Supabase appends #access_token=... to whatever URL we give it.
+      // Using the plain origin avoids double-hash issues (#app#access_token=...)
+      // and matches what's registered in Supabase Dashboard → Auth → URL Config.
       const { error: authError } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + '/#app',
+          redirectTo: window.location.origin,
           skipBrowserRedirect: false,
         },
       });
       if (authError) { setError(authError.message); setGoogleBusy(false); }
-      // If successful, redirects to Google — user comes back logged in
+      // If successful, browser navigates to Google → Supabase callback → back here with tokens
     } catch (e: any) {
       setError(e.message || 'Falha ao conectar com Google');
       setGoogleBusy(false);

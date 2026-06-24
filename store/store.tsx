@@ -278,9 +278,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
+    // Log OAuth flow for debugging
+    console.log('[Auth] init, hash:', window.location.hash);
+    supabase.auth.getSession().then(({ data, error }) => {
       if (!mounted) return;
       const sessionUser = data.session?.user;
+      console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
       if (sessionUser) {
         setSupabaseUser({ id: sessionUser.id, email: sessionUser.email });
         setSyncEnabled(loadSyncEnabled());
@@ -288,6 +291,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
       const user = session?.user;
       if (user) {
         setSupabaseUser({ id: user.id, email: user.email });
@@ -296,8 +300,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncStatus(enabled ? 'connected' : 'local');
         saveSyncEnabled(enabled);
         if (enabled) void hydrateFromSupabase();
-        // After OAuth redirect, the URL hash contains Supabase tokens
-        // (e.g. #app&access_token=...). Clean it up to just #app.
+        // After OAuth redirect, the URL hash contains Supabase tokens.
+        // Clean it up to just #app so the hash router works normally.
         if (event === 'SIGNED_IN' && window.location.hash.includes('access_token')) {
           window.history.replaceState(null, '', window.location.pathname + '#app');
         }

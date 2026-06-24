@@ -26,35 +26,20 @@ function MainApp() {
   const { profile, canAccessView, openUpgrade, isPro, authUser } = useStore();
   const lang = profile.settings.language;
 
-  // ── Hash routing: "/" shows the marketing landing, "/#app" shows the app.
-  //    The landing is the public, SEO-facing surface; the app is gated behind
-  //    the "Entrar no app" CTA. Plain hash check — no router dependency.
-  const hashIsApp = () => {
-    const h = window.location.hash.toLowerCase();
-    // After Google OAuth redirect, Supabase puts tokens in the hash
-    // (e.g. #access_token=...), NOT #app. So check for that too.
-    return h.startsWith('#app') || h.includes('access_token');
+  // ── State machine: landing → auth → onboarding → app ──
+  // We detect if the URL contains Supabase OAuth tokens to skip straight to app.
+  const hasOAuthTokens = () => {
+    const h = window.location.hash;
+    return h.includes('access_token') || h.includes('refresh_token');
   };
 
+  // Start on landing unless: (a) hash says #app, (b) OAuth tokens present, (c) guest mode
   const [showApp, setShowApp] = useState<boolean>(() => {
-    try { return hashIsApp(); } catch { return false; }
+    try {
+      const h = window.location.hash;
+      return h === '#app' || h.startsWith('#app') || hasOAuthTokens();
+    } catch { return false; }
   });
-
-  useEffect(() => {
-    const onHash = () => {
-      setShowApp(hashIsApp());
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-
-  const enterApp = () => { window.location.hash = '#app'; };
-  const enterLanding = () => {
-    window.location.hash = '';
-    // Clear guest mode so auth gate shows next time
-    try { localStorage.removeItem(GUEST_KEY); } catch {}
-  };
 
   const [onboarded, setOnboarded] = useState<boolean>(() => {
     try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch { return false; }
@@ -75,8 +60,45 @@ function MainApp() {
     window.scrollTo(0, 0);
   }, [view]);
 
+  // ── Hash change listener (for back/forward browser nav) ──
+  useEffect(() => {
+    const onHash = () => {
+      const h = window.location.hash;
+      if (h === '#app' || h.startsWith('#app') || h.includes('access_token')) {
+        setShowApp(true);
+      } else if (h === '' || h === '#') {
+        setShowApp(false);
+      }
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // ── Auto-enter app after OAuth redirect ──
+  // Supabase redirects back with tokens in the hash (e.g. #access_token=...).
+  // detectSessionInUrl:true on the Supabase client parses them automatically.
+  // onAuthStateChange fires SIGNED_IN → authUser gets set → we enter the app.
+  useEffect(() => {
+    if (!showApp && authUser) {
+      window.location.hash = '#app';
+      setShowApp(true);
+    }
+  }, [showApp, authUser]);
+
+  const enterApp = () => {
+    window.location.hash = '#app';
+    setShowApp(true);
+  };
+
+  const enterLanding = () => {
+    window.location.hash = '';
+    setShowApp(false);
+    try { localStorage.removeItem(GUEST_KEY); } catch {}
+    setIsGuest(false);
+  };
+
   const handleNavigate = (v: View, opts?: any) => {
-    // Paywall: Pro-only views open the upgrade modal instead of navigating.
     if (!canAccessView(v)) {
       openUpgrade();
       return;
@@ -85,21 +107,12 @@ function MainApp() {
     setViewOpts(opts ?? null);
   };
 
-  // ── If user is authenticated but on landing (e.g. after Google OAuth redirect),
-  //    auto-redirect to the app ──
-  useEffect(() => {
-    if (!showApp && authUser) {
-      enterApp();
-    }
-  }, [showApp, authUser]);
-
-  // ── Landing is the public home page ──
+  // ── LANDING: public marketing page ──
   if (!showApp) {
-    return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={() => { window.location.hash = '#app'; }} />;
+    return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={enterApp} />;
   }
 
-  // ── Auth gate: login/signup before entering the app ──
-  // After Google OAuth redirect, authUser is set automatically.
+  // ── AUTH GATE: login/signup before entering the app ──
   if (!authUser && !isGuest) {
     return <AuthGate onDone={() => {}} onSkip={() => {
       try { localStorage.setItem(GUEST_KEY, '1'); } catch {}
@@ -107,10 +120,12 @@ function MainApp() {
     }} />;
   }
 
+  // ── ONBOARDING: first-time user experience ──
   if (!onboarded) {
     return <Onboarding onDone={() => { setOnboarded(true); try { localStorage.setItem(ONBOARDED_KEY, '1'); } catch {} }} />;
   }
 
+  // ── MAIN APP ──
   const navItems: { view: View; icon: string; labelKey: string }[] = [
     { view: 'home',     icon: '🏠', labelKey: 'nav.home' },
     { view: 'tuner',    icon: '🎙️', labelKey: 'nav.tuner' },
