@@ -181,11 +181,11 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setPhase('countdown');
   };
 
-  const handleListenFirst = () => {
+  const handleListenFirst = async () => {
     if (!currentExercise) return;
     clearAllTimers();
     stopAll();
-    ensureAudioStarted();
+    await ensureAudioStarted();
     currentExercise.targets.forEach(target => {
       playNote(target.midi, target.durationMs * 0.7, target.startMs, a4);
     });

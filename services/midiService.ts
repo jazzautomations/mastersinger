@@ -159,9 +159,8 @@ export function framesToNotes(
   // ── Octave-error rejection. The raw path skips the live smoother (so note
   //    timestamps stay aligned with real time), but that also skips the
   //    smoother's octave guard — so a single YIN doubling/halving frame would
-  //    show up as a note an octave off (the classic "the studio is garbage"
-  //    symptom). Fold those back against a rolling median, exactly like the
-  //    smoother does, before segmentation sees them. ──
+  //    show up as a note an octave off. Fold those back against a rolling
+  //    median, exactly like the smoother does, before segmentation sees them. ──
   const refWindow: number[] = [];
   for (const v of voiced) {
     let freq = v.freq;
@@ -184,7 +183,7 @@ export function framesToNotes(
   //    on a different note is absorbed into the current note; a sustained
   //    change (>= 60ms) splits, with the split point where the new note began.
   //    This stops a one-frame wobble from carving a sustained note to pieces. ──
-  const DEBOUNCE_MS = 60;
+  const DEBOUNCE_MS = 75;
   const notes: Note[] = [];
 
   let cur: { midi: number; start: number; end: number; freqs: number[]; confs: number[] } | null = null;
@@ -192,6 +191,12 @@ export function framesToNotes(
   let lastTs = voiced[0].ts;
 
   const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  const stableSlice = (arr: number[]) => {
+    if (arr.length <= 3) return arr;
+    const start = Math.floor(arr.length * 0.2);
+    const end = Math.ceil(arr.length * 0.8);
+    return arr.slice(Math.max(0, start), Math.max(start + 1, end));
+  };
   // Median of a sample — used for the note's representative cents so the
   // attack (often under-pitched) and the release (often flat as air runs out)
   // don't drag the readout away from the note you actually held. The old code
@@ -206,11 +211,7 @@ export function framesToNotes(
       // The old code averaged every frame's frequency, which made a clean
       // sustained note look ~10–20 cents off whenever the onset or tail was
       // imperfect — the core "estúdio não é preciso" complaint.
-      const n = cur.freqs.length;
-      let lo = Math.floor(n * 0.2);
-      let hi = Math.ceil(n * 0.8);
-      if (hi - lo < 1) { lo = 0; hi = n; }
-      const stableFreqs = cur.freqs.slice(lo, hi);
+      const stableFreqs = stableSlice(cur.freqs);
       const repFreq = stableFreqs.length ? medianOf(stableFreqs) : avg(cur.freqs);
       notes.push({
         startTime: cur.start, endTime: endTs,
@@ -256,6 +257,11 @@ export function framesToNotes(
     }
   }
   closeCurrent(lastTs);
+
+  // If the final note is very short, treat it as tail noise.
+  if (notes.length > 0 && notes[notes.length - 1].endTime - notes[notes.length - 1].startTime < minNoteMs) {
+    notes.pop();
+  }
 
   // ── Merge adjacent same-pitch notes separated by a tiny gap (the debounce
   //    can leave a sliver of silence between two same-pitch segments). ──

@@ -5,10 +5,11 @@ import type { Language, StudentLevel } from '../types';
 import { downloadBlob } from '../services/midiService';
 
 export function Settings() {
-  const { profile, updateSettings, resetProfile, exportProfile, importProfile } = useStore();
+  const { profile, updateSettings, resetProfile, exportProfile, importProfile, syncStatus, syncMessage, connectSupabase, disconnectSupabase, forceSyncToSupabase } = useStore();
   const lang = profile.settings.language;
   const [resetOpen, setResetOpen] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
@@ -33,6 +34,32 @@ export function Settings() {
     <div className="space-y-5 pb-24">
       <div>
         <h1 className="text-2xl font-black display tracking-tight">{t(lang, 'settings.title')}</h1>
+      </div>
+
+      <div className="card p-5 space-y-3">
+        <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Supabase' : 'Supabase'}</div>
+        <div className="text-[11px] text-slate-500 leading-relaxed">
+          {lang === 'pt-BR'
+            ? 'Se conectado, seu perfil e melodias ficam sincronizados na nuvem. Se não, o app continua funcionando localmente.'
+            : 'When connected, your profile and melodies sync to the cloud. If not, the app still works locally.'}
+        </div>
+        <div className="flex items-center justify-between gap-3 text-xs font-mono">
+          <span className={`px-2 py-1 rounded-full ${syncStatus === 'connected' ? 'bg-green-500/20 text-green-300' : syncStatus === 'error' ? 'bg-red-500/20 text-red-300' : syncStatus === 'syncing' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-slate-300'}`}>
+            {syncStatus}
+          </span>
+          <span className="text-slate-400">{syncMessage ?? (lang === 'pt-BR' ? 'Sem mensagem.' : 'No message.')}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={async () => { setBusy(true); try { await connectSupabase(); } finally { setBusy(false); } }} disabled={busy} className="btn-primary">
+            {lang === 'pt-BR' ? 'Conectar' : 'Connect'}
+          </button>
+          <button onClick={async () => { setBusy(true); try { await forceSyncToSupabase(); } finally { setBusy(false); } }} disabled={busy || syncStatus === 'local'} className="btn-ghost">
+            {lang === 'pt-BR' ? 'Sincronizar agora' : 'Sync now'}
+          </button>
+          <button onClick={disconnectSupabase} className="btn-ghost col-span-2">
+            {lang === 'pt-BR' ? 'Desconectar' : 'Disconnect'}
+          </button>
+        </div>
       </div>
 
       {/* Language */}

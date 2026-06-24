@@ -44,6 +44,9 @@ export function Tuner() {
   //    the singer can SEE "precise and steady" vs "shaky" — directly the
   //    "precisão" the user asked for. ──
   const centsHistoryRef = useRef<number[]>([]);
+  const lastVoicedRef = useRef<{ note: string; cents: number; freq: number; conf: number; midi: number } | null>(null);
+  const voicedStreakRef = useRef(0);
+  const silentStreakRef = useRef(0);
 
   const toggleRef = async () => {
     if (refPlaying) {
@@ -104,10 +107,21 @@ export function Tuner() {
   //    made the display jump in 1-cent steps. ──
   const frame = pitch.currentFrame;
   const voicedNow = !!frame && frame.frequency > 0 && frame.confidence > 0.35;
-  const cents = voicedNow ? Math.round((frame!.midi - Math.round(frame!.midi)) * 1000) / 10 : 0;
-  const note = frame?.noteName ?? '—';
-  const freq = frame?.frequency ?? 0;
-  const conf = frame?.confidence ?? 0;
+  if (voicedNow && frame) {
+    voicedStreakRef.current += 1;
+    silentStreakRef.current = 0;
+    if (!lastVoicedRef.current || voicedStreakRef.current >= 2 || Math.abs(frame.cents) <= 35) {
+      lastVoicedRef.current = { note: frame.noteName, cents: frame.cents, freq: frame.frequency, conf: frame.confidence, midi: frame.midi };
+    }
+  } else {
+    silentStreakRef.current += 1;
+    voicedStreakRef.current = 0;
+  }
+  const stable = lastVoicedRef.current && (voicedNow || silentStreakRef.current <= 2) ? lastVoicedRef.current : null;
+  const cents = stable ? Math.round(stable.cents * 10) / 10 : 0;
+  const note = stable?.note ?? '—';
+  const freq = stable?.freq ?? 0;
+  const conf = stable?.conf ?? 0;
   const color = !voicedNow ? 'text-slate-500'
     : Math.abs(cents) < 10 ? 'text-green-400'
     : Math.abs(cents) < 25 ? 'text-amber-400' : 'text-red-400';

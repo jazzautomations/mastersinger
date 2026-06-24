@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import type { UserProfile, ExerciseResult, StudentLevel, Language, League, SavedMelody, Note } from '../types';
 import { todayISO, weekStartISO, classifyVoiceType } from '../services/theoryService';
+import { getSupabaseClient } from '../services/supabase';
 
 const STORAGE_KEY = 'mastersinger:v1';
 const MELODIES_KEY = 'mastersinger:melodies';
+const SYNC_KEY = 'mastersinger:sync';
 
 const DEFAULT_PROFILE: UserProfile = {
   level: 1,
@@ -17,38 +19,12 @@ const DEFAULT_PROFILE: UserProfile = {
   completedLessons: [],
 };
 
-// ── Level titles ──
-const LEVEL_TITLES = [
-  { level: 1,  title: 'Aprendiz' },
-  { level: 5,  title: 'Coralista' },
-  { level: 12, title: 'Solista' },
-  { level: 22, title: 'Vocalista' },
-  { level: 35, title: 'Primeira Voz' },
-  { level: 50, title: 'Maestro' },
-  { level: 75, title: 'Virtuoso' },
-  { level: 95, title: 'Lenda' },
-];
+type SyncStatus = 'local' | 'connected' | 'syncing' | 'error';
 
-export function getLevelTitle(level: number): string {
-  let title = 'Aprendiz';
-  for (const t of LEVEL_TITLES) {
-    if (level >= t.level) title = t.title;
-  }
-  return title;
-}
-
-// XP required to reach next level (scales quadratically)
-export function xpForLevel(level: number): number {
-  return Math.floor(50 * level * level + 50 * level);
-}
-
-export function getLeague(weeklyXp: number): League {
-  if (weeklyXp >= 1500) return 'Diamond';
-  if (weeklyXp >= 900)  return 'Platinum';
-  if (weeklyXp >= 500)  return 'Gold';
-  if (weeklyXp >= 200)  return 'Silver';
-  return 'Bronze';
-}
+type SupabaseAuthUser = {
+  id: string;
+  email?: string | null;
+};
 
 interface StoreContextValue {
   profile: UserProfile;
@@ -64,11 +40,15 @@ interface StoreContextValue {
   exportProfile: () => string;
   importProfile: (json: string) => boolean;
   storageWarning: string | null;
-  // ── In-app melody library (save / load / play / delete / export) ──
   melodies: SavedMelody[];
   saveMelody: (name: string, notes: Note[], durationMs: number) => SavedMelody;
   deleteMelody: (id: string) => void;
   renameMelody: (id: string, name: string) => void;
+  syncStatus: SyncStatus;
+  syncMessage: string | null;
+  connectSupabase: () => Promise<boolean>;
+  disconnectSupabase: () => void;
+  forceSyncToSupabase: () => Promise<boolean>;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -94,8 +74,6 @@ function saveProfile(p: UserProfile): boolean {
   }
 }
 
-// ── Melody library lives in its own localStorage key so a large library
-//    never bloats (or overflows) the profile JSON. ──
 function loadMelodies(): SavedMelody[] {
   try {
     const raw = localStorage.getItem(MELODIES_KEY);
@@ -117,16 +95,37 @@ function saveMelodiesLib(list: SavedMelody[]): boolean {
   }
 }
 
+function loadSyncEnabled(): boolean {
+  try {
+    return localStorage.getItem(SYNC_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function saveSyncEnabled(value: boolean) {
+  try {
+    localStorage.setItem(SYNC_KEY, value ? '1' : '0');
+  } catch {}
+}
+
+function ensureSupabaseShape(profile: UserProfile, melodies: SavedMelody[]) {
+  return {
+    profile,
+    melodies,
+  };
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
   const [melodies, setMelodies] = useState<SavedMelody[]>(() => loadMelodies());
-
-  // ── Storage-failure surfacing (Fix 8): localStorage.setItem throws
-  //    silently (QuotaExceeded) when storage is full, so progress/melodies
-  //    vanished with no signal. Track each save's success and show a fixed
-  //    banner when either fails so the user can export + clean up. ──
   const [profileSaveFailed, setProfileSaveFailed] = useState(false);
   const [melodiesSaveFailed, setMelodiesSaveFailed] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(loadSyncEnabled() ? 'connected' : 'local');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [supabaseUser, setSupabaseUser] = useState<SupabaseAuthUser | null>(null);
+  const [syncEnabled, setSyncEnabled] = useState<boolean>(loadSyncEnabled());
+  const supabase = getSupabaseClient();
 
   useEffect(() => { setProfileSaveFailed(!saveProfile(profile)); }, [profile]);
   useEffect(() => { setMelodiesSaveFailed(!saveMelodiesLib(melodies)); }, [melodies]);
@@ -134,6 +133,105 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const storageWarning = profileSaveFailed || melodiesSaveFailed
     ? 'O armazenamento do navegador está cheio e seus dados não estão sendo salvos. Exporte seu perfil e remova melodias antigas para liberar espaço.'
     : null;
+
+  const persistLocalSnapshot = useCallback((nextProfile: UserProfile, nextMelodies: SavedMelody[]) => {
+    saveProfile(nextProfile);
+    saveMelodiesLib(nextMelodies);
+  }, []);
+
+  const syncToSupabase = useCallback(async (nextProfile = profile, nextMelodies = melodies) => {
+    if (!supabase || !supabaseUser) return false;
+    setSyncStatus('syncing');
+    setSyncMessage(null);
+    try {
+      const payload = ensureSupabaseShape(nextProfile, nextMelodies);
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: supabaseUser.id,
+          email: supabaseUser.email ?? null,
+          profile: payload.profile,
+          melodies: payload.melodies,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+      if (error) throw error;
+      setSyncStatus('connected');
+      setSyncMessage('Sincronizado com Supabase.');
+      return true;
+    } catch (err) {
+      console.error('Supabase sync failed', err);
+      setSyncStatus('error');
+      setSyncMessage('Falha ao sincronizar com Supabase.');
+      return false;
+    }
+  }, [melodies, profile, supabase, supabaseUser]);
+
+  const hydrateFromSupabase = useCallback(async () => {
+    if (!supabase || !supabaseUser) return false;
+    try {
+      setSyncStatus('syncing');
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('profile, melodies')
+        .eq('id', supabaseUser.id)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.profile) {
+        setProfile({ ...DEFAULT_PROFILE, ...data.profile, settings: { ...DEFAULT_PROFILE.settings, ...(data.profile.settings ?? {}) } });
+      }
+      if (Array.isArray(data?.melodies)) {
+        setMelodies(data.melodies);
+      }
+      setSyncStatus('connected');
+      setSyncMessage('Dados carregados do Supabase.');
+      return true;
+    } catch (err) {
+      console.error('Supabase hydrate failed', err);
+      setSyncStatus('error');
+      setSyncMessage('Não foi possível carregar do Supabase.');
+      return false;
+    }
+  }, [supabase, supabaseUser]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const sessionUser = data.session?.user;
+      if (sessionUser) {
+        setSupabaseUser({ id: sessionUser.id, email: sessionUser.email });
+        setSyncEnabled(loadSyncEnabled());
+        setSyncStatus(loadSyncEnabled() ? 'connected' : 'local');
+      }
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
+      const user = session?.user;
+      if (user) {
+        setSupabaseUser({ id: user.id, email: user.email });
+        const enabled = loadSyncEnabled();
+        setSyncEnabled(enabled);
+        setSyncStatus(enabled ? 'connected' : 'local');
+        saveSyncEnabled(enabled);
+        if (enabled) void hydrateFromSupabase();
+      } else {
+        setSupabaseUser(null);
+        setSyncEnabled(false);
+        saveSyncEnabled(false);
+        setSyncStatus('local');
+      }
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [hydrateFromSupabase, supabase]);
+
+  useEffect(() => {
+    if (!syncEnabled) return;
+    if (!supabaseUser) return;
+    void syncToSupabase(profile, melodies);
+  }, [melodies, profile, syncEnabled, syncToSupabase, supabaseUser]);
 
   const addXp = useCallback((xp: number) => {
     setProfile(prev => {
@@ -186,10 +284,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProfile(prev => {
       const newLow = Math.min(prev.range.lowestMidi ?? 127, lowest);
       const newHigh = Math.max(prev.range.highestMidi ?? 0, highest);
-      // Derive the voice type from the detected floor + midpoint, and the
-      // range center the practice/ear-training engines transpose to. These
-      // were defined in the type but never computed — so voice classification
-      // and range-aware exercises were dead features until now.
       const voiceType = classifyVoiceType(newLow, newHigh);
       const rangeCenterMidi = Math.round((newLow + newHigh) / 2);
       return {
@@ -215,9 +309,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else if (prev.streak.lastActiveDate === '' ) {
         newCurrent = 1;
       } else {
-        // missed days — check if freeze available
         if (prev.streak.freezes > 0) {
-          // consume one freeze, keep streak
           newCurrent = prev.streak.current + 1;
           return {
             ...prev,
@@ -249,30 +341,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetProfile = useCallback(() => {
-    setProfile({ ...DEFAULT_PROFILE });
-  }, []);
+    const next = { ...DEFAULT_PROFILE };
+    setProfile(next);
+    setMelodies([]);
+    persistLocalSnapshot(next, []);
+    void syncToSupabase(next, []);
+  }, [persistLocalSnapshot, syncToSupabase]);
 
   const exportProfile = useCallback(() => JSON.stringify(profile, null, 2), [profile]);
 
   const importProfile = useCallback((json: string): boolean => {
     try {
       const parsed = JSON.parse(json);
-      // Fix 9: validate essential fields before applying — a malformed or
-      // foreign JSON used to be spread straight into the profile and could
-      // crash later renders (e.g. level/xp as strings, streak as null).
       if (typeof parsed !== 'object' || parsed === null) return false;
       if (typeof parsed.level !== 'number' || typeof parsed.xp !== 'number') return false;
       if (!Array.isArray(parsed.badges)) return false;
       if (!parsed.streak || typeof parsed.streak !== 'object') return false;
       if (!parsed.settings || typeof parsed.settings !== 'object') return false;
-      setProfile({ ...DEFAULT_PROFILE, ...parsed, settings: { ...DEFAULT_PROFILE.settings, ...parsed.settings } });
+      const next = { ...DEFAULT_PROFILE, ...parsed, settings: { ...DEFAULT_PROFILE.settings, ...parsed.settings } };
+      setProfile(next);
+      if (Array.isArray(parsed.melodies)) setMelodies(parsed.melodies);
+      persistLocalSnapshot(next, Array.isArray(parsed.melodies) ? parsed.melodies : melodies);
+      void syncToSupabase(next, Array.isArray(parsed.melodies) ? parsed.melodies : melodies);
       return true;
     } catch {
       return false;
     }
-  }, []);
+  }, [melodies, persistLocalSnapshot, syncToSupabase]);
 
-  // ── Melody library CRUD ──
   const saveMelody = useCallback((name: string, notes: Note[], durationMs: number): SavedMelody => {
     const melody: SavedMelody = {
       id: `mel-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -294,6 +390,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMelodies(prev => prev.map(m => m.id === id ? { ...m, name: name.trim() || m.name } : m));
   }, []);
 
+  const connectSupabase = useCallback(async () => {
+    if (!supabase) {
+      setSyncStatus('error');
+      setSyncMessage('Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
+      return false;
+    }
+    const email = typeof window !== 'undefined' ? window.prompt('Email') : null;
+    if (!email) return false;
+    const password = typeof window !== 'undefined' ? window.prompt('Senha') : null;
+    if (!password) return false;
+    setSyncStatus('syncing');
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setSyncStatus('error');
+      setSyncMessage(error.message);
+      return false;
+    }
+    const user = data.user;
+    if (user) {
+      setSupabaseUser({ id: user.id, email: user.email });
+      setSyncEnabled(true);
+      saveSyncEnabled(true);
+      setSyncStatus('connected');
+      setSyncMessage('Conectado ao Supabase.');
+      await hydrateFromSupabase();
+      await syncToSupabase(profile, melodies);
+      return true;
+    }
+    return false;
+  }, [hydrateFromSupabase, melodies, profile, supabase, syncToSupabase]);
+
+  const disconnectSupabase = useCallback(() => {
+    setSupabaseUser(null);
+    setSyncEnabled(false);
+    saveSyncEnabled(false);
+    setSyncStatus('local');
+    setSyncMessage('Sincronização desligada.');
+  }, []);
+
+  const forceSyncToSupabase = useCallback(async () => {
+    return syncToSupabase(profile, melodies);
+  }, [melodies, profile, syncToSupabase]);
+
   return (
     <StoreContext.Provider value={{
       profile,
@@ -313,6 +452,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveMelody,
       deleteMelody,
       renameMelody,
+      syncStatus,
+      syncMessage,
+      connectSupabase,
+      disconnectSupabase,
+      forceSyncToSupabase,
     }}>
       {storageWarning && (
         <div className="fixed top-0 inset-x-0 z-[100] bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center shadow-lg pointer-events-none" role="alert" aria-live="assertive">
@@ -328,4 +472,35 @@ export function useStore(): StoreContextValue {
   const ctx = useContext(StoreContext);
   if (!ctx) throw new Error('useStore must be used inside StoreProvider');
   return ctx;
+}
+
+// ── Level titles ──
+const LEVEL_TITLES = [
+  { level: 1,  title: 'Aprendiz' },
+  { level: 5,  title: 'Coralista' },
+  { level: 12, title: 'Solista' },
+  { level: 22, title: 'Vocalista' },
+  { level: 35, title: 'Primeira Voz' },
+  { level: 50, title: 'Maestro' },
+  { level: 75, title: 'Virtuoso' },
+  { level: 95, title: 'Lenda' },
+];
+export function getLevelTitle(level: number): string {
+  let title = 'Aprendiz';
+  for (const t of LEVEL_TITLES) {
+    if (level >= t.level) title = t.title;
+  }
+  return title;
+}
+
+export function getLeague(weeklyXp: number): League {
+  if (weeklyXp >= 1500) return 'Diamond';
+  if (weeklyXp >= 900) return 'Platinum';
+  if (weeklyXp >= 500) return 'Gold';
+  if (weeklyXp >= 200) return 'Silver';
+  return 'Bronze';
+}
+
+export function xpForLevel(level: number): number {
+  return Math.floor(50 * level * level + 50 * level);
 }

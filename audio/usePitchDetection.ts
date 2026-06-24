@@ -67,6 +67,10 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const smootherRef = useRef<PitchSmoother>(new PitchSmoother(minConfidence != null ? { a4, minConfidence } : { a4 }));
   const onFrameRef = useRef(onFrame);
   onFrameRef.current = onFrame;
+  const lastVoicedRef = useRef<PitchFrame | null>(null);
+  const voicedStreakRef = useRef(0);
+  const silentStreakRef = useRef(0);
+  const lastEmitTsRef = useRef(0);
 
   // Live-config refs (Fix 1): processFrame reschedules itself via RAF, so it
   // captures a4/threshold/minFreq/maxFreq/smoothing in its closure. When those
@@ -112,6 +116,18 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
 
     const ts = performance.now() - startTimeRef.current;
     const a4 = a4Ref.current;
+    const emitFrame = (frame: PitchFrame | null) => {
+      if (frame) {
+        lastVoicedRef.current = frame;
+        lastEmitTsRef.current = ts;
+        setCurrentFrame(frame);
+        onFrameRef.current?.(frame);
+      } else {
+        setCurrentFrame(prev => prev
+          ? { ...prev, frequency: 0, confidence: 0, cents: 0, midi: 0, timestamp: ts }
+          : null);
+      }
+    };
 
     if (smoothingRef.current) {
       const smooth = smootherRef.current.push({
@@ -119,6 +135,8 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
         confidence: result.confidence,
       });
       if (smooth.voiced) {
+        voicedStreakRef.current += 1;
+        silentStreakRef.current = 0;
         const nearestMidi = Math.round(smooth.midi);
         const frame: PitchFrame = {
           frequency: smooth.frequency,
@@ -129,12 +147,15 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
           octave: Math.floor(nearestMidi / 12) - 1,
           timestamp: ts,
         };
-        setCurrentFrame(frame);
-        onFrameRef.current?.(frame);
+        emitFrame(frame);
       } else {
-        setCurrentFrame(prev => prev
-          ? { ...prev, frequency: 0, confidence: 0, cents: 0, midi: 0, timestamp: ts }
-          : null);
+        silentStreakRef.current += 1;
+        voicedStreakRef.current = 0;
+        if (lastVoicedRef.current && silentStreakRef.current <= 2 && ts - lastEmitTsRef.current < 120) {
+          emitFrame(lastVoicedRef.current);
+        } else {
+          emitFrame(null);
+        }
       }
     } else {
       // raw path (smoothing disabled) — used by the Melody Studio so note
@@ -143,6 +164,8 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       // applies its own median filter + segmentation. A higher gate here
       // would drop the attack and tail of every sung note.
       if (result.frequency > 0 && result.confidence > 0.3) {
+        voicedStreakRef.current += 1;
+        silentStreakRef.current = 0;
         const midi = frequencyToMidi(result.frequency, a4);
         const nearestMidi = Math.round(midi);
         const cents = midiToCents(result.frequency, a4);
@@ -155,12 +178,15 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
           octave: Math.floor(nearestMidi / 12) - 1,
           timestamp: ts,
         };
-        setCurrentFrame(frame);
-        onFrameRef.current?.(frame);
+        emitFrame(frame);
       } else {
-        setCurrentFrame(prev => prev
-          ? { ...prev, frequency: 0, confidence: 0, cents: 0, midi: 0, timestamp: ts }
-          : null);
+        silentStreakRef.current += 1;
+        voicedStreakRef.current = 0;
+        if (lastVoicedRef.current && silentStreakRef.current <= 2 && ts - lastEmitTsRef.current < 120) {
+          emitFrame(lastVoicedRef.current);
+        } else {
+          emitFrame(null);
+        }
       }
     }
 
@@ -297,6 +323,10 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       audioContextRef.current = null;
     }
     if (smoothing) smootherRef.current.reset();
+    lastVoicedRef.current = null;
+    voicedStreakRef.current = 0;
+    silentStreakRef.current = 0;
+    lastEmitTsRef.current = 0;
     setIsListening(false);
     setCurrentFrame(null);
     setMicLevel(0);
@@ -319,6 +349,10 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
         if (prev) URL.revokeObjectURL(prev);
         return null;
       });
+      lastVoicedRef.current = null;
+      voicedStreakRef.current = 0;
+      silentStreakRef.current = 0;
+      lastEmitTsRef.current = 0;
     };
   }, [stop]);
 

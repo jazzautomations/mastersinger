@@ -170,7 +170,12 @@ export function detectPitchYin(
   // A genuine dip at half-tau must be below this — a TRUE low note has NO dip
   // at half its period (the signal isn't periodic there), so the bound is what
   // tells a real subharmonic apart from noise. Used by the up-shift below.
-  const SUBHARM_MAX_YIN = 0.30;
+  // Raised from 0.30 → 0.35: on a real period-doubled voice, the strong
+  // subharmonic term is anti-periodic at HALF the doubled period, so it pushes
+  // yin[tau/2] up toward ~0.28–0.31 — right at the old 0.30 cutoff — and ~half
+  // the frames escaped correction (the bimodal 196/98 flicker). 0.35 catches
+  // them while still rejecting true low notes (whose yin[tau/2] sits ~0.6+).
+  const SUBHARM_MAX_YIN = 0.35;
   let chosenTau = tauEstimate;
   for (let iter = 0; iter < 2; iter++) {
     const tauDown = chosenTau * 2;            // one octave LOWER in pitch
@@ -186,15 +191,33 @@ export function detectPitchYin(
   //    the doubled period and reports a full octave too LOW — the other half of
   //    the "tuner is jumping octaves" complaint. The ear still perceives the
   //    HIGHER octave (the missing-fundamental effect, inverted). Shift up one
-  //    octave ONLY when:
-  //      • the chosen tau is even (so tau/2 is an integer period candidate), AND
-  //      • yin[tau/2] is a genuine dip (< SUBHARM_MAX_YIN).
-  //    A true low note has no periodicity at half its period, so yin[tau/2]
-  //    stays high and the shift never fires on legitimate low pitches. Run
-  //    AFTER the down pass so a masked fundamental isn't yanked back up. ──
-  const tauUp = Math.floor(chosenTau / 2);
-  if (tauUp >= minTau && chosenTau % 2 === 0 && yin[tauUp] < SUBHARM_MAX_YIN) {
-    chosenTau = tauUp;
+  //    octave ONLY when yin[tau/2] is a GENUINE local dip below SUBHARM_MAX_YIN.
+  //    The old `chosenTau % 2 === 0` guard was the precision killer: whether the
+  //    period lands on an even sample count is pure chance (it depends on f0 and
+  //    sample rate), so it silently disabled correction on ~half the
+  //    subharmonic frames → the bimodal 196/98 flicker. Math.round finds the
+  //    nearest integer period regardless of parity, and the local-minimum
+  //    requirement (yin falling into tau/2, rising out of it) is what keeps a
+  //    true low note — which has NO periodicity at half its period — from being
+  //    yanked up an octave. Run AFTER the down pass so a masked fundamental
+  //    isn't yanked back up. ──
+  const tauUp = Math.round(chosenTau / 2);
+  if (tauUp >= minTau && tauUp < yin.length - 1) {
+    // Windowed local-minimum over [tauUp-1, tauUp, tauUp+1]: more robust to the
+    // per-frame noise/vibrato that makes a STRICT single-sample local min fail
+    // on ~1/3 of real period-doubled frames (the residual octave-low flicker).
+    // If the lowest sample in that ±1 window is a genuine dip below the bound,
+    // the half-period is a real periodicity → shift up to whichever tau is the
+    // min. A true low note has NO low region at half its period (yin sits ~0.6+
+    // across the whole window), so this never fires on legitimate low pitches.
+    let bestTau = tauUp;
+    let bestVal = yin[tauUp];
+    for (const tt of [tauUp - 1, tauUp + 1]) {
+      if (tt >= minTau && tt < yin.length && yin[tt] < bestVal) { bestVal = yin[tt]; bestTau = tt; }
+    }
+    if (bestVal < SUBHARM_MAX_YIN) {
+      chosenTau = bestTau;
+    }
   }
 
   const betterTau = parabolicInterpolation(yin, chosenTau);
