@@ -101,12 +101,27 @@ export function UpgradeModal() {
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Falha no checkout');
-      if (data.invoiceUrl && typeof data.invoiceUrl === 'string' && data.invoiceUrl.startsWith('http')) {
-        setInfo('Redirecionando para o pagamento seguro (Asaas)...');
-        window.location.href = data.invoiceUrl;
-      } else {
+
+      // Validate invoiceUrl is a well-formed URL before redirecting.
+      // Safari throws DOMException on window.location.href with malformed URLs.
+      const rawUrl = data.invoiceUrl;
+      if (!rawUrl || typeof rawUrl !== 'string') {
         throw new Error('URL de pagamento não recebida. Tente novamente.');
       }
+      let invoiceUrl: URL;
+      try {
+        invoiceUrl = new URL(rawUrl);
+      } catch {
+        throw new Error('URL de pagamento inválida. Tente novamente.');
+      }
+      if (!invoiceUrl.protocol.startsWith('http') || !invoiceUrl.hostname.includes('asaas')) {
+        throw new Error('URL de pagamento inválida. Tente novamente.');
+      }
+
+      setInfo('Redirecionando para o pagamento seguro (Asaas)...');
+      // Use window.open instead of window.location.href — Safari throws
+      // DOMException on location.href assignment with certain URL formats.
+      window.open(invoiceUrl.href, '_blank', 'noopener,noreferrer');
     } catch (e: any) {
       setError(e.message);
     } finally { setBusy(false); }

@@ -24,11 +24,9 @@ export default async function handler(req: any, res: any) {
     return res.json({ error: 'Assinatura inválida' });
   }
   // Timing-safe comparison to prevent timing attacks
-  // Pad both to the same length so comparison is truly constant-time
   const a = Buffer.from(headerSecret);
-  const b = Buffer.alloc(a.length, 0);
-  Buffer.from(secret).copy(b);
-  if (!timingSafeEqual(a, b)) {
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     res.status(401);
     return res.json({ error: 'Assinatura inválida' });
   }

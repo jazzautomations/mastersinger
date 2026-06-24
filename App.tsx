@@ -16,6 +16,7 @@ import { Recorder } from './components/Recorder';
 import { Progress } from './components/Progress';
 import { Settings } from './components/Settings';
 import { UpgradeModal } from './components/UpgradeModal';
+import { ProOverlay } from './components/ProOverlay';
 import { Tutorial, hasTutorialBeenSeen } from './components/Tutorial';
 import { t } from './i18n/strings';
 import { warmAudioOnUserGesture } from './services/audioService';
@@ -128,10 +129,6 @@ function MainApp() {
   };
 
   const handleNavigate = (v: View, opts?: any) => {
-    if (!canAccessView(v)) {
-      openUpgrade();
-      return;
-    }
     setView(v);
     setViewOpts(opts ?? null);
   };
@@ -219,10 +216,10 @@ function MainApp() {
                                   isDaily={viewOpts?.isDaily}
                                   onComplete={() => handleNavigate('home')}
                                 />}
-        {view === 'studio'   && <MelodyStudio />}
-        {view === 'ear'      && <EarTraining />}
-        {view === 'theory'   && <Theory />}
-        {view === 'harmony'  && <Harmony />}
+        {view === 'studio'   && <ProOverlay viewName={t(lang, 'nav.studio')}><MelodyStudio /></ProOverlay>}
+        {view === 'ear'      && <ProOverlay viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
+        {view === 'theory'   && <ProOverlay viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
+        {view === 'harmony'  && <ProOverlay viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}
         {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} />}
         {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
         {view === 'recorder' && <Recorder />}

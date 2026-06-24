@@ -38,7 +38,13 @@ export default async function handler(req: any, res: any) {
       .maybeSingle();
 
     if (existing?.payload?.invoiceUrl) {
-      return json(res, 200, { invoiceUrl: existing.payload.invoiceUrl, paymentId: existing.asaas_payment_id });
+      // Validate the stored invoiceUrl is still well-formed
+      try {
+        const url = new URL(existing.payload.invoiceUrl);
+        if (url.protocol.startsWith('http') && url.hostname.includes('asaas')) {
+          return json(res, 200, { invoiceUrl: existing.payload.invoiceUrl, paymentId: existing.asaas_payment_id });
+        }
+      } catch { /* malformed URL — fall through to create new payment */ }
     }
 
     if (!user.email || !user.email.includes('@')) {
