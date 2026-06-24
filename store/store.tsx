@@ -278,8 +278,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
-    // Log OAuth flow for debugging
-    console.log('[Auth] init, hash:', window.location.hash);
+
+    // After Google OAuth with PKCE, the URL has ?code=XXX&state=YYY in the
+    // QUERY STRING. detectSessionInUrl:true should handle this, but if it
+    // fails silently we need an explicit fallback.
+    const urlParams = new URLSearchParams(window.location.search);
+    const authCode = urlParams.get('code');
+    const hasAuthCode = !!authCode;
+
+    console.log('[Auth] init, hash:', window.location.hash, 'query code:', hasAuthCode ? authCode!.slice(0, 8) + '...' : 'none');
+
+    if (hasAuthCode) {
+      // Explicitly exchange the PKCE code for a session
+      console.log('[Auth] attempting explicit PKCE code exchange...');
+      supabase.auth.exchangeCodeForSession(authCode!).then(({ data, error }) => {
+        if (!mounted) return;
+        if (error) {
+          console.error('[Auth] PKCE exchange FAILED:', error.message);
+        } else {
+          console.log('[Auth] PKCE exchange SUCCESS, user:', data.session?.user?.email);
+          // Clean up the URL - remove ?code= params
+          window.history.replaceState(null, '', window.location.pathname + '#app');
+        }
+      });
+    }
+
     supabase.auth.getSession().then(({ data, error }) => {
       if (!mounted) return;
       const sessionUser = data.session?.user;
@@ -290,6 +313,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncStatus(loadSyncEnabled() ? 'connected' : 'local');
       }
     });
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
       const user = session?.user;
@@ -300,10 +324,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncStatus(enabled ? 'connected' : 'local');
         saveSyncEnabled(enabled);
         if (enabled) void hydrateFromSupabase();
-        // After OAuth redirect, the URL hash contains Supabase tokens.
-        // Clean it up to just #app so the hash router works normally.
-        if (event === 'SIGNED_IN' && window.location.hash.includes('access_token')) {
-          window.history.replaceState(null, '', window.location.pathname + '#app');
+        // Clean up any remaining auth tokens from the URL
+        if (event === 'SIGNED_IN') {
+          const h = window.location.hash;
+          const q = window.location.search;
+          if (h.includes('access_token') || q.includes('code=')) {
+            window.history.replaceState(null, '', window.location.pathname + '#app');
+          }
         }
       } else {
         setSupabaseUser(null);
