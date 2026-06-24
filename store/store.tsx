@@ -302,6 +302,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.warn('[Auth] clearing invalid session:', error.message);
         void supabase.auth.signOut({ scope: 'local' });
+        try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
         return;
       }
       if (sessionUser) {
@@ -311,6 +312,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (userError || !userData?.user) {
           console.warn('[Auth] session invalid on server, clearing:', userError?.message ?? 'no user');
           void supabase.auth.signOut({ scope: 'local' });
+          try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
           return;
         }
         setSupabaseUser({ id: userData.user.id, email: userData.user.email });

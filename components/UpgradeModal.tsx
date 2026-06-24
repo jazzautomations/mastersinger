@@ -101,9 +101,11 @@ export function UpgradeModal() {
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Falha no checkout');
-      if (data.invoiceUrl) {
+      if (data.invoiceUrl && typeof data.invoiceUrl === 'string' && data.invoiceUrl.startsWith('http')) {
         setInfo('Redirecionando para o pagamento seguro (Asaas)...');
         window.location.href = data.invoiceUrl;
+      } else {
+        throw new Error('URL de pagamento não recebida. Tente novamente.');
       }
     } catch (e: any) {
       setError(e.message);

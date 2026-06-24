@@ -164,10 +164,10 @@ function MainApp() {
     { view: 'home',     icon: '🏠', labelKey: 'nav.home' },
     { view: 'tuner',    icon: '🎙️', labelKey: 'nav.tuner' },
     { view: 'practice', icon: '💪', labelKey: 'nav.practice' },
-    { view: 'studio',   icon: '📼', labelKey: 'nav.studio' },
-    { view: 'ear',      icon: '👂', labelKey: 'nav.ear' },
+    { view: 'recorder', icon: '🎬', labelKey: 'recorder.navLabel' },
     { view: 'academy',  icon: '🎓', labelKey: 'nav.academy' },
-    { view: 'progress', icon: '📊', labelKey: 'nav.progress' },
+    { view: 'studio',   icon: '📼', labelKey: 'nav.studio' },
+    { view: 'settings', icon: '⚙️', labelKey: 'nav.settings' },
   ];
 
   return (

@@ -175,6 +175,7 @@ const en: Dict = {
   'onb.lessonsYes': 'Yes, I have',
   'onb.lessonsNo': 'Never',
   'onb.lessonsTime': 'For how long?',
+  'onb.lessonsTimeOptions': 'Just started|A few months|1-3 years|More than 3 years',
   'onb.mic.title': 'Allow microphone',
   'onb.mic.desc': 'We need mic access to detect your pitch in real time. Nothing is recorded or sent — everything runs locally in your browser.',
   'onb.mic.allow': 'Allow microphone',
@@ -225,6 +226,7 @@ const en: Dict = {
 
   // ── Recorder ──
   'recorder.title': 'Record video',
+  'recorder.navLabel': 'Record',
   'recorder.desc': 'Record yourself singing with the tuner overlay. Share on social media!',
   'recorder.start': 'Start recording',
   'recorder.stop': 'Stop',
@@ -397,6 +399,7 @@ const pt: Dict = {
   'onb.lessonsYes': 'Já fiz aulas',
   'onb.lessonsNo': 'Nunca fiz',
   'onb.lessonsTime': 'Por quanto tempo?',
+  'onb.lessonsTimeOptions': 'Comecei agora|Alguns meses|1-3 anos|Mais de 3 anos',
   'onb.mic.title': 'Permita o microfone',
   'onb.mic.desc': 'Precisamos do microfone para detectar sua afinação em tempo real. Nada é gravado ou enviado — tudo roda localmente no seu navegador.',
   'onb.mic.allow': 'Permitir microfone',
@@ -447,6 +450,7 @@ const pt: Dict = {
 
   // ── Gravador ──
   'recorder.title': 'Gravar vídeo',
+  'recorder.navLabel': 'Gravar',
   'recorder.desc': 'Grave você cantando com o afinador na tela. Compartilhe nas redes sociais!',
   'recorder.start': 'Começar gravação',
   'recorder.stop': 'Parar',
