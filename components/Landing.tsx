@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { PLANS, formatBRL } from '../data/pricing';
 
 // ──────────────────────────────────────────────────────────────────────────
-// MasterSinger — landing de alta conversão.
-// Anchoring central: 1 ano de MasterSinger = preço de ~1 mês de aula particular.
-// Rota: "/" mostra a landing; "/#app" abre o app. (Hash routing manual, sem lib.)
+// MasterSinger — landing de alta conversão (v2).
+// Jornada: Landing → Login → Onboarding → Pagamento → Dashboard
+// Anchoring: 1 ano = preço de ~1 mês de aula particular.
 // ──────────────────────────────────────────────────────────────────────────
 
 const FEATURES = [
@@ -19,10 +19,10 @@ const FEATURES = [
 ];
 
 const PROBLEMS = [
-  { icon: '😕', text: 'Canta fora do tom e não sabe corrigir?' },
-  { icon: '💸', text: 'Aula de canto particular custa R$400+/mês?' },
-  { icon: '🎤', text: 'Não tem feedback em tempo real quando treina?' },
-  { icon: '⏰', text: 'Falta tempo e motivação pra treinar sozinho?' },
+  { icon: '😕', text: 'Canta fora do tom e não sabe corrigir sozinho?' },
+  { icon: '💸', text: 'Aula particular custa R$400+/mês e só tem 1x por semana?' },
+  { icon: '🎤', text: 'Treina no espelho mas não tem feedback de afinação?' },
+  { icon: '⏰', text: 'Falta tempo, dinheiro e motivação pra evoluir?' },
 ];
 
 const STEPS = [
@@ -57,6 +57,7 @@ const FAQ = [
   { q: 'Posso cancelar a assinatura?', a: 'Sim, quando quiser, sem multa. O plano anual tem garantia de 7 dias com reembolso total.' },
   { q: 'MasterSinger substitui aula com professor?', a: 'Complementa. É o treino diário entre as aulas — e pra muitos, a porta de entrada acessível antes de investir em aulas. Muitos professores já recomendam apps assim.' },
   { q: 'Como funciona o pagamento?', a: 'Via Asaas — Pix, cartão ou boleto. Você assina direto no app: escolhe o plano, paga no checkout seguro da Asaas e o acesso Pro libera na hora.' },
+  { q: 'Tem versão grátis?', a: 'Sim! O plano Free já inclui o afinador em tempo real ilimitado, 1 curso completo da Academia (Aquecimento) e 1 exercício de cada tipo. Dá pra começar a treinar sem gastar nada.' },
 ];
 
 const SOCIAL_STATS = [
@@ -102,8 +103,8 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
 
           <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
             O treinador vocal completo que cabe no seu bolso. Afinador preciso em tempo real,
-            exercícios gamificados, aquecimentos guiados e cursos —             por <span className="text-violet-300 font-bold">menos de R$29/mês</span>.
-            A evolução que uma aula de R$400/mês te dá, sem o preço.
+            exercícios gamificados, aquecimentos guiados e cursos — por <span className="text-violet-300 font-bold">menos de R$29/mês</span>.
+            Ou comece <span className="text-green-300 font-bold">grátis</span> agora.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
@@ -143,7 +144,7 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
       <section className="max-w-5xl mx-auto px-4 py-14">
         <div className="text-center mb-10">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-2">Você se identifica?</div>
-          <h2 className="text-3xl font-black display tracking-tight">A cantoria de quem quer cantar melhor</h2>
+          <h2 className="text-3xl font-black display tracking-tight">A real de quem quer cantar melhor</h2>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
           {PROBLEMS.map((p, i) => (
@@ -153,9 +154,14 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
             </div>
           ))}
         </div>
-        <p className="text-center mt-8 text-slate-400 max-w-xl mx-auto text-sm">
-          Se você se viu em algum desses, o MasterSinger foi feito pra você.
-        </p>
+        <div className="text-center mt-8">
+          <p className="text-slate-400 max-w-xl mx-auto text-sm mb-4">
+            Se você se viu em algum desses, o MasterSinger foi feito pra você.
+          </p>
+          <button onClick={onEnterApp} className="btn-primary text-sm px-6 py-3">
+            Testar grátis agora →
+          </button>
+        </div>
       </section>
 
       {/* ── Solution / what it is ── */}
@@ -245,6 +251,54 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
               <p className="text-xs text-slate-400 leading-relaxed">{p.desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Free vs Pro ── */}
+      <section className="max-w-5xl mx-auto px-4 py-14">
+        <div className="text-center mb-10">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-2">Comece grátis, evolua no seu ritmo</div>
+          <h2 className="text-3xl font-black display tracking-tight">O que você já pode fazer sem gastar nada</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="card p-6 space-y-4 border-green-500/30">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🎁</span>
+              <div>
+                <h3 className="text-base font-black">Plano Free</h3>
+                <p className="text-[11px] text-green-300 font-mono">R$0 · pra sempre</p>
+              </div>
+            </div>
+            <ul className="space-y-2 text-xs text-slate-300">
+              <li className="flex gap-2"><span className="text-green-400">✓</span><span>Afinador em tempo real, ilimitado</span></li>
+              <li className="flex gap-2"><span className="text-green-400">✓</span><span>1 curso completo (Aquecimento)</span></li>
+              <li className="flex gap-2"><span className="text-green-400">✓</span><span>1 exercício de cada tipo (escala, arpejo, intervalo, sustentação)</span></li>
+              <li className="flex gap-2"><span className="text-green-400">✓</span><span>Progresso salvo no dispositivo</span></li>
+            </ul>
+            <button onClick={onEnterApp} className="w-full bg-green-500/20 border border-green-500/40 text-green-200 rounded-xl py-3 text-sm font-bold hover:bg-green-500/30 transition-all">
+              Começar grátis
+            </button>
+          </div>
+          <div className="card p-6 space-y-4 border-violet-500/30">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">👑</span>
+              <div>
+                <h3 className="text-base font-black">Plano Pro</h3>
+                <p className="text-[11px] text-violet-300 font-mono">R$29/mês · plano anual</p>
+              </div>
+            </div>
+            <ul className="space-y-2 text-xs text-slate-300">
+              <li className="flex gap-2"><span className="text-violet-400">✓</span><span>Tudo do Free, sem limites</span></li>
+              <li className="flex gap-2"><span className="text-violet-400">✓</span><span>30+ exercícios ilimitados</span></li>
+              <li className="flex gap-2"><span className="text-violet-400">✓</span><span>Todos os 8 cursos da Academia</span></li>
+              <li className="flex gap-2"><span className="text-violet-400">✓</span><span>Estúdio de melodias com export MIDI</span></li>
+              <li className="flex gap-2"><span className="text-violet-400">✓</span><span>Treino de ouvido + harmonia e terças</span></li>
+              <li className="flex gap-2"><span className="text-violet-400">✓</span><span>Progresso detalhado e gamificação completa</span></li>
+            </ul>
+            <button onClick={() => onUpgrade ? onUpgrade() : onEnterApp()} className="btn-primary w-full text-sm py-3">
+              Assinar Pro Anual · R$347/ano
+            </button>
+          </div>
         </div>
       </section>
 
@@ -354,7 +408,7 @@ export function Landing({ onEnterApp, onUpgrade }: { onEnterApp: () => void; onU
             </h2>
             <p className="text-slate-300 max-w-xl mx-auto text-sm">
               Comece pelo plano grátis. Sem cartão, sem cadastro complicado, sem compromisso.
-              Se gostar, assina. Se não, cancela. Simples assim.
+              Se gostar, assina Pro. Se não, fica no free. Simples assim.
             </p>
             <button onClick={onEnterApp} className="btn-primary text-sm px-8 py-4 mt-2">
               🎤 Entrar no MasterSinger agora
