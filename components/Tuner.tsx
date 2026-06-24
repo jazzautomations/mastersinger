@@ -5,6 +5,7 @@ import { t } from '../i18n/strings';
 import { NOTE_NAMES_SHARP, midiToFrequency } from '../services/theoryService';
 import { playDrone, stopDrone, ensureAudioStarted } from '../services/audioService';
 import { PitchMeter } from '../components/PitchMeter';
+import { medianCentsForNote, type CentsSample } from '../audio/centsDisplay';
 import type { PitchFrame } from '../types';
 
 // Reference tones offered in the tuner (C4..A4 span — comfortable singing range).
@@ -43,7 +44,7 @@ export function Tuner() {
   // ── Stability: a short rolling buffer of recent cents, surfaced as a % so
   //    the singer can SEE "precise and steady" vs "shaky" — directly the
   //    "precisão" the user asked for. ──
-  const centsHistoryRef = useRef<number[]>([]);
+  const centsHistoryRef = useRef<CentsSample[]>([]);
   const lastVoicedRef = useRef<{ note: string; cents: number; freq: number; conf: number; midi: number } | null>(null);
   const voicedStreakRef = useRef(0);
   const silentStreakRef = useRef(0);
@@ -85,7 +86,7 @@ export function Tuner() {
     if (rangeHighRef.current == null || m > rangeHighRef.current) rangeHighRef.current = m;
     // rolling cents history (last ~1.5s of frames) for the stability readout
     const hist = centsHistoryRef.current;
-    hist.push(f.cents);
+    hist.push({ note: f.noteName, cents: f.cents });
     if (hist.length > 90) hist.shift();
   }, [pitch.currentFrame]);
 
@@ -110,7 +111,7 @@ export function Tuner() {
   if (voicedNow && frame) {
     voicedStreakRef.current += 1;
     silentStreakRef.current = 0;
-    if (!lastVoicedRef.current || voicedStreakRef.current >= 2 || Math.abs(frame.cents) <= 35) {
+    if (!lastVoicedRef.current || voicedStreakRef.current >= 2 || Math.abs(frame.cents) <= 35 || frame.confidence >= 0.5) {
       lastVoicedRef.current = { note: frame.noteName, cents: frame.cents, freq: frame.frequency, conf: frame.confidence, midi: frame.midi };
     }
   } else {
@@ -118,7 +119,8 @@ export function Tuner() {
     voicedStreakRef.current = 0;
   }
   const stable = lastVoicedRef.current && (voicedNow || silentStreakRef.current <= 2) ? lastVoicedRef.current : null;
-  const cents = stable ? Math.round(stable.cents * 10) / 10 : 0;
+  const medianCents = stable ? medianCentsForNote(centsHistoryRef.current, stable.note) : null;
+  const cents = stable ? Math.round((medianCents ?? stable.cents) * 10) / 10 : 0;
   const note = stable?.note ?? '—';
   const freq = stable?.freq ?? 0;
   const conf = stable?.conf ?? 0;
@@ -128,9 +130,9 @@ export function Tuner() {
 
   // Stability %: 100 minus the spread of the recent cents (MAD * 6, capped).
   // A held, dead-center note reads ~100%; a wavering one drops toward 0%.
-  const hist = centsHistoryRef.current;
-  const med = hist.length ? [...hist].sort((a, b) => a - b)[Math.floor(hist.length / 2)] : 0;
-  const mad = hist.length ? hist.reduce((s, c) => s + Math.abs(c - med), 0) / hist.length : 0;
+  const centsOnly = centsHistoryRef.current.map(s => s.cents);
+  const med = centsOnly.length ? [...centsOnly].sort((a, b) => a - b)[Math.floor(centsOnly.length / 2)] : 0;
+  const mad = centsOnly.length ? centsOnly.reduce((s, c) => s + Math.abs(c - med), 0) / centsOnly.length : 0;
   const stability = Math.max(0, Math.min(100, Math.round(100 - mad * 6)));
 
   return (

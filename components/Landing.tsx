@@ -62,7 +62,7 @@ const FAQ = [
 const SOCIAL_STATS = [
   { value: '±2', label: 'cents de precisão' },
   { value: '30+', label: 'exercícios' },
-  { value: '5', label: 'cursos completos' },
+  { value: '8', label: 'cursos completos' },
   { value: '100%', label: 'local e privado' },
 ];
 
