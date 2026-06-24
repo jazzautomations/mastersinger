@@ -46,7 +46,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
-          skipBrowserRedirect: true,
         },
       });
       if (authError) {
@@ -56,9 +55,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
       }
       if (data?.url) {
         window.location.href = data.url;
-      } else {
-        setError('Não foi possível iniciar login com Google');
-        setGoogleBusy(false);
       }
     } catch (e: any) {
       setError(e.message || 'Falha ao conectar com Google');

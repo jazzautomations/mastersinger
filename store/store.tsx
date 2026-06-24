@@ -207,6 +207,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try { await supabase.auth.signOut(); } catch { /* session may already be invalid */ }
     setSubscription(null);
     setSupabaseUser(null);
+    try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
   }, [supabase]);
 
   useEffect(() => { setProfileSaveFailed(!saveProfile(profile)); }, [profile]);
@@ -329,6 +330,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSyncEnabled(false);
         saveSyncEnabled(false);
         setSyncStatus('local');
+        try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
         return;
       }
       const user = session?.user;
