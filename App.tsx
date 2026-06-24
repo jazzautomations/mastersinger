@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StoreProvider, useStore } from './store/store';
+import { AuthGate } from './components/AuthGate';
 import { Onboarding } from './components/Onboarding';
 import { Landing } from './components/Landing';
 import { Home } from './components/Home';
@@ -73,6 +74,11 @@ function MainApp() {
   // ── Landing is the public home page ──
   if (!showApp) {
     return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} />;
+  }
+
+  // ── Auth gate: login/signup before entering the app ──
+  if (!authUser) {
+    return <AuthGate onDone={() => {}} />;
   }
 
   if (!onboarded) {
