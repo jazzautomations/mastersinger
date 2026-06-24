@@ -9,9 +9,6 @@ const MUSICAL_STYLES = [
   'Forró', 'Bossa Nova', 'Clássico', 'K-Pop', 'Funk',
 ];
 
-const SINGING_TIME_OPTIONS = ['onb.singsTimeOptions'];
-const LESSONS_TIME_OPTIONS = ['onb.lessonsTimeOptions'];
-
 interface OnboardingProps {
   onDone: () => void;
 }
@@ -204,7 +201,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
               <div className="card p-6 text-center space-y-2">
                 <div className="text-4xl font-black neon-text font-mono">{pitch.currentFrame.noteName}</div>
                 <div className="text-xs text-slate-400">{pitch.currentFrame.frequency.toFixed(1)} Hz · {pitch.currentFrame.cents} cents</div>
-                <div className="text-xs text-green-400 font-mono">✓ Microfone funcionando</div>
+                <div className="text-xs text-green-400 font-mono">{t(lang, 'onb.micOk')}</div>
               </div>
             )}
             {pitch.error && (
@@ -221,7 +218,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 {t(lang, 'onb.mic.allow')}
               </button>
             ) : (
-              <div className="text-center text-sm text-green-400">✓ Tudo pronto!</div>
+              <div className="text-center text-sm text-green-400">{t(lang, 'onb.allReady')}</div>
             )}
           </div>
         );

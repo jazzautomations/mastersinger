@@ -27,6 +27,7 @@ interface UsePitchDetectionReturn {
   currentFrame: PitchFrame | null;
   micLevel: number;          // 0..1 instantaneous RMS
   audioContext: AudioContext | null;
+  micStream: MediaStream | null;
   recordingUrl: string | null;   // object URL of last recording (or null)
   recordingDurationMs: number;   // length of last recording
   clearRecording: () => void;    // revoke the URL + reset
@@ -364,6 +365,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     currentFrame,
     micLevel,
     audioContext: audioContextRef.current,
+    micStream: streamRef.current,
     isRecording,
     recordingUrl,
     recordingDurationMs,

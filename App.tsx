@@ -105,13 +105,15 @@ function MainApp() {
 
   // Also: if Supabase already has a session (e.g. from localStorage),
   // skip straight to app on page load.
+  // Show loading spinner while auth session is loading to avoid flash-of-AuthGate.
+  const [authLoading, setAuthLoading] = useState(() => showApp && !isGuest);
   useEffect(() => {
-    if (showApp && !authUser && !isGuest) {
-      // Supabase session might still be loading — wait a tick
-      const t = setTimeout(() => {}, 2000);
+    if (showApp && !isGuest && !authUser && authLoading) {
+      const t = setTimeout(() => setAuthLoading(false), 2000);
       return () => clearTimeout(t);
     }
-  }, [showApp, authUser, isGuest]);
+    if (authUser) setAuthLoading(false);
+  }, [showApp, authUser, isGuest, authLoading]);
 
   const enterApp = () => {
     window.location.hash = '#app';
@@ -136,6 +138,17 @@ function MainApp() {
 
   if (!showApp) {
     return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={enterApp} />;
+  }
+
+  if (authLoading && !authUser && !isGuest) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-violet-400 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-slate-500">Carregando...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!authUser && !isGuest) {
@@ -179,11 +192,11 @@ function MainApp() {
             <span className="text-sm font-black display neon-text hidden sm:block">MasterSinger</span>
           </button>
           <div className="flex items-center gap-1">
-            <button onClick={() => handleNavigate('theory')} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all">
-              {t(lang, 'nav.theory')}
+            <button onClick={() => handleNavigate('theory')} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${!canAccessView('theory') ? 'text-slate-500 hover:text-amber-300 hover:bg-amber-500/10' : 'text-slate-400 hover:text-violet-300 hover:bg-white/5'}`}>
+              {t(lang, 'nav.theory')} {!canAccessView('theory') && '🔒'}
             </button>
-            <button onClick={() => handleNavigate('harmony')} className="px-3 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-violet-300 hover:bg-white/5 transition-all">
-              {t(lang, 'nav.harmony')}
+            <button onClick={() => handleNavigate('harmony')} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${!canAccessView('harmony') ? 'text-slate-500 hover:text-amber-300 hover:bg-amber-500/10' : 'text-slate-400 hover:text-violet-300 hover:bg-white/5'}`}>
+              {t(lang, 'nav.harmony')} {!canAccessView('harmony') && '🔒'}
             </button>
             <button onClick={() => openUpgrade()} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all font-bold ${isPro ? 'text-amber-300 bg-amber-500/10 hover:bg-amber-500/20' : 'text-slate-400 hover:text-amber-300 hover:bg-amber-500/10'}`} title={isPro ? 'Você é Pro' : 'Assinar Pro'}>
               {isPro ? '👑 Pro' : '⚡ Upgrade'}
@@ -221,16 +234,22 @@ function MainApp() {
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-slate-950/85 border-t border-white/5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-3xl mx-auto px-2 py-2 grid grid-cols-7 gap-0.5">
-          {navItems.map(item => (
-            <button
-              key={item.view}
-              onClick={() => handleNavigate(item.view)}
-              className={`flex flex-col items-center gap-0.5 py-2 rounded-lg transition-all ${view === item.view ? 'text-violet-400 bg-white/5' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              <span className="text-base">{item.icon}</span>
-              <span className="text-[9px] font-mono uppercase tracking-wider">{t(lang, item.labelKey)}</span>
-            </button>
-          ))}
+          {navItems.map(item => {
+            const locked = !canAccessView(item.view);
+            return (
+              <button
+                key={item.view}
+                onClick={() => handleNavigate(item.view)}
+                className={`flex flex-col items-center gap-0.5 py-2 rounded-lg transition-all ${view === item.view ? 'text-violet-400 bg-white/5' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                <span className="text-base">{item.icon}</span>
+                <span className="text-[9px] font-mono uppercase tracking-wider flex items-center gap-0.5">
+                  {t(lang, item.labelKey)}
+                  {locked && <span className="text-[8px]">🔒</span>}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </nav>
     </div>

@@ -180,32 +180,14 @@ export function Recorder() {
     // Canvas video stream
     const canvasStream = canvas.captureStream(30);
 
-    // Add audio track from mic (usePitchDetection's stream)
-    const audioCtx = pitch.audioContext;
-    if (audioCtx && audioCtx.state === 'running') {
-      const dest = audioCtx.createMediaStreamDestination();
-      // Connect mic source to destination
-      // We need to get the mic stream from usePitchDetection
-      // Since usePitchDetection doesn't expose the stream, we'll use a separate mic
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(micStream => {
-        const micTrack = micStream.getAudioTracks()[0];
-        if (micTrack) canvasStream.addTrack(micTrack);
-        recordStream(canvasStream);
-      }).catch(() => {
-        // No mic, record video only
-        recordStream(canvasStream);
-      });
-    } else {
-      // Fallback: get mic separately
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(micStream => {
-        const micTrack = micStream.getAudioTracks()[0];
-        if (micTrack) canvasStream.addTrack(micTrack);
-        recordStream(canvasStream);
-      }).catch(() => {
-        recordStream(canvasStream);
-      });
+    // Reuse mic stream from usePitchDetection (no second getUserMedia)
+    const micStream = pitch.micStream;
+    if (micStream) {
+      const micTrack = micStream.getAudioTracks()[0];
+      if (micTrack) canvasStream.addTrack(micTrack);
     }
-  }, [pitch.audioContext, lang]);
+    recordStream(canvasStream);
+  }, [pitch.micStream, lang]);
 
   const recordStream = (stream: MediaStream) => {
     chunksRef.current = [];
@@ -236,8 +218,6 @@ export function Recorder() {
     if (recorderRef.current && recorderRef.current.state === 'recording') {
       recorderRef.current.stop();
     }
-    // Stop mic tracks from separate getUserMedia
-    streamRef.current?.getAudioTracks().forEach(t => t.stop());
   }, []);
 
   // ── Share / Download ──
@@ -271,6 +251,9 @@ export function Recorder() {
   // ── Cleanup ──
   useEffect(() => {
     return () => {
+      if (recorderRef.current && recorderRef.current.state === 'recording') {
+        recorderRef.current.stop();
+      }
       pitch.stop();
       streamRef.current?.getTracks().forEach(t => t.stop());
       if (videoUrl) URL.revokeObjectURL(videoUrl);
