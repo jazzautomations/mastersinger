@@ -42,15 +42,20 @@ function MainApp() {
     try {
       const h = window.location.hash;
       const q = window.location.search;
-      return h.includes('access_token') || h.includes('refresh_token') || q.includes('code=');
+      const isRedirect = h.includes('access_token') || h.includes('refresh_token') || q.includes('code=');
+      // Clean up stale auth params from URL immediately so they don't
+      // cause the app to auto-enter on future normal page loads.
+      if (q.includes('code=') || q.includes('state=')) {
+        window.history.replaceState(null, '', window.location.pathname + (window.location.hash || ''));
+      }
+      return isRedirect;
     } catch { return false; }
   });
 
   const [showApp, setShowApp] = useState<boolean>(() => {
     try {
       const h = window.location.hash;
-      const q = window.location.search;
-      return h === '#app' || h.startsWith('#app') || h.includes('access_token') || h.includes('refresh_token') || q.includes('code=');
+      return h === '#app' || h.startsWith('#app');
     } catch { return false; }
   });
 
