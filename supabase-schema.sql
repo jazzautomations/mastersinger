@@ -38,6 +38,7 @@ create table if not exists public.subscriptions (
   teacher_code        text,                               -- referral code that granted an extended trial
   asaas_payment_id    text,
   asaas_customer_id   text,
+  asaas_subscription_id text,    -- Asaas subscription id (recorrência com cartão)
   updated_at          timestamptz default now()
 );
 
@@ -129,3 +130,6 @@ create trigger on_auth_user_created
 -- vars in Vercel. The /api functions use SUPABASE_SERVICE_ROLE_KEY to write
 -- subscriptions/payment_events past RLS.
 -- ─────────────────────────────────────────────────────────────────────────
+
+-- ── Idempotent column additions (safe to re-run on existing tables) ──
+alter table public.subscriptions add column if not exists asaas_subscription_id text;

@@ -73,12 +73,27 @@ module.exports = async function handler(req, res) {
     if (insertError) console.error('webhook: payment_events insert failed:', insertError.message);
 
     if (activated) {
+      // Renovação de assinatura recorrente (cartão de crédito): quando o Asaas
+      // cobra mensalmente/anualmente, este campo vem preenchido com o id da
+      // subscription. Detectamos e renovamos o período do usuário.
+      const isRenewal = !!payment.subscription;
       const { data: intent } = await admin.from('payment_events')
         .select('plan').eq('asaas_payment_id', paymentId).eq('event_type', 'CHECKOUT_CREATED').maybeSingle();
-      const planId = (intent && intent.plan) || (payment.value >= 300 ? 'pro-yearly' : 'pro-monthly');
+      const planId = (intent && intent.plan)
+        || (payment.value >= 300 ? 'pro-yearly' : 'pro-monthly');
       const plan = getPlan(planId);
       const days = plan && plan.billingCycle === 'yearly' ? 365 : 30;
-      const periodEnd = new Date(Date.now() + days * 86400000).toISOString();
+
+      // Para renovação: estende a partir do fim do período atual (se ainda
+      // válido) ou de hoje. Para ativação nova: a partir de hoje.
+      const { data: currentSub } = await admin.from('subscriptions')
+        .select('current_period_end').eq('user_id', userId).maybeSingle();
+      let base = Date.now();
+      if (isRenewal && currentSub && currentSub.current_period_end) {
+        const endMs = new Date(currentSub.current_period_end).getTime();
+        if (endMs > Date.now()) base = endMs; // estende o período ainda ativo
+      }
+      const periodEnd = new Date(base + days * 86400000).toISOString();
 
       const { error } = await admin.from('subscriptions').upsert({
         user_id: userId,
@@ -88,6 +103,7 @@ module.exports = async function handler(req, res) {
         trial_ends_at: null,
         asaas_payment_id: payment.id,
         asaas_customer_id: payment.customer,
+        asaas_subscription_id: payment.subscription || null,
       }, { onConflict: 'user_id' });
       if (error) throw error;
     }

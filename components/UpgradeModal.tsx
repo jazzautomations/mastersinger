@@ -112,7 +112,7 @@ export function UpgradeModal() {
 
       // Validate invoiceUrl is a well-formed URL before redirecting.
       // Safari throws DOMException on window.location.href with malformed URLs.
-      const rawUrl = data.invoiceUrl;
+      const rawUrl = data.checkoutUrl || data.invoiceUrl;
       if (!rawUrl || typeof rawUrl !== 'string') {
         throw new Error('URL de pagamento não recebida. Tente novamente.');
       }
@@ -125,8 +125,7 @@ export function UpgradeModal() {
       if (!invoiceUrl.protocol.startsWith('http')) {
         throw new Error('URL de pagamento inválida. Tente novamente.');
       }
-      // Strict allowlist: only the real Asaas checkout domains. `.includes('asaas')`
-      // would accept phishing hosts like asaas.evil.com.
+      // Strict allowlist: only the real Asaas checkout domains.
       const ALLOWED = ['asaas.com', 'asaas.com.br'];
       const host = invoiceUrl.hostname.toLowerCase();
       const ok = ALLOWED.some(d => host === d || host.endsWith('.' + d));
@@ -134,7 +133,7 @@ export function UpgradeModal() {
         throw new Error('URL de pagamento inválida. Tente novamente.');
       }
 
-      setInfo('Redirecionando para o pagamento seguro (Asaas)...');
+      setInfo('Redirecionando para o checkout seguro (Asaas)...');
       // Use window.open instead of window.location.href — Safari throws
       // DOMException on location.href assignment with certain URL formats.
       window.open(invoiceUrl.href, '_blank', 'noopener,noreferrer');
@@ -285,7 +284,7 @@ export function UpgradeModal() {
                       {plan.pricePerMonth != null && (
                         <div className="text-[10px] text-violet-300 font-mono">≈ {formatBRL(plan.pricePerMonth)}/mês {plan.discountPct ? `· ${plan.discountPct}% OFF` : ''}</div>
                       )}
-                      <div className="text-[10px] text-green-400 font-mono mt-1">✓ 7 dias grátis inclusos · Cobrança após 7 dias</div>
+                      <div className="text-[10px] text-green-400 font-mono mt-1">✓ Cartão de crédito · Renovação automática · Cancele quando quiser</div>
                     </div>
                     <button
                       onClick={() => checkout(plan.id as 'pro-monthly' | 'pro-yearly')}
@@ -300,7 +299,7 @@ export function UpgradeModal() {
 
               <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500 font-mono">
                 <span>🔒</span>
-                <span>Pagamento seguro via Asaas · Pix, cartão ou boleto</span>
+                <span>Assinatura recorrente · Cartão de crédito · Cancele quando quiser</span>
               </div>
 
               <button onClick={closeUpgrade} className="w-full text-xs text-slate-500 hover:text-slate-300 transition-all py-2">
