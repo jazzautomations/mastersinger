@@ -15,7 +15,10 @@ module.exports = async function handler(req, res) {
     return res.json({ error: 'ASAAS_WEBHOOK_SECRET não configurado' });
   }
 
-  const headerSecret = req.headers['x-webhook-secret'] || req.headers['x-asaas-webhook-secret'] || req.headers['asaas-webhook-secret'];
+  // Asaas sends the auth token in the `asaas-access-token` header (official doc:
+  // https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook).
+  // Vercel normalizes header names to lowercase, so we read the lowercase form.
+  const headerSecret = req.headers['asaas-access-token'];
   if (typeof headerSecret !== 'string') {
     res.status(401);
     return res.json({ error: 'Assinatura inválida' });
