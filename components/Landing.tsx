@@ -483,22 +483,41 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
 
       {/* ── Footer ── */}
       <footer className="border-t border-white/5 mt-10">
-        <div className="max-w-5xl mx-auto px-4 py-10 space-y-4">
+        <div className="max-w-5xl mx-auto px-4 py-10 space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-lg">🎤</span>
               <span className="text-sm font-black display neon-text">MasterSinger</span>
             </div>
-            <div className="flex gap-4 text-xs text-slate-500 font-mono">
+            <div className="flex flex-wrap gap-4 text-xs text-slate-500 font-mono">
               <a href="#planos" className="hover:text-violet-300 transition-all">Planos</a>
               <a href="#como-funciona" className="hover:text-violet-300 transition-all">Como funciona</a>
               <a href="#faq" className="hover:text-violet-300 transition-all">FAQ</a>
               <button onClick={onEnterApp} className="hover:text-violet-300 transition-all">Abrir app</button>
             </div>
           </div>
-          <div className="text-[11px] text-slate-600 font-mono space-y-1">
+          <div className="grid sm:grid-cols-3 gap-6 text-xs text-slate-500 font-mono">
+            <div className="space-y-2">
+              <div className="text-slate-400 font-bold uppercase tracking-wider">MasterSinger</div>
+              <p>App de treinamento vocal com detecção de pitch em tempo real, estúdio MIDI e academia de canto.</p>
+              <p>Áudio processado 100% no seu dispositivo — nada é enviado a servidores.</p>
+            </div>
+            <div className="space-y-2">
+              <div className="text-slate-400 font-bold uppercase tracking-wider">Legal</div>
+              <a href="/privacidade.html" className="block hover:text-violet-300 transition-all">Política de Privacidade</a>
+              <a href="/termos.html" className="block hover:text-violet-300 transition-all">Termos de Uso</a>
+              <p className="text-slate-600">Em conformidade com a LGPD (Lei nº 13.709/2018)</p>
+            </div>
+            <div className="space-y-2">
+              <div className="text-slate-400 font-bold uppercase tracking-wider">Contato</div>
+              <a href="https://wa.me/5519998102792" target="_blank" rel="noopener noreferrer" className="block hover:text-violet-300 transition-all">WhatsApp</a>
+              <a href="mailto:contato@mastersinger.com.br" className="block hover:text-violet-300 transition-all">contato@mastersinger.com.br</a>
+              <p className="text-slate-600">Suporte: seg–sex, 9h–18h</p>
+            </div>
+          </div>
+          <div className="text-[11px] text-slate-600 font-mono border-t border-white/5 pt-4">
             <p>© {new Date().getFullYear()} MasterSinger. Feito pra cantores brasileiros.</p>
-            <p>Detecção de pitch via algoritmo YIN. Áudio processado localmente — nada é enviado a servidores.</p>
+            <p className="mt-1">CNPJ: [inserir] · Responsável: Felipe Salvego · Detecção de pitch via algoritmo YIN.</p>
           </div>
         </div>
       </footer>

@@ -3,19 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
-    <title>MasterSinger — Treinamento Vocal, Estúdio MIDI e Academia de Canto</title>
-    <meta name="description" content="MasterSinger é o melhor app gratuito pra aprender a cantar. Detecção de pitch em tempo real, estúdio MIDI editável, prática gamificada de escalas, arpejos, intervalos, treino de ouvido, teoria, harmonia e uma academia vocal completa.">
+    <title>MasterSinger — Afinador Vocal em Tempo Real, Cursos e Estúdio MIDI</title>
+    <meta name="description" content="MasterSinger é o app gratuito pra aprender a cantar: afinador em tempo real (precisão YIN), estúdio MIDI, prática gamificada de escalas e intervalos, treino de ouvido e academia com 8 cursos. Tudo no navegador, sem download.">
     <meta name="theme-color" content="#0a0a14">
-    <meta property="og:title" content="MasterSinger — Cante Afinado">
-    <meta property="og:description" content="Grátis, sem login, sem download. Detecção de pitch em tempo real, editor de melodias MIDI e prática vocal gamificada.">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <meta name="author" content="MasterSinger">
+
+    <link rel="canonical" href="https://mastersinger.vercel.app/">
+
+    <!-- Open Graph -->
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="MasterSinger">
+    <meta property="og:title" content="MasterSinger — Cante Afinado">
+    <meta property="og:description" content="Afinador em tempo real, estúdio MIDI e academia de canto. Grátis, sem login, sem download — tudo no navegador.">
+    <meta property="og:url" content="https://mastersinger.vercel.app/">
     <meta property="og:locale" content="pt_BR">
-    <meta property="og:locale:alternate" content="en_US">
+    <meta property="og:image" content="https://mastersinger.vercel.app/icon-512.png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:image:alt" content="MasterSinger — app de treino vocal">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MasterSinger — Cante Afinado">
+    <meta name="twitter:description" content="Afinador em tempo real, estúdio MIDI e academia de canto. Grátis, sem login, sem download.">
+    <meta name="twitter:image" content="https://mastersinger.vercel.app/icon-512.png">
+
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230a0a14'/%3E%3Ctext x='50' y='74' font-size='64' text-anchor='middle'%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/manifest.webmanifest">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Structured data: WebApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "MasterSinger",
+      "url": "https://mastersinger.vercel.app/",
+      "description": "App de treino vocal com afinador em tempo real, estúdio MIDI, prática gamificada e academia de canto.",
+      "applicationCategory": "EducationApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "pt-BR",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "BRL",
+        "description": "Plano Free com afinador ilimitado"
+      },
+      "featureList": [
+        "Afinador em tempo real (algoritmo YIN)",
+        "Prática gamificada de escalas, arpejos e intervalos",
+        "Estúdio de melodias com exportação MIDI",
+        "Treino de ouvido e harmonia",
+        "Academia com 8 cursos completos",
+        "Progresso e gamificação (XP, níveis, conquistas)"
+      ]
+    }
+    </script>
+
+    <!-- Structured data: Product com planos -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": "MasterSinger Pro",
+      "description": "Acesso completo ao MasterSinger: todos os exercícios, cursos, estúdio MIDI, treino de ouvido e harmonia.",
+      "brand": { "@type": "Brand", "name": "MasterSinger" },
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "Pro Mensal",
+          "price": "54.90",
+          "priceCurrency": "BRL",
+          "url": "https://mastersinger.vercel.app/#planos"
+        },
+        {
+          "@type": "Offer",
+          "name": "Pro Anual",
+          "price": "347.00",
+          "priceCurrency": "BRL",
+          "url": "https://mastersinger.vercel.app/#planos"
+        }
+      ]
+    }
+    </script>
+
+    <!-- Structured data: FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Preciso saber música pra usar o MasterSinger?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Não. O MasterSinger foi feito do zero. Comece pela Academia, curso de Aquecimento, depois Afinação. Tudo em português, passo a passo." }
+        },
+        {
+          "@type": "Question",
+          "name": "Funciona no celular?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Sim. É um web app responsivo que funciona no navegador do celular, tablet e computador. Melhor experiência no Chrome/Safari atualizados." }
+        },
+        {
+          "@type": "Question",
+          "name": "Minha voz é gravada ou enviada pra algum lugar?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Nunca. A detecção de pitch roda 100% local no seu navegador via Web Audio API. Nenhum áudio sai do seu dispositivo." }
+        },
+        {
+          "@type": "Question",
+          "name": "Qual a precisão do afinador?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Usamos o algoritmo YIN (Cheveigné & Kawahara, 2002) com suavização anti-oitava e filtro de mediana. Precisão de cents, dentro de ±2 cents quando travado." }
+        },
+        {
+          "@type": "Question",
+          "name": "Posso cancelar a assinatura?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Sim, quando quiser, sem multa. O plano anual tem garantia de 7 dias com reembolso total." }
+        },
+        {
+          "@type": "Question",
+          "name": "MasterSinger substitui aula com professor?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Complementa. É o treino diário entre as aulas e, pra muitos, a porta de entrada acessível antes de investir em aulas." }
+        },
+        {
+          "@type": "Question",
+          "name": "Como funciona o pagamento?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Via Asaas — Pix, cartão ou boleto. Você assina direto no app: escolhe o plano, paga no checkout seguro da Asaas e o acesso Pro libera na hora." }
+        },
+        {
+          "@type": "Question",
+          "name": "Tem versão grátis?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Sim! O plano Free já inclui o afinador em tempo real ilimitado, 1 curso completo da Academia (Aquecimento) e 1 exercício de cada tipo." }
+        }
+      ]
+    }
+    </script>
 </head>
 <body>
+    <a href="#main" class="skip-link" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden" onfocus="this.style.cssText='position:fixed;top:8px;left:8px;z-index:200;padding:8px 16px;background:#a78bfa;color:#000;border-radius:8px;width:auto;height:auto'">Pular para o conteúdo</a>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
