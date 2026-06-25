@@ -11,11 +11,12 @@ interface UsePitchDetectionOptions {
   maxFreq?: number;
   threshold?: number;        // YIN threshold
   smoothing?: boolean;       // apply temporal smoothing (default true)
-  minConfidence?: number;    // smoother voiced gate (default 0.45). Lower it (e.g. 0.35)
-                             // for a live tuner so the needle doesn't drop out on
-                             // imperfect mics; the octave guard still rejects junk.
+  minConfidence?: number;    // smoother voiced gate (default 0.30)
   record?: boolean;          // also capture raw audio for playback (default false)
   onFrame?: (frame: PitchFrame) => void;
+  // ── Audio tuning settings ──
+  micSensitivity?: number;   // 0.0..1.0, higher = more sensitive
+  noiseGate?: number;        // 0.0..0.1, RMS below this = silence
 }
 
 interface UsePitchDetectionReturn {
@@ -43,11 +44,13 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     bufferSize = DEFAULT_BUFFER_SIZE,
     minFreq = 60,        // lowered from 70 → catches bass/baritone lows (C2=65.4Hz)
     maxFreq = 1200,
-    threshold = 0.12,
+    threshold = 0.15,    // raised from 0.12 → less noise-triggering on cheap mics
     smoothing = true,
-    minConfidence,       // undefined → smoother uses its own default (0.45)
+    minConfidence = 0.30, // lowered from 0.45 → keeps needle alive on imperfect mics
     record = false,
     onFrame,
+    micSensitivity = 0.5, // default balanced sensitivity
+    noiseGate = 0.02,     // default low noise gate
   } = options;
 
   const [isListening, setIsListening] = useState(false);
@@ -82,6 +85,8 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
   const minFreqRef = useRef(minFreq); minFreqRef.current = minFreq;
   const maxFreqRef = useRef(maxFreq); maxFreqRef.current = maxFreq;
   const smoothingRef = useRef(smoothing); smoothingRef.current = smoothing;
+  const sensitivityRef = useRef(micSensitivity); sensitivityRef.current = micSensitivity;
+  const noiseGateRef = useRef(noiseGate); noiseGateRef.current = noiseGate;
   // Guards start() against a double-click racing the awaited getUserMedia
   // (Fix 2): isListening is state and only flips AFTER the await, so two fast
   // taps both passed the old `if (isListening)` guard and opened two mic
@@ -104,6 +109,31 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     if (!analyserRef.current) return;
 
     analyserRef.current.getFloatTimeDomainData(bufferRef.current);
+
+    // Apply noise gate: if RMS is below threshold, treat as silence
+    let sum = 0;
+    for (let i = 0; i < bufferRef.current.length; i++) sum += bufferRef.current[i] * bufferRef.current[i];
+    const rms = Math.sqrt(sum / bufferRef.current.length);
+    if (rms < noiseGateRef.current) {
+      setMicLevel(0);
+      silentStreakRef.current += 1;
+      voicedStreakRef.current = 0;
+      if (lastVoicedRef.current && silentStreakRef.current <= 2 && (performance.now() - startTimeRef.current - lastEmitTsRef.current) < 120) {
+        setCurrentFrame(lastVoicedRef.current);
+      } else {
+        setCurrentFrame(prev => prev ? { ...prev, frequency: 0, confidence: 0, cents: 0, midi: 0, timestamp: performance.now() - startTimeRef.current } : null);
+      }
+      rafRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    // Apply sensitivity: scale the buffer by micSensitivity
+    const sensitivity = sensitivityRef.current;
+    if (sensitivity !== 1.0) {
+      for (let i = 0; i < bufferRef.current.length; i++) {
+        bufferRef.current[i] *= sensitivity;
+      }
+    }
 
     const result = detectPitchYin(
       bufferRef.current,

@@ -10,8 +10,10 @@ export function Recorder() {
   const { profile } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
+  const micSensitivity = profile.settings.micSensitivity ?? 0.5;
+  const noiseGate = profile.settings.noiseGate ?? 0.02;
 
-  const pitch = usePitchDetection({ a4, record: false, bufferSize: 8192, minConfidence: 0.35 });
+  const pitch = usePitchDetection({ a4, record: false, bufferSize: 8192, minConfidence: 0.30, micSensitivity, noiseGate });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);

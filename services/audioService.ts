@@ -92,13 +92,28 @@ function resumeIfSuspended(): void {
 }
 
 export async function ensureAudioStarted(): Promise<void> {
-  const ctx = Tone.getContext();
-  if (ctx.state !== 'running') {
-    await Tone.start();
+  try {
+    const ctx = Tone.getContext();
+    if (ctx.state !== 'running') {
+      await Tone.start();
+    }
+    ensureSynth();
+    ensureMonoSynth();
+    warmed = true;
+  } catch (err) {
+    console.error('[AudioService] Failed to start audio context:', err);
+    // Retry once after a short delay (helps on iOS Safari)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    try {
+      await Tone.start();
+      ensureSynth();
+      ensureMonoSynth();
+      warmed = true;
+    } catch (retryErr) {
+      console.error('[AudioService] Retry also failed:', retryErr);
+      throw new Error('Could not start audio. Please allow microphone access and try again.');
+    }
   }
-  ensureSynth();
-  ensureMonoSynth();
-  warmed = true;
 }
 
 // iOS Safari only unlocks the AudioContext if the resume() call is made
@@ -141,36 +156,48 @@ export function isPlaybackActive(token: number): boolean {
 }
 
 export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 = 440): void {
-  resumeIfSuspended();
-  const s = ensureSynth();
-  const freq = midiToFrequency(midi, a4);
-  const durSec = Math.max(0.05, durationMs / 1000 - 0.05);
+  try {
+    resumeIfSuspended();
+    const s = ensureSynth();
+    const freq = midiToFrequency(midi, a4);
+    const durSec = Math.max(0.05, durationMs / 1000 - 0.05);
 
-  // Future-scheduled notes are routed through a tracked setTimeout with a
-  // generation-token guard (Fix 4): stopAll() clears every pending timeout AND
-  // bumps the generation so a callback that already fired self-skips. The old
-  // path used Tone.now() + offset, which couldn't be cancelled. Immediate
-  // plays (offset 0) keep the direct, sample-accurate path.
-  if (timeOffsetMs > 0) {
-    const token = playbackGen;
-    const id = window.setTimeout(() => {
-      scheduledTimeouts.delete(id);
-      if (!isPlaybackActive(token)) return;
-      resumeIfSuspended();
-      s.triggerAttackRelease(freq, durSec, Tone.now());
-    }, timeOffsetMs);
-    scheduledTimeouts.add(id);
-    return;
+    // Future-scheduled notes are routed through a tracked setTimeout with a
+    // generation-token guard (Fix 4): stopAll() clears every pending timeout AND
+    // bumps the generation so a callback that already fired self-skips. The old
+    // path used Tone.now() + offset, which couldn't be cancelled. Immediate
+    // plays (offset 0) keep the direct, sample-accurate path.
+    if (timeOffsetMs > 0) {
+      const token = playbackGen;
+      const id = window.setTimeout(() => {
+        scheduledTimeouts.delete(id);
+        if (!isPlaybackActive(token)) return;
+        try {
+          resumeIfSuspended();
+          s.triggerAttackRelease(freq, durSec, Tone.now());
+        } catch (e) {
+          console.warn('[AudioService] Scheduled note failed:', e);
+        }
+      }, timeOffsetMs);
+      scheduledTimeouts.add(id);
+      return;
+    }
+
+    s.triggerAttackRelease(freq, durSec, Tone.now());
+  } catch (err) {
+    console.warn('[AudioService] playNote failed:', err);
   }
-
-  s.triggerAttackRelease(freq, durSec, Tone.now());
 }
 
 export function playChord(midis: number[], durationMs: number, a4 = 440): void {
-  resumeIfSuspended();
-  const s = ensureSynth();
-  const freqs = midis.map(m => midiToFrequency(m, a4));
-  s.triggerAttackRelease(freqs, durationMs / 1000, Tone.now());
+  try {
+    resumeIfSuspended();
+    const s = ensureSynth();
+    const freqs = midis.map(m => midiToFrequency(m, a4));
+    s.triggerAttackRelease(freqs, durationMs / 1000, Tone.now());
+  } catch (err) {
+    console.warn('[AudioService] playChord failed:', err);
+  }
 }
 
 export function playSequence(midis: number[], noteDurationMs: number, gapMs = 50, a4 = 440): void {
@@ -190,20 +217,25 @@ export function playSequence(midis: number[], noteDurationMs: number, gapMs = 50
  * This kills the classic "click reference 5x → 5 overlapping infinite drones".
  */
 export function playDrone(midi: number, a4 = 440): Tone.Synth | null {
-  resumeIfSuspended();
-  const s = ensureMonoSynth();
-  const freq = midiToFrequency(midi, a4);
-  if (droneFreq === freq) {
-    // already sustaining this exact tone — do nothing
+  try {
+    resumeIfSuspended();
+    const s = ensureMonoSynth();
+    const freq = midiToFrequency(midi, a4);
+    if (droneFreq === freq) {
+      // already sustaining this exact tone — do nothing
+      return s;
+    }
+    if (droneFreq !== 0) {
+      // different tone is sustaining — release it cleanly first
+      s.triggerRelease();
+    }
+    s.triggerAttack(freq);
+    droneFreq = freq;
     return s;
+  } catch (err) {
+    console.warn('[AudioService] playDrone failed:', err);
+    return null;
   }
-  if (droneFreq !== 0) {
-    // different tone is sustaining — release it cleanly first
-    s.triggerRelease();
-  }
-  s.triggerAttack(freq);
-  droneFreq = freq;
-  return s;
 }
 
 export function stopDrone(): void {
@@ -221,19 +253,27 @@ export function stopDrone(): void {
  * Call this before starting a new sequence AND on component unmount.
  */
 export function stopAll(): void {
-  playbackGen++; // invalidate all outstanding scheduled notes
-  // Cancel every still-pending scheduled note (Fix 4): clearTimeout removes
-  // it before it fires; the gen bump above also makes any already-fired
-  // callback self-skip.
-  for (const id of scheduledTimeouts) {
-    clearTimeout(id);
-  }
-  scheduledTimeouts.clear();
-  if (synth) {
-    synth.releaseAll();
-  }
-  if (monoSynth && droneFreq !== 0) {
-    monoSynth.triggerRelease();
+  try {
+    playbackGen++; // invalidate all outstanding scheduled notes
+    // Cancel every still-pending scheduled note (Fix 4): clearTimeout removes
+    // it before it fires; the gen bump above also makes any already-fired
+    // callback self-skip.
+    for (const id of scheduledTimeouts) {
+      clearTimeout(id);
+    }
+    scheduledTimeouts.clear();
+    if (synth) {
+      synth.releaseAll();
+    }
+    if (monoSynth && droneFreq !== 0) {
+      monoSynth.triggerRelease();
+      droneFreq = 0;
+    }
+  } catch (err) {
+    console.warn('[AudioService] stopAll failed:', err);
+    // Force reset state even if Tone.js throws
+    playbackGen++;
+    scheduledTimeouts.clear();
     droneFreq = 0;
   }
 }

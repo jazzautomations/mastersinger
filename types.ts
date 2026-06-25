@@ -187,6 +187,10 @@ export interface UserProfile {
     level: StudentLevel;
     rangeCenterMidi?: number;  // midpoint of detected range; exercises transpose to sit here
     audioInputDeviceId?: string;
+    // ── Audio tuning settings ──
+    micSensitivity?: number;   // 0.0..1.0, default 0.5 — higher = more sensitive
+    noiseGate?: number;        // 0.0..0.1, default 0.02 — RMS below this is treated as silence
+    tuningPrecision?: 'fast' | 'balanced' | 'precise'; // latency vs accuracy tradeoff
     onboarding?: {
       singsAlready?: boolean;
       singingTime?: string;

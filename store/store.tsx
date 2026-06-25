@@ -22,7 +22,7 @@ const DEFAULT_PROFILE: UserProfile = {
   streak: { current: 0, longest: 0, lastActiveDate: '', freezes: 1 },
   weeklyXp: [],
   range: {},
-  settings: { language: 'pt-BR', a4: 440, level: 'intermediate' },
+  settings: { language: 'pt-BR', a4: 440, level: 'intermediate', micSensitivity: 0.5, noiseGate: 0.02, tuningPrecision: 'balanced' },
   results: [],
   completedLessons: [],
 };

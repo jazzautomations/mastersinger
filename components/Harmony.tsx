@@ -12,6 +12,8 @@ export function Harmony() {
   const { profile, addXp, unlockBadge } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
+  const micSensitivity = profile.settings.micSensitivity ?? 0.5;
+  const noiseGate = profile.settings.noiseGate ?? 0.02;
   const [mode, setMode] = useState<Mode | null>(null);
 
   const modes: { id: Mode; icon: string; titleKey: string }[] = [
@@ -51,8 +53,8 @@ export function Harmony() {
 
       {mode === 'triads' && <TriadsExplorer lang={lang} a4={a4} />}
       {mode === 'progressions' && <ProgressionsExplorer lang={lang} a4={a4} />}
-      {mode === 'sing-third' && <SingHarmonyPart lang={lang} a4={a4} interval={3} addXp={addXp} unlockBadge={unlockBadge} profile={profile} />}
-      {mode === 'sing-fifth' && <SingHarmonyPart lang={lang} a4={a4} interval={4} addXp={addXp} unlockBadge={unlockBadge} profile={profile} />}
+      {mode === 'sing-third' && <SingHarmonyPart lang={lang} a4={a4} interval={3} addXp={addXp} unlockBadge={unlockBadge} profile={profile} micSensitivity={micSensitivity} noiseGate={noiseGate} />}
+      {mode === 'sing-fifth' && <SingHarmonyPart lang={lang} a4={a4} interval={4} addXp={addXp} unlockBadge={unlockBadge} profile={profile} micSensitivity={micSensitivity} noiseGate={noiseGate} />}
     </div>
   );
 }
@@ -174,9 +176,11 @@ interface SingHarmonyProps {
   addXp: (xp: number) => void;
   unlockBadge: (id: string) => boolean;
   profile: any;
+  micSensitivity: number;
+  noiseGate: number;
 }
 
-function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile }: SingHarmonyProps) {
+function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile, micSensitivity, noiseGate }: SingHarmonyProps) {
   const isThird = interval === 3;
   const [targetMidi, setTargetMidi] = useState(60);
   const [userMidi, setUserMidi] = useState<number | null>(null);
@@ -192,6 +196,8 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile }: Si
 
   const pitch = usePitchDetection({
     a4,
+    micSensitivity,
+    noiseGate,
     onFrame: (frame) => {
       if (frame.frequency > 0 && frame.confidence > 0.5) {
         setUserMidi(Math.round(frame.midi));

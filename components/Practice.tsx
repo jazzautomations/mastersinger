@@ -23,6 +23,8 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const a4 = profile.settings.a4;
   const userLevel = profile.settings.level;
   const rangeCenterMidi = profile.settings.rangeCenterMidi;
+  const micSensitivity = profile.settings.micSensitivity ?? 0.5;
+  const noiseGate = profile.settings.noiseGate ?? 0.02;
 
   // Keep a ref to always have the latest profile for badge checks in endExercise
   const profileRef = useRef(profile);
@@ -67,6 +69,8 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const pitch = usePitchDetection({
     a4,
     record: true,
+    micSensitivity,
+    noiseGate,
     onFrame: (frame) => {
       if (phaseRef.current !== 'listening') return;
       framesRef.current.push(frame);

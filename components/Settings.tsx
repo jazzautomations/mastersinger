@@ -167,6 +167,83 @@ export function Settings() {
         </div>
       </div>
 
+      {/* ── Audio & Tuning ── */}
+      <div className="card p-5 space-y-4">
+        <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">
+          {lang === 'pt-BR' ? 'Áudio e Afinação' : 'Audio & Tuning'}
+        </div>
+
+        {/* Mic Sensitivity */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-300">{lang === 'pt-BR' ? 'Sensibilidade do Microfone' : 'Microphone Sensitivity'}</span>
+            <span className="text-xs font-mono text-violet-400">
+              {Math.round((profile.settings.micSensitivity ?? 0.5) * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.1}
+            max={1.0}
+            step={0.05}
+            value={profile.settings.micSensitivity ?? 0.5}
+            onChange={e => updateSettings({ micSensitivity: +e.target.value })}
+            className="w-full"
+          />
+          <div className="text-[11px] text-slate-500">
+            {lang === 'pt-BR'
+              ? 'Aumente se o afinador não detecta sua voz. Reduza se detecta ruído de fundo.'
+              : 'Increase if tuner doesn\'t detect your voice. Decrease if it picks up background noise.'}
+          </div>
+        </div>
+
+        {/* Noise Gate */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-300">{lang === 'pt-BR' ? 'Noise Gate' : 'Noise Gate'}</span>
+            <span className="text-xs font-mono text-violet-400">
+              {((profile.settings.noiseGate ?? 0.02) * 100).toFixed(1)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.005}
+            max={0.1}
+            step={0.005}
+            value={profile.settings.noiseGate ?? 0.02}
+            onChange={e => updateSettings({ noiseGate: +e.target.value })}
+            className="w-full"
+          />
+          <div className="text-[11px] text-slate-500">
+            {lang === 'pt-BR'
+              ? 'Filtro de ruído. Aumente em ambientes barulhentos.'
+              : 'Noise filter. Increase in noisy environments.'}
+          </div>
+        </div>
+
+        {/* Tuning Precision */}
+        <div className="space-y-2">
+          <span className="text-sm text-slate-300">{lang === 'pt-BR' ? 'Precisão da Afinação' : 'Tuning Precision'}</span>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { v: 'fast',      label: lang === 'pt-BR' ? 'Rápido' : 'Fast',      desc: lang === 'pt-BR' ? 'Menos latência' : 'Lower latency', icon: '⚡' },
+              { v: 'balanced',  label: lang === 'pt-BR' ? 'Balanceado' : 'Balanced', desc: lang === 'pt-BR' ? 'Recomendado' : 'Recommended', icon: '⚖️' },
+              { v: 'precise',   label: lang === 'pt-BR' ? 'Preciso' : 'Precise',   desc: lang === 'pt-BR' ? 'Máxima precisão' : 'Highest accuracy', icon: '🎯' },
+            ] as const).map(opt => (
+              <button
+                key={opt.v}
+                onClick={() => updateSettings({ tuningPrecision: opt.v })}
+                className={`p-3 rounded-lg text-xs font-bold transition-all flex flex-col items-center gap-1 ${(profile.settings.tuningPrecision ?? 'balanced') === opt.v ? 'bg-violet-500 text-white' : 'bg-white/5 hover:bg-white/10'}`}
+              >
+                <span className="text-xl">{opt.icon}</span>
+                <span>{opt.label}</span>
+                <span className="text-[9px] opacity-70">{opt.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Student level */}
       <div className="card p-5 space-y-3">
         <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'settings.level')}</div>

@@ -18,7 +18,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
   const lang = profile.settings.language;
   const [step, setStep] = useState(0);
   const [micOk, setMicOk] = useState(false);
-  const pitch = usePitchDetection({ a4: profile.settings.a4 });
+  const pitch = usePitchDetection({ a4: profile.settings.a4, micSensitivity: profile.settings.micSensitivity ?? 0.5, noiseGate: profile.settings.noiseGate ?? 0.02 });
 
   // ── Onboarding answers ──
   const [singsAlready, setSingsAlready] = useState<boolean | null>(null);

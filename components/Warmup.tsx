@@ -20,6 +20,8 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
   const { profile, addXp, touchStreak, unlockBadge } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
+  const micSensitivity = profile.settings.micSensitivity ?? 0.5;
+  const noiseGate = profile.settings.noiseGate ?? 0.02;
 
   const [routine, setRoutine] = useState<WarmupRoutine | null>(null);
   const [phase, setPhase] = useState<Phase>('select');
@@ -38,6 +40,8 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
 
   const pitch = usePitchDetection({
     a4,
+    micSensitivity,
+    noiseGate,
     onFrame: (frame) => {
       framesRef.current.push(frame);
       // count voiced frames only inside pitched steps (windowRef > 0)

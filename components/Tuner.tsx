@@ -20,14 +20,16 @@ export function Tuner() {
   const { profile, unlockBadge: unlock, updateRange } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
+  const micSensitivity = profile.settings.micSensitivity ?? 0.5;
+  const noiseGate = profile.settings.noiseGate ?? 0.02;
+  const tuningPrecision = profile.settings.tuningPrecision ?? 'balanced';
 
-  // ── Precision tuning for the TUNER (not the studio): a larger analysis
-  //    window (8192 ≈ 186 ms) gives YIN more periods to average → fewer octave
-  //    errors on low notes and a steadier cents reading, at the cost of latency
-  //    a tuner can absorb. A lower voiced gate (0.35 vs the smoother's 0.45
-  //    default) keeps the needle alive on ordinary laptop/phone mics instead
-  //    of dropping to "no signal" the moment the room isn't silent. ──
-  const pitch = usePitchDetection({ a4, record: true, bufferSize: 8192, minConfidence: 0.35 });
+  // ── Precision tuning for the TUNER: latency vs accuracy tradeoff based on
+  //    user preference. "fast" = 2048 (46ms), "balanced" = 4096 (93ms),
+  //    "precise" = 8192 (186ms). All use the same lowered voiced gate (0.30)
+  //    so the needle stays alive on ordinary mics. ──
+  const bufferSize = tuningPrecision === 'fast' ? 2048 : tuningPrecision === 'precise' ? 8192 : 4096;
+  const pitch = usePitchDetection({ a4, record: true, bufferSize, minConfidence: 0.30, micSensitivity, noiseGate });
 
   const [refMidi, setRefMidi] = useState<number>(69);
   const [refPlaying, setRefPlaying] = useState<boolean>(false);
@@ -80,7 +82,7 @@ export function Tuner() {
   useEffect(() => {
     const f = pitch.currentFrame;
     lastFrameRef.current = f;
-    if (!f || f.frequency <= 0 || f.confidence < 0.5) return;
+    if (!f || f.frequency <= 0 || f.confidence < 0.30) return;
     const m = Math.round(f.midi);
     if (rangeLowRef.current == null || m < rangeLowRef.current) rangeLowRef.current = m;
     if (rangeHighRef.current == null || m > rangeHighRef.current) rangeHighRef.current = m;
@@ -107,11 +109,11 @@ export function Tuner() {
   //    precision for the needle + readout, instead of the integer cents that
   //    made the display jump in 1-cent steps. ──
   const frame = pitch.currentFrame;
-  const voicedNow = !!frame && frame.frequency > 0 && frame.confidence > 0.35;
+  const voicedNow = !!frame && frame.frequency > 0 && frame.confidence > 0.30;
   if (voicedNow && frame) {
     voicedStreakRef.current += 1;
     silentStreakRef.current = 0;
-    if (!lastVoicedRef.current || voicedStreakRef.current >= 2 || Math.abs(frame.cents) <= 35 || frame.confidence >= 0.5) {
+    if (!lastVoicedRef.current || voicedStreakRef.current >= 2 || Math.abs(frame.cents) <= 35 || frame.confidence >= 0.40) {
       lastVoicedRef.current = { note: frame.noteName, cents: frame.cents, freq: frame.frequency, conf: frame.confidence, midi: frame.midi };
     }
   } else {

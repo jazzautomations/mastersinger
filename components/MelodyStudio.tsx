@@ -27,6 +27,8 @@ export function MelodyStudio() {
   const { profile, unlockBadge, melodies, saveMelody, deleteMelody } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
+  const micSensitivity = profile.settings.micSensitivity ?? 0.5;
+  const noiseGate = profile.settings.noiseGate ?? 0.02;
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -58,6 +60,8 @@ export function MelodyStudio() {
     a4,
     smoothing: false,   // raw frames: let framesToNotes own the smoothing so
                         // note timestamps line up with real time.
+    micSensitivity,
+    noiseGate,
     onFrame: (frame) => {
       framesRef.current.push(frame);
       if (frame.frequency > 0) {

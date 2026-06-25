@@ -33,10 +33,10 @@ export interface PitchSmootherOptions {
 
 const DEFAULTS: Required<PitchSmootherOptions> = {
   windowSize: 7,        // slightly wider median → kills more single-frame outliers
-  emaAlpha: 0.45,       // smoother: less needle jitter while still tracking the voice
+  emaAlpha: 0.55,       // raised from 0.45 → more responsive, less lag on pitch changes
   maxOctaveJump: 0.5,
   a4: 440,
-  minConfidence: 0.45,  // accept slightly noisier frames (real mics are imperfect)
+  minConfidence: 0.30,  // lowered from 0.45 → accepts noisier frames from real mics
   holdFrames: 3,        // hold the last pitch a touch longer through brief dips
 };
 
