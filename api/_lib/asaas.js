@@ -104,7 +104,7 @@ async function getPayment(id) {
 //    cycle: 'MONTHLY' | 'YEARLY'
 async function createSubscriptionCheckout(opts) {
   const body = {
-    billingTypes: ['CREDIT_CARD', 'PIX', 'BOLETO'],
+    billingTypes: ['CREDIT_CARD'],
     chargeTypes: ['RECURRENT'],
     minutesToExpire: 60,
     externalReference: opts.externalReference,
