@@ -19,7 +19,8 @@ export type View =
   | 'progress'
   | 'settings'
   | 'warmup'      // guided interactive vocal warmup
-  | 'recorder';   // video recording with tuner overlay
+  | 'recorder'   // video recording with tuner overlay
+  | 'teacher';    // teacher dashboard
 
 export type Language = 'pt-BR' | 'en';
 

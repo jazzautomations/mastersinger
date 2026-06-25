@@ -58,7 +58,17 @@ export function TeacherDashboard() {
           .order('created_at', { ascending: false }),
       ]);
       setInvites((inviteRows ?? []) as TeacherInvite[]);
-      setStudents((studentRows ?? []) as TeacherStudent[]);
+      setStudents((studentRows ?? []).map((r: any): TeacherStudent => ({
+        student_id: r.student_id,
+        code: r.code ?? null,
+        created_at: r.created_at,
+        student_email: Array.isArray(r.student_email) ? r.student_email[0]?.email ?? null : r.student_email ?? null,
+        plan: Array.isArray(r.plan) ? r.plan[0]?.plan ?? null : r.plan ?? null,
+        status: Array.isArray(r.status) ? r.status[0]?.status ?? null : r.status ?? null,
+        current_period_end: Array.isArray(r.current_period_end) ? r.current_period_end[0]?.current_period_end ?? null : r.current_period_end ?? null,
+        trial_ends_at: Array.isArray(r.trial_ends_at) ? r.trial_ends_at[0]?.trial_ends_at ?? null : r.trial_ends_at ?? null,
+        asaas_subscription_id: Array.isArray(r.asaas_subscription_id) ? r.asaas_subscription_id[0]?.asaas_subscription_id ?? null : r.asaas_subscription_id ?? null,
+      })));
     } catch (e: any) {
       setError(e.message || 'Falha ao carregar dashboard');
     } finally {
