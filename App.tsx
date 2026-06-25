@@ -228,10 +228,10 @@ function MainApp() {
                                   isDaily={viewOpts?.isDaily}
                                   onComplete={() => handleNavigate('home')}
                                 />}
-        {view === 'studio'   && <ProOverlay viewName={t(lang, 'nav.studio')}><MelodyStudio /></ProOverlay>}
-        {view === 'ear'      && <ProOverlay viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
-        {view === 'theory'   && <ProOverlay viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
-        {view === 'harmony'  && <ProOverlay viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}
+        {view === 'studio'   && <ProOverlay viewId={view} viewName={t(lang, 'nav.studio')}><MelodyStudio /></ProOverlay>}
+        {view === 'ear'      && <ProOverlay viewId={view} viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
+        {view === 'theory'   && <ProOverlay viewId={view} viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
+        {view === 'harmony'  && <ProOverlay viewId={view} viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}
         {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} />}
         {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
         {view === 'recorder' && <Recorder />}
