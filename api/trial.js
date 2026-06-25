@@ -35,11 +35,23 @@ module.exports = async function handler(req, res) {
   }
 
   if (code) {
+    if (sub && sub.status === 'trialing' && sub.trial_ends_at) {
+      const left = new Date(sub.trial_ends_at).getTime() - now;
+      if (left > 0) {
+        return json(res, 409, { error: 'Você já está em período de teste.' });
+      }
+    }
     const { data: tc } = await admin.from('teacher_codes')
       .select('*').eq('code', code).maybeSingle();
     if (!tc) return json(res, 400, { error: 'Código de professor inválido.' });
     if (tc.max_uses != null && tc.uses >= tc.max_uses) {
       return json(res, 400, { error: 'Este código atingiu o limite de usos.' });
+    }
+    let usesUpdate = admin.from('teacher_codes').update({ uses: tc.uses + 1 }).eq('code', code);
+    if (tc.max_uses != null) usesUpdate = usesUpdate.lt('uses', tc.max_uses);
+    const { data: usesResult } = await usesUpdate.select();
+    if (!usesResult || usesResult.length === 0) {
+      return json(res, 409, { error: 'Este código atingiu o limite de usos.' });
     }
     const days = tc.trial_days || 30;
     const trialEndsAt = new Date(now + days * 86400000).toISOString();
@@ -55,7 +67,6 @@ module.exports = async function handler(req, res) {
       asaas_customer_id: null,
     }, { onConflict: 'user_id' });
     if (error) return json(res, 500, { error: error.message });
-    await admin.from('teacher_codes').update({ uses: tc.uses + 1 }).eq('code', code);
     return json(res, 200, { ok: true, trialEndsAt, days, via: 'teacher_code' });
   }
 

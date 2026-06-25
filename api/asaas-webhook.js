@@ -45,7 +45,12 @@ module.exports = async function handler(req, res) {
 
   try {
     const payment = await getPayment(paymentId);
-    const userId = String(payment.externalReference || '');
+    let userId = String(payment.externalReference || '');
+    if (!userId && payment.customer) {
+      const { data: byCustomer } = await admin.from('subscriptions')
+        .select('user_id').eq('asaas_customer_id', payment.customer).maybeSingle();
+      if (byCustomer && byCustomer.user_id) userId = byCustomer.user_id;
+    }
     if (!userId) {
       res.status(400);
       return res.json({ error: 'externalReference ausente no pagamento' });

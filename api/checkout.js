@@ -61,6 +61,7 @@ module.exports = async function handler(req, res) {
       description: `MasterSinger ${plan.name}`,
       value: plan.price,
       cycle,
+      externalReference: user.id,
       nextDueDate: new Date().toISOString().slice(0, 10),
       successUrl: `${appBase}/#app?checkout=success&plan=${encodeURIComponent(plan.id)}`,
       cancelUrl: `${appBase}/#app?checkout=cancelled&plan=${encodeURIComponent(plan.id)}`,
@@ -93,7 +94,6 @@ module.exports = async function handler(req, res) {
     return json(res, 200, { checkoutUrl, checkoutId: checkout.id || checkout.checkoutId || null });
   } catch (e) {
     console.error('checkout error', e);
-    const detail = e && e.message ? e.message : String(e);
-    return json(res, 500, { error: 'Falha ao criar cobrança.', detail });
+    return json(res, 500, { error: 'Falha ao criar cobrança. Tente novamente em instantes.' });
   }
 };

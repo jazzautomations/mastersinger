@@ -99,6 +99,7 @@ async function createSubscriptionCheckout(opts) {
     billingTypes: ['CREDIT_CARD'],
     chargeTypes: ['RECURRENT'],
     minutesToExpire: 30,
+    externalReference: opts.externalReference,
     callback: {
       successUrl: opts.successUrl,
       cancelUrl: opts.cancelUrl,
