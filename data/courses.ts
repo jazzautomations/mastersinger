@@ -155,7 +155,7 @@ export const COURSES: Course[] = [
           { kind: 'heading', text: 'Lock onto the drone' },
           { kind: 'paragraph', text: 'When you sing against a sustained reference tone (a drone), you can hear "beating" — a wobble in the sound — when your pitch does not match. As you approach the correct pitch, the beating slows; when you are exactly in tune, the beating disappears.' },
           { kind: 'paragraph', text: 'Open the Tuner, listen to the reference tone for a few seconds, then try to sing it. Watch the cents display. Adjust slowly. The goal is to feel what "zero cents" sounds like.' },
-          { kind: 'audio', midi: 60, durationMs: 8000, label: 'A4 = 440 Hz reference' },
+          { kind: 'audio', midi: 69, durationMs: 8000, label: 'A4 = 440 Hz reference' },
           { kind: 'tip', text: 'When the beating disappears, your body will feel a "lock" sensation. Memorize that feeling.' },
         ],
         xp: 20,

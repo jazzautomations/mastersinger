@@ -299,7 +299,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
                         {locked && <span>🔒</span>}
                         <span>{ex.title}</span>
                       </div>
-                      <div className="text-[11px] text-slate-400">{ex.description}</div>
+                      <div className="text-[11px] text-slate-400">{L(ex.descriptionPt ?? ex.description, ex.description)}</div>
                     </div>
                     <span className="text-xs text-violet-400 font-mono">+{ex.xp} XP</span>
                   </div>
@@ -318,7 +318,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
       <div className="space-y-6 pb-24">
         <div>
           <h1 className="text-2xl font-black display tracking-tight">{currentExercise.title}</h1>
-          <p className="text-slate-400 text-sm">{currentExercise.description}</p>
+          <p className="text-slate-400 text-sm">{L(currentExercise.descriptionPt ?? currentExercise.description, currentExercise.description)}</p>
           {isDaily && <div className="text-xs text-violet-400 mt-1 font-mono">{L(`Desafio do dia · exercício ${currentIdx + 1} de ${exerciseQueue.length}`, `Daily challenge · exercise ${currentIdx + 1} of ${exerciseQueue.length}`)}</div>}
           {rangeCenterMidi != null && <div className="text-xs text-cyan-400 mt-1 font-mono">{L('🎧 Ajustado pra sua tessitura', '🎧 Adjusted to your range')}</div>}
         </div>

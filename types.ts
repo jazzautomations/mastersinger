@@ -74,7 +74,8 @@ export interface Exercise {
   id: string;
   type: ExerciseType;
   title: string;
-  description: string;
+  description: string;   // English
+  descriptionPt?: string; // Portuguese (pt-BR)
   level: StudentLevel;
   key?: string;          // e.g. "C", "G"
   scaleName?: string;    // e.g. "Major", "Minor Harmonic"
