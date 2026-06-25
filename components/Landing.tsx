@@ -504,8 +504,8 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
             </div>
             <div className="space-y-2">
               <div className="text-slate-400 font-bold uppercase tracking-wider">Legal</div>
-              <a href="/privacidade.html" className="block hover:text-violet-300 transition-all">Política de Privacidade</a>
-              <a href="/termos.html" className="block hover:text-violet-300 transition-all">Termos de Uso</a>
+              <a href="/privacidade" className="block hover:text-violet-300 transition-all">Política de Privacidade</a>
+              <a href="/termos" className="block hover:text-violet-300 transition-all">Termos de Uso</a>
               <p className="text-slate-600">Em conformidade com a LGPD (Lei nº 13.709/2018)</p>
             </div>
             <div className="space-y-2">
