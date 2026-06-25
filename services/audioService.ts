@@ -160,7 +160,7 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
     resumeIfSuspended();
     const s = ensureSynth();
     const freq = midiToFrequency(midi, a4);
-    const durSec = Math.max(0.05, durationMs / 1000 - 0.05);
+    const durSec = Math.max(0.05, durationMs / 1000);
 
     // Future-scheduled notes are routed through a tracked setTimeout with a
     // generation-token guard (Fix 4): stopAll() clears every pending timeout AND
@@ -206,6 +206,20 @@ export function playSequence(midis: number[], noteDurationMs: number, gapMs = 50
   // Fresh session (Fix 4): bumps the generation so any prior sequence's
   // pending notes self-skip, and the new notes capture this token.
   beginPlayback();
+  midis.forEach((midi, i) => {
+    playNote(midi, noteDurationMs - gapMs, i * noteDurationMs, a4);
+  });
+}
+
+/**
+ * Play a scale exercise: notes played sequentially with proper gaps.
+ * Uses beginPlayback() for cancellation support.
+ */
+export function playScale(midis: number[], noteDurationMs: number, a4 = 440): void {
+  resumeIfSuspended();
+  ensureSynth();
+  beginPlayback();
+  const gapMs = 30; // small gap between notes to prevent overlap
   midis.forEach((midi, i) => {
     playNote(midi, noteDurationMs - gapMs, i * noteDurationMs, a4);
   });

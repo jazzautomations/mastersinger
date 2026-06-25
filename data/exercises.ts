@@ -26,6 +26,11 @@ function scaleRunner(
   }));
   const scaleName = SCALES[scaleKey].name;
   const keyName = NOTE_NAMES_SHARP[keyPc];
+  // Full octave up + full octave down (includes root at top and bottom)
+  const descending = [...targets].reverse().map((t, i) => ({
+    ...t,
+    startMs: leadIn + (targets.length + i) * beatMs,
+  }));
   return {
     id,
     type: 'scale-runner',
@@ -35,10 +40,7 @@ function scaleRunner(
     level,
     key: keyName,
     scaleName,
-    targets: [...targets, ...[...targets].reverse().slice(1, -1).map((t, i) => ({
-      ...t,
-      startMs: leadIn + (targets.length + i) * beatMs,
-    }))],
+    targets: [...targets, ...descending],
     tempoBpm: bpm,
     xp: level === 'beginner' ? 20 : level === 'intermediate' ? 35 : 50,
   };
@@ -57,7 +59,7 @@ function arpeggioDrill(
   const beatMs = 60000 / bpm;
   const leadIn = beatMs;
   const up = notes.map((midi, i) => ({ midi, startMs: leadIn + i * beatMs, durationMs: beatMs }));
-  const down = [...up].reverse().slice(1, -1).map((t, i) => ({
+  const down = [...up].reverse().map((t, i) => ({
     ...t,
     startMs: leadIn + (notes.length + i) * beatMs,
   }));
