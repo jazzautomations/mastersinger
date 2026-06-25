@@ -1,14 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import { getSupabaseClient } from '../services/supabase';
 
-export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
-  const { signIn, signUp, authUser } = useStore();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export function AuthGate({ onDone }: { onDone: () => void }) {
+  const { authUser } = useStore();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [googleBusy, setGoogleBusy] = useState(false);
 
   useEffect(() => {
     if (authUser) onDone();
@@ -16,60 +13,32 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
 
   if (authUser) return null;
 
-  const handleSubmit = async () => {
-    setError(null);
-    setBusy(true);
-    const res = await signUp(email.trim(), password);
-    if (!res.ok) {
-      if (res.error?.includes('already') || res.error?.includes('registered') || res.error?.includes('exists')) {
-        const signInRes = await signIn(email.trim(), password);
-        setBusy(false);
-        if (!signInRes.ok) { setError(signInRes.error || 'Falha no login. Verifique sua senha.'); return; }
-        onDone();
-        return;
-      }
-      setBusy(false);
-      setError(res.error || 'Falha na autenticação');
-      return;
-    }
-    setBusy(false);
-    onDone();
-  };
-
   const handleGoogle = async () => {
     setError(null);
-    setGoogleBusy(true);
+    setBusy(true);
     try {
       const sb = getSupabaseClient();
-      if (!sb) { setError('Backend não configurado'); setGoogleBusy(false); return; }
+      if (!sb) { setError('Backend não configurado'); setBusy(false); return; }
       const { data, error: authError } = await sb.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
+        options: { redirectTo: window.location.origin },
       });
-      if (authError) {
-        setError(authError.message);
-        setGoogleBusy(false);
-        return;
-      }
-      if (data?.url) {
-        window.location.href = data.url;
-      }
+      if (authError) { setError(authError.message); setBusy(false); return; }
+      if (data?.url) window.location.href = data.url;
     } catch (e: any) {
       setError(e.message || 'Falha ao conectar com Google');
-      setGoogleBusy(false);
+      setBusy(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <span className="text-4xl">🎤</span>
+        <div className="text-center space-y-3">
+          <span className="text-5xl">🎤</span>
           <h1 className="text-2xl font-black display neon-text">MasterSinger</h1>
           <p className="text-sm text-slate-400">
-            Crie sua conta gratuita ou entre na sua existente.
+            Entre para salvar seu progresso na nuvem e desbloquear todos os recursos.
           </p>
         </div>
 
@@ -80,8 +49,8 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
 
           <button
             onClick={handleGoogle}
-            disabled={googleBusy}
-            className="w-full flex items-center justify-center gap-3 bg-white text-slate-900 rounded-xl py-3 text-sm font-bold hover:bg-slate-100 transition-all disabled:opacity-50"
+            disabled={busy}
+            className="w-full flex items-center justify-center gap-3 bg-white text-slate-900 rounded-xl py-3.5 text-sm font-bold hover:bg-slate-100 transition-all disabled:opacity-50"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -89,54 +58,11 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            {googleBusy ? 'Aguarde...' : 'Continuar com Google'}
+            {busy ? 'Conectando...' : 'Continuar com Google'}
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-white/10"></div>
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono">ou</span>
-            <div className="flex-1 h-px bg-white/10"></div>
-          </div>
-
-          <div className="space-y-2">
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              aria-label="Email"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:border-violet-500 focus:outline-none"
-              onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }}
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Senha (mín. 6 caracteres)"
-              aria-label="Senha"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:border-violet-500 focus:outline-none"
-              onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); }}
-            />
-          </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={busy || !email || password.length < 6}
-            className="btn-primary w-full text-sm py-3 disabled:opacity-40"
-          >
-            {busy ? 'Aguarde...' : 'Criar conta ou entrar'}
-          </button>
-        </div>
-
-        <div className="text-center">
-          <button
-            onClick={onSkip}
-            className="text-xs text-slate-500 hover:text-slate-300 transition-all"
-          >
-            Pular por enquanto (só local)
-          </button>
-          <p className="text-[10px] text-slate-600 mt-1 font-mono">
-            Sem login, dados ficam só neste dispositivo
+          <p className="text-center text-[11px] text-slate-500 leading-relaxed">
+            Login rápido e seguro via Google. Não criamos nem armazenamos senhas.
           </p>
         </div>
       </div>

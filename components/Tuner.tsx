@@ -75,7 +75,7 @@ export function Tuner() {
     if (pitch.isListening && !profile.badges.includes('first-tuner')) {
       unlock('first-tuner');
     }
-  }, [pitch.isListening]);
+  }, [pitch.isListening, profile.badges, unlock]);
 
   // ── Track range + stability from each voiced frame. Refs only → zero
   //    re-render cost; the range is flushed to the store when listening ends. ──

@@ -19,7 +19,8 @@ export type View =
   | 'progress'
   | 'settings'
   | 'warmup'      // guided interactive vocal warmup
-  | 'recorder';   // video recording with tuner overlay
+  | 'recorder'   // video recording with tuner overlay
+  | 'teacher';    // teacher dashboard
 
 export type Language = 'pt-BR' | 'en';
 
@@ -73,7 +74,8 @@ export interface Exercise {
   id: string;
   type: ExerciseType;
   title: string;
-  description: string;
+  description: string;   // English
+  descriptionPt?: string; // Portuguese (pt-BR)
   level: StudentLevel;
   key?: string;          // e.g. "C", "G"
   scaleName?: string;    // e.g. "Major", "Minor Harmonic"

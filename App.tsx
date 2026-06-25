@@ -18,15 +18,15 @@ import { Settings } from './components/Settings';
 import { UpgradeModal } from './components/UpgradeModal';
 import { ProOverlay } from './components/ProOverlay';
 import { Tutorial, hasTutorialBeenSeen } from './components/Tutorial';
+import { TeacherDashboard } from './components/TeacherDashboard';
 import { t } from './i18n/strings';
 import { warmAudioOnUserGesture } from './services/audioService';
 import type { View } from './types';
 
 const ONBOARDED_KEY = 'mastersinger:onboarded';
-const GUEST_KEY = 'mastersinger:guest';
 
 function MainApp() {
-  const { profile, canAccessView, openUpgrade, isPro, authUser } = useStore();
+  const { profile, canAccessView, openUpgrade, isPro, authUser, refreshSubscription } = useStore();
   const lang = profile.settings.language;
 
   // Detect if URL contains OAuth redirect params.
@@ -65,15 +65,37 @@ function MainApp() {
   const [onboarded, setOnboarded] = useState<boolean>(() => {
     try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch { return false; }
   });
-  const [isGuest, setIsGuest] = useState<boolean>(() => {
-    try { return localStorage.getItem(GUEST_KEY) === '1'; } catch { return false; }
-  });
   const [showTutorial, setShowTutorial] = useState<boolean>(() => {
     if (onboarded) return false;
     return !hasTutorialBeenSeen();
   });
   const [view, setView] = useState<View>('home');
   const [viewOpts, setViewOpts] = useState<any>(null);
+  const [checkoutBanner, setCheckoutBanner] = useState<'success' | 'cancelled' | 'expired' | null>(null);
+
+  // Detect checkout result from Asaas callback URL (#app?checkout=success&plan=...)
+  useEffect(() => {
+    const raw = window.location.hash; // e.g. "#app?checkout=success&plan=pro-monthly"
+    const qStart = raw.indexOf('?');
+    if (qStart === -1) return;
+    const params = new URLSearchParams(raw.slice(qStart + 1));
+    const result = params.get('checkout');
+    if (!result) return;
+    // Clean the query params from the hash so refreshes don't re-trigger
+    window.history.replaceState(null, '', window.location.pathname + '#app');
+    if (result === 'success') {
+      setCheckoutBanner('success');
+      void refreshSubscription();
+      setTimeout(() => setCheckoutBanner(null), 8000);
+    } else if (result === 'cancelled') {
+      setCheckoutBanner('cancelled');
+      setTimeout(() => setCheckoutBanner(null), 5000);
+    } else if (result === 'expired') {
+      setCheckoutBanner('expired');
+      setTimeout(() => setCheckoutBanner(null), 5000);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { warmAudioOnUserGesture(); }, []);
 
@@ -107,14 +129,14 @@ function MainApp() {
   // Also: if Supabase already has a session (e.g. from localStorage),
   // skip straight to app on page load.
   // Show loading spinner while auth session is loading to avoid flash-of-AuthGate.
-  const [authLoading, setAuthLoading] = useState(() => showApp && !isGuest);
+  const [authLoading, setAuthLoading] = useState(() => showApp);
   useEffect(() => {
-    if (showApp && !isGuest && !authUser && authLoading) {
+    if (showApp && !authUser && authLoading) {
       const t = setTimeout(() => setAuthLoading(false), 2000);
       return () => clearTimeout(t);
     }
     if (authUser) setAuthLoading(false);
-  }, [showApp, authUser, isGuest, authLoading]);
+  }, [showApp, authUser, authLoading]);
 
   const enterApp = () => {
     window.location.hash = '#app';
@@ -124,8 +146,6 @@ function MainApp() {
   const enterLanding = () => {
     window.location.hash = '';
     setShowApp(false);
-    try { localStorage.removeItem(GUEST_KEY); } catch {}
-    setIsGuest(false);
   };
 
   const handleNavigate = (v: View, opts?: any) => {
@@ -134,14 +154,14 @@ function MainApp() {
   };
 
   // 404 for unknown views
-  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','academy','progress','settings','warmup','recorder'];
+  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','academy','progress','settings','warmup','recorder','teacher'];
   const is404 = !validViews.includes(view);
 
   if (!showApp) {
     return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={enterApp} />;
   }
 
-  if (authLoading && !authUser && !isGuest) {
+  if (authLoading && !authUser) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -152,11 +172,8 @@ function MainApp() {
     );
   }
 
-  if (!authUser && !isGuest) {
-    return <AuthGate onDone={() => {}} onSkip={() => {
-      try { localStorage.setItem(GUEST_KEY, '1'); } catch {}
-      setIsGuest(true);
-    }} />;
+  if (!authUser) {
+    return <AuthGate onDone={() => {}} />;
   }
 
   if (!onboarded) {
@@ -212,6 +229,23 @@ function MainApp() {
         </div>
       </header>
 
+      {checkoutBanner && (
+        <div className={`fixed top-16 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none`}>
+          <div className={`pointer-events-auto max-w-sm w-full rounded-2xl px-5 py-4 shadow-2xl border text-sm font-semibold flex items-center gap-3 animate-fade-in
+            ${checkoutBanner === 'success' ? 'bg-green-500/20 border-green-400/40 text-green-200' : 'bg-amber-500/20 border-amber-400/40 text-amber-200'}`}>
+            <span className="text-xl">{checkoutBanner === 'success' ? '🎉' : '⚠️'}</span>
+            <span>
+              {checkoutBanner === 'success'
+                ? (lang === 'pt-BR' ? 'Pagamento confirmado! Bem-vindo ao Pro 👑' : 'Payment confirmed! Welcome to Pro 👑')
+                : checkoutBanner === 'cancelled'
+                ? (lang === 'pt-BR' ? 'Checkout cancelado. Sem cobranças.' : 'Checkout cancelled. No charges made.')
+                : (lang === 'pt-BR' ? 'Link de pagamento expirado. Tente novamente.' : 'Payment link expired. Please try again.')}
+            </span>
+            <button onClick={() => setCheckoutBanner(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-3xl mx-auto px-4 py-6 pb-8">
         {is404 && (
           <div className="text-center py-20 space-y-4">
@@ -228,15 +262,16 @@ function MainApp() {
                                   isDaily={viewOpts?.isDaily}
                                   onComplete={() => handleNavigate('home')}
                                 />}
-        {view === 'studio'   && <ProOverlay viewName={t(lang, 'nav.studio')}><MelodyStudio /></ProOverlay>}
-        {view === 'ear'      && <ProOverlay viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
-        {view === 'theory'   && <ProOverlay viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
-        {view === 'harmony'  && <ProOverlay viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}
+        {view === 'studio'   && <ProOverlay view={view} viewName={t(lang, 'nav.studio')}><MelodyStudio /></ProOverlay>}
+        {view === 'ear'      && <ProOverlay view={view} viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
+        {view === 'theory'   && <ProOverlay view={view} viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
+        {view === 'harmony'  && <ProOverlay view={view} viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}
         {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} />}
         {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
         {view === 'recorder' && <Recorder />}
         {view === 'progress' && <Progress />}
         {view === 'settings' && <Settings />}
+        {view === 'teacher'  && <TeacherDashboard />}
       </main>
 
       <UpgradeModal />

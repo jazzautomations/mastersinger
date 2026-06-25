@@ -88,7 +88,7 @@ export function EarTraining() {
     } else {
       const token = beginPlayback();
       seq.forEach((s, i) => {
-        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4); }, i * s.durationMs);
+        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4l); }, i * s.durationMs);
         noteTimersRef.current.push(id);
       });
     }

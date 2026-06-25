@@ -13,10 +13,18 @@ function authHeaders() {
 
 async function asaas(path, init) {
   init = init || {};
-  const res = await fetch(`${BASE()}${path}`, {
-    ...init,
-    headers: { ...authHeaders(), ...(init.headers || {}) },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(`${BASE()}${path}`, {
+      ...init,
+      headers: { ...authHeaders(), ...(init.headers || {}) },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await res.text();
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch (_e) { data = { raw: text }; }
@@ -62,6 +70,24 @@ async function createPayment(opts) {
   });
 }
 
+async function createRecurringCardSubscription(opts) {
+  const body = {
+    customer: opts.customer,
+    billingType: 'CREDIT_CARD',
+    cycle: opts.cycle,
+    value: opts.value,
+    description: opts.description,
+    externalReference: opts.externalReference,
+    dueDateLimitDays: 5,
+    creditCardHolderInfo: opts.creditCardHolderInfo,
+    creditCard: opts.creditCard,
+  };
+  return asaas('/subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 async function getPayment(id) {
   if (!/^[A-Za-z0-9_-]+$/.test(id)) {
     throw new Error('Invalid payment ID format');
@@ -69,4 +95,43 @@ async function getPayment(id) {
   return asaas(`/payments/${id}`);
 }
 
-module.exports = { findOrCreateCustomer, createPayment, getPayment };
+// ── Recurring subscription checkout (cartão de crédito, cobrança automática).
+//    Cria uma Checkout Session no Asaas: o cliente paga numa página segura do
+//    Asaas (só cartão de crédito) e o Asaas cria a assinatura recorrente. A
+//    cada ciclo (mensal/anual) o Asaas cobra o cartão automaticamente e dispara
+//    PAYMENT_RECEIVED no webhook → renovamos o acesso Pro. Não capturamos dados
+//    de cartão no nosso backend (fora do escopo PCI).
+//    cycle: 'MONTHLY' | 'YEARLY'
+async function createSubscriptionCheckout(opts) {
+  const body = {
+    billingTypes: ['CREDIT_CARD'],
+    chargeTypes: ['RECURRENT'],
+    minutesToExpire: 60,
+    externalReference: opts.externalReference,
+    callback: {
+      successUrl: opts.successUrl,
+      cancelUrl: opts.cancelUrl,
+      expiredUrl: opts.expiredUrl,
+    },
+    items: [{
+      name: opts.name,
+      description: opts.description,
+      quantity: 1,
+      value: opts.value,
+    }],
+    subscription: {
+      cycle: opts.cycle,
+      nextDueDate: opts.nextDueDate,
+    },
+  };
+  if (opts.email || opts.cpfCnpj) {
+    body.customerData = {
+      name: opts.name || (opts.email ? opts.email.split('@')[0] : 'Cliente'),
+      email: opts.email,
+      cpfCnpj: opts.cpfCnpj,
+    };
+  }
+  return asaas('/checkouts', { method: 'POST', body: JSON.stringify(body) });
+}
+
+module.exports = { findOrCreateCustomer, createPayment, createRecurringCardSubscription, getPayment, createSubscriptionCheckout };

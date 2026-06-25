@@ -38,6 +38,7 @@ create table if not exists public.subscriptions (
   teacher_code        text,                               -- referral code that granted an extended trial
   asaas_payment_id    text,
   asaas_customer_id   text,
+  asaas_subscription_id text,    -- Asaas subscription id (recorrência com cartão)
   updated_at          timestamptz default now()
 );
 
@@ -129,3 +130,54 @@ create trigger on_auth_user_created
 -- vars in Vercel. The /api functions use SUPABASE_SERVICE_ROLE_KEY to write
 -- subscriptions/payment_events past RLS.
 -- ─────────────────────────────────────────────────────────────────────────
+
+-- ── Idempotent column additions (safe to re-run on existing tables) ──
+alter table public.subscriptions add column if not exists asaas_subscription_id text;
+
+-- ── 7. teachers and teacher_students ──
+create table if not exists public.teachers (
+  id          uuid primary key references auth.users(id) on delete cascade,
+  email       text not null,
+  teacher_name text,
+  updated_at  timestamptz default now()
+);
+
+alter table public.teachers enable row level security;
+drop policy if exists "teachers_select_own" on public.teachers;
+create policy "teachers_select_own" on public.teachers
+  for select using (auth.uid() = id);
+
+drop policy if exists "teachers_upsert_own" on public.teachers;
+create policy "teachers_upsert_own" on public.teachers
+  for insert with check (auth.uid() = id);
+
+drop policy if exists "teachers_update_own" on public.teachers;
+create policy "teachers_update_own" on public.teachers
+  for update using (auth.uid() = id);
+
+create table if not exists public.teacher_students (
+  teacher_id uuid references public.teachers(id) on delete cascade,
+  student_id uuid references public.profiles(id) on delete cascade,
+  teacher_code text references public.teacher_codes(code),
+  created_at timestamptz default now()
+);
+
+alter table public.teacher_students enable row level security;
+drop policy if exists "teacher_students_select_own" on public.teacher_students;
+create policy "teacher_students_select_own" on public.teacher_students
+  for select using (auth.uid() = student_id);
+
+drop policy if exists "teacher_students_upsert_own" on public.teacher_students;
+create policy "teacher_students_upsert_own" on public.teacher_students
+  for insert with check (auth.uid() = student_id);
+
+drop policy if exists "teacher_students_update_own" on public.teacher_students;
+create policy "teacher_students_update_own" on public.teacher_students
+  for update using (auth.uid() = student_id);
+
+-- Indexes for code and teacher lookup
+create index if not exists idx_teacher_codes_code on public.teacher_codes (code);
+create index if not exists idx_teacher_codes_teacher_email on public.teacher_codes (teacher_email);
+create index if not exists idx_teacher_students_teacher_id on public.teacher_students (teacher_id);
+create index if not exists idx_teacher_students_student_id on public.teacher_students (student_id);
+create index if not exists idx_teacher_students_teacher_code on public.teacher_students (teacher_code);

@@ -174,6 +174,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Load subscription whenever the auth user changes.
   useEffect(() => { void refreshSubscription(); }, [refreshSubscription]);
 
+  // Revalidate subscription periodically (every 5 min) so expired trials,
+  // canceled Asaas subscriptions, and payment webhooks are reflected without a reload.
+  // Server (Supabase + RLS) is the source of truth — the client never trusts
+  // a stale localStorage snapshot of the entitlement for paid features.
+  useEffect(() => {
+    if (!supabaseUser) return;
+    const id = setInterval(() => { void refreshSubscription(); }, 5 * 60 * 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refreshSubscription(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+  }, [supabaseUser, refreshSubscription]);
+
   const openUpgrade = useCallback((plan?: PlanId) => {
     setUpgradeDefaultPlan(plan ?? null);
     setUpgradeOpen(true);

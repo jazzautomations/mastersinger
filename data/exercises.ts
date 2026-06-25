@@ -30,7 +30,8 @@ function scaleRunner(
     id,
     type: 'scale-runner',
     title: `${keyName} ${scaleName}`,
-    description: `Cante a ${scaleName.toLowerCase()} em ${keyName} — subindo e descendo.`,
+    description: `Sing the ${scaleName} scale in ${keyName} — up and down.`,
+    descriptionPt: `Cante a ${scaleName.toLowerCase()} em ${keyName} — subindo e descendo.`,
     level,
     key: keyName,
     scaleName,
@@ -65,7 +66,8 @@ function arpeggioDrill(
     id,
     type: 'arpeggio-drill',
     title: `${keyName} ${ARPEGGIO_TYPES[arpType].name}`,
-    description: `Arpeje o ${ARPEGGIO_TYPES[arpType].name.toLowerCase()} em ${keyName}.`,
+    description: `Arpeggiate the ${ARPEGGIO_TYPES[arpType].name} in ${keyName}.`,
+    descriptionPt: `Arpeje o ${ARPEGGIO_TYPES[arpType].name.toLowerCase()} em ${keyName}.`,
     level,
     key: keyName,
     scaleName: ARPEGGIO_TYPES[arpType].name,
@@ -95,7 +97,8 @@ function intervalLeap(
     id,
     type: 'interval-leap',
     title: interval.name,
-    description: `Ouça, cante a primeira nota, depois salte uma ${interval.name.toLowerCase()}.`,
+    description: `Listen, sing the first note, then leap a ${interval.name}.`,
+    descriptionPt: `Ouça, cante a primeira nota, depois salte uma ${interval.name.toLowerCase()}.`,
     level,
     targets,
     tempoBpm: 55,
@@ -104,11 +107,13 @@ function intervalLeap(
 }
 
 function pitchHold(id: string, level: Exercise['level'], midi: number, seconds: number): Exercise {
+  const noteLabel = `${['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][midi % 12]}${Math.floor(midi / 12) - 1}`;
   return {
     id,
     type: 'pitch-hold',
-    title: `Sustentar ${['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][midi % 12]}${Math.floor(midi / 12) - 1}`,
-    description: `Sustente a nota alvo dentro de ±10 cents por ${seconds} segundos.`,
+    title: `Hold ${noteLabel}`,
+    description: `Sustain the target note within ±10 cents for ${seconds} second${seconds !== 1 ? 's' : ''}.`,
+    descriptionPt: `Sustente a nota alvo dentro de ±10 cents por ${seconds} segundos.`,
     level,
     targets: [{ midi, startMs: 1200, durationMs: seconds * 1000 }],
     tempoBpm: undefined,
