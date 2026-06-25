@@ -58,7 +58,7 @@ function MainApp() {
   const [showApp, setShowApp] = useState<boolean>(() => {
     try {
       const h = window.location.hash;
-      return h === '#app' || h.startsWith('#app');
+      return h === '#app' || h.startsWith('#app') || h === '#teacher';
     } catch { return false; }
   });
 
@@ -104,10 +104,13 @@ function MainApp() {
   useEffect(() => {
     const onHash = () => {
       const h = window.location.hash;
-      if (h === '#app' || h.startsWith('#app')) {
+      if (h === '#app' || h.startsWith('#app') || h === '#teacher') {
         setShowApp(true);
       } else if (h === '' || h === '#') {
         setShowApp(false);
+      }
+      if (h === '#teacher') {
+        setView('teacher');
       }
       window.scrollTo(0, 0);
     };
@@ -151,6 +154,9 @@ function MainApp() {
   const handleNavigate = (v: View, opts?: any) => {
     setView(v);
     setViewOpts(opts ?? null);
+    if (v === 'teacher') {
+      window.location.hash = '#teacher';
+    }
   };
 
   // 404 for unknown views

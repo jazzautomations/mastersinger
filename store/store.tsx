@@ -160,9 +160,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ── Teacher emails that bypass paywall (hardcoded for quick setup) ──
   const TEACHER_EMAILS = ['amandix.maria@gmail.com', 'slnorego@gmail.com'];
-  const isTeacherByEmail = authUser?.email ? TEACHER_EMAILS.includes(authUser.email) : false;
+  const userEmail = (authUser?.email ?? '').toLowerCase();
+  const isTeacherByEmail = TEACHER_EMAILS.some(e => e.toLowerCase() === userEmail);
   const isTeacherFinal = isTeacher || isTeacherByEmail;
   const isPro = isSubscriptionActive(subscription) || isTeacherFinal;
+
+  if (import.meta.env.DEV) console.log('[Teacher] email:', userEmail, 'isTeacherByEmail:', isTeacherByEmail, 'isTeacher:', isTeacher, 'isTeacherFinal:', isTeacherFinal, 'isPro:', isPro);
 
   const refreshSubscription = useCallback(async () => {
     if (!supabase || !supabaseUser) { setSubscription(null); setIsTeacher(false); return; }
