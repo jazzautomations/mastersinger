@@ -159,7 +159,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const authUser = supabaseUser;
 
   // ── Teacher emails that bypass paywall (hardcoded for quick setup) ──
-  const TEACHER_EMAILS = ['amandix.maria@gmail.com', 'slnorego@gmail.com'];
+  const TEACHER_EMAILS = ['amandix.maria@gmail.com', 'slnorego@gmail.com', 'jazzautomations@gmail.com'];
   const userEmail = (authUser?.email ?? '').toLowerCase();
   const isTeacherByEmail = TEACHER_EMAILS.some(e => e.toLowerCase() === userEmail);
   const isTeacherFinal = isTeacher || isTeacherByEmail;
