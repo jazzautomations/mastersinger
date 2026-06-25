@@ -8,9 +8,13 @@ module.exports = async function handler(req, res) {
   const user = await getUserFromRequest(req);
   if (!user) return json(res, 401, { error: 'Não autenticado. Faça login para assinar.' });
 
-  const { planId } = req.body || {};
+  const { planId, cpfCnpj } = req.body || {};
   if (typeof planId !== 'string') {
     return json(res, 400, { error: 'planId inválido.' });
+  }
+  const digits = typeof cpfCnpj === 'string' ? cpfCnpj.replace(/\D/g, '') : '';
+  if (digits.length !== 11 && digits.length !== 14) {
+    return json(res, 400, { error: 'CPF ou CNPJ é obrigatório para pagamento.' });
   }
   const plan = getPlan(planId);
   if (!plan || plan.price === 0 || !plan.billingCycle) {
@@ -43,7 +47,7 @@ module.exports = async function handler(req, res) {
       return json(res, 400, { error: 'E-mail inválido na conta. Atualize seu perfil.' });
     }
 
-    const customer = await findOrCreateCustomer(user.email);
+    const customer = await findOrCreateCustomer(user.email, null, digits);
     const dueDate = new Date().toISOString().slice(0, 10);
     const payment = await createPayment({
       customer: customer.id,

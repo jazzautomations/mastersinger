@@ -26,12 +26,24 @@ async function asaas(path, init) {
   return data;
 }
 
-async function findOrCreateCustomer(email, name) {
+async function findOrCreateCustomer(email, name, cpfCnpj) {
   const list = await asaas(`/customers?email=${encodeURIComponent(email)}`);
-  if (list.data && list.data.length > 0) return list.data[0];
+  if (list.data && list.data.length > 0) {
+    const existing = list.data[0];
+    if (cpfCnpj && !existing.cpfCnpj) {
+      const updated = await asaas(`/customers/${existing.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ cpfCnpj }),
+      });
+      return updated;
+    }
+    return existing;
+  }
+  const body = { name: (name && name.trim()) || email.split('@')[0], email };
+  if (cpfCnpj) body.cpfCnpj = cpfCnpj;
   const created = await asaas('/customers', {
     method: 'POST',
-    body: JSON.stringify({ name: (name && name.trim()) || email.split('@')[0], email }),
+    body: JSON.stringify(body),
   });
   return created;
 }

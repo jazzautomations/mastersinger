@@ -10,7 +10,7 @@ import { entitlementLabel } from '../services/entitlements';
 // open this.
 // ──────────────────────────────────────────────────────────────────────────
 
-type Step = 'plans' | 'auth' | 'checkout';
+type Step = 'plans' | 'auth' | 'cpf' | 'checkout';
 
 export function UpgradeModal() {
   const { upgradeOpen, closeUpgrade, authUser, subscription, isPro, refreshSubscription, signIn, signUp, upgradeDefaultPlan } = useStore();
@@ -27,9 +27,11 @@ export function UpgradeModal() {
   const [teacherCode, setTeacherCode] = useState('');
   // ── pending checkout (plan selected before auth) ──
   const [pendingCheckout, setPendingCheckout] = useState<'pro-monthly' | 'pro-yearly' | null>(null);
+  // ── CPF/CNPJ for Asaas payment ──
+  const [cpfCnpj, setCpfCnpj] = useState('');
 
   useEffect(() => {
-    if (!upgradeOpen) { setError(null); setInfo(null); setBusy(false); setStep('plans'); setPendingCheckout(null); }
+    if (!upgradeOpen) { setError(null); setInfo(null); setBusy(false); setStep('plans'); setPendingCheckout(null); setCpfCnpj(''); }
   }, [upgradeOpen]);
 
   if (!upgradeOpen) return null;
@@ -45,8 +47,7 @@ export function UpgradeModal() {
     await refreshSubscription();
     // If there's a pending checkout, proceed with it after auth
     if (pendingCheckout) {
-      setStep('checkout');
-      await checkout(pendingCheckout);
+      setStep('cpf');
     } else {
       setStep('plans');
     }
@@ -88,16 +89,23 @@ export function UpgradeModal() {
       setStep('auth');
       return;
     }
+    // If no CPF/CNPJ yet, show the CPF step
+    if (!cpfCnpj.trim()) {
+      setPendingCheckout(planId);
+      setStep('cpf');
+      return;
+    }
     setError(null); setInfo(null); setBusy(true);
     try {
       const sb = getSupabaseClient();
       if (!sb) { setError('Backend não configurado'); setBusy(false); return; }
       const { data: session } = await sb.auth.getSession();
       const token = session.session?.access_token;
+      const digits = cpfCnpj.replace(/\D/g, '');
       const resp = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, cpfCnpj: digits }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Falha no checkout');
@@ -182,6 +190,38 @@ export function UpgradeModal() {
               </button>
               <button onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(null); }} className="w-full text-xs text-slate-400 hover:text-violet-300 transition-all">
                 {mode === 'signup' ? 'Já tem conta? Entrar' : 'Não tem conta? Criar agora'}
+              </button>
+              <button onClick={() => { setStep('plans'); setPendingCheckout(null); setError(null); }} className="w-full text-xs text-slate-500 hover:text-slate-300 transition-all">
+                ← Voltar aos planos
+              </button>
+            </div>
+          )}
+
+          {/* ── CPF/CNPJ STEP ── */}
+          {step === 'cpf' && (
+            <div className="space-y-4">
+              <div className="text-center space-y-1">
+                <h2 className="text-lg font-black display">Dados de pagamento</h2>
+                <p className="text-xs text-slate-400">
+                  Informe seu CPF ou CNPJ pra gerar a cobrança. Obrigatório pelo Asaas.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="text" value={cpfCnpj} onChange={e => setCpfCnpj(e.target.value)}
+                  placeholder="CPF ou CNPJ (só números)"
+                  maxLength={18}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:border-violet-500 focus:outline-none font-mono"
+                  onKeyDown={e => { if (e.key === 'Enter' && cpfCnpj.replace(/\D/g, '').length >= 11) { setStep('checkout'); checkout(pendingCheckout!); } }}
+                />
+                <p className="text-[10px] text-slate-500 font-mono">11 dígitos = CPF · 14 dígitos = CNPJ</p>
+              </div>
+              <button
+                onClick={() => { setStep('checkout'); checkout(pendingCheckout!); }}
+                disabled={busy || cpfCnpj.replace(/\D/g, '').length < 11}
+                className="btn-primary w-full text-sm py-3 disabled:opacity-40"
+              >
+                {busy ? 'Aguarde...' : 'Continuar pro pagamento'}
               </button>
               <button onClick={() => { setStep('plans'); setPendingCheckout(null); setError(null); }} className="w-full text-xs text-slate-500 hover:text-slate-300 transition-all">
                 ← Voltar aos planos
