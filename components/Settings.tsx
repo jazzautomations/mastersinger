@@ -12,10 +12,6 @@ export function Settings() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [pwNew, setPwNew] = useState('');
-  const [pwBusy, setPwBusy] = useState(false);
-  const [pwMsg, setPwMsg] = useState<string | null>(null);
-
   const handleExport = () => {
     const json = exportProfile();
     const blob = new Blob([json], { type: 'application/json' });
@@ -34,23 +30,7 @@ export function Settings() {
     reader.readAsText(file);
   };
 
-  const handleChangePassword = async () => {
-    if (pwNew.length < 6) { setPwMsg(lang === 'pt-BR' ? 'Mínimo de 6 caracteres' : 'Minimum 6 characters'); return; }
-    setPwBusy(true);
-    setPwMsg(null);
-    try {
-      const { getSupabaseClient } = await import('../services/supabase');
-      const sb = getSupabaseClient();
-      if (!sb) { setPwMsg('Backend não configurado'); setPwBusy(false); return; }
-      const { error } = await sb.auth.updateUser({ password: pwNew });
-      if (error) { setPwMsg(error.message); } else {
-        setPwMsg(lang === 'pt-BR' ? 'Senha atualizada!' : 'Password updated!');
-        setPwNew('');
-      }
-    } catch (e: any) { setPwMsg(e.message || 'Erro'); }
-    setPwBusy(false);
-    setTimeout(() => setPwMsg(null), 4000);
-  };
+  // handleChangePassword REMOVIDO — login agora é só Google (0 fricção, 0 account takeover)
 
   const handleSignOut = async () => {
     await signOut();
@@ -100,23 +80,7 @@ export function Settings() {
               </button>
             )}
 
-            <div className="space-y-2">
-              <div className="text-[11px] text-slate-400 font-mono">{lang === 'pt-BR' ? 'Alterar senha' : 'Change password'}</div>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={pwNew}
-                  onChange={e => setPwNew(e.target.value)}
-                  placeholder={lang === 'pt-BR' ? 'Nova senha (min. 6)' : 'New password (min. 6)'}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:border-violet-500 focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter') handleChangePassword(); }}
-                />
-                <button onClick={handleChangePassword} disabled={pwBusy || pwNew.length < 6} className="btn-ghost text-xs !px-4 disabled:opacity-40">
-                  {pwBusy ? '...' : (lang === 'pt-BR' ? 'Salvar' : 'Save')}
-                </button>
-              </div>
-              {pwMsg && <div className="text-xs text-center text-cyan-400">{pwMsg}</div>}
-            </div>
+            {/* Bloco "alterar senha" removido — Google-only auth */}
 
             <button onClick={handleSignOut} className="w-full btn-ghost !text-red-400 !border-red-500/30 text-xs">
               <i className="fas fa-sign-out-alt mr-2"></i>{lang === 'pt-BR' ? 'Sair da conta' : 'Sign out'}
@@ -124,7 +88,7 @@ export function Settings() {
           </>
         ) : (
           <div className="text-center text-sm text-slate-400 py-2">
-            {lang === 'pt-BR' ? 'Faça login para acessar sua conta e sincronizar dados.' : 'Sign in to access your account and sync data.'}
+            {lang === 'pt-BR' ? 'Faça login com Google para acessar sua conta e sincronizar dados.' : 'Sign in with Google to access your account and sync data.'}
           </div>
         )}
       </div>

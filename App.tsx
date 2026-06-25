@@ -134,7 +134,7 @@ function MainApp() {
   };
 
   // 404 for unknown views
-  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','academy','progress','settings','warmup','recorder'];
+  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','academy','progress','settings','warmup','recorder','teacher'];
   const is404 = !validViews.includes(view);
 
   if (!showApp) {

@@ -62,6 +62,24 @@ async function createPayment(opts) {
   });
 }
 
+async function createRecurringCardSubscription(opts) {
+  const body = {
+    customer: opts.customer,
+    billingType: 'CREDIT_CARD',
+    cycle: opts.cycle,
+    value: opts.value,
+    description: opts.description,
+    externalReference: opts.externalReference,
+    dueDateLimitDays: 5,
+    creditCardHolderInfo: opts.creditCardHolderInfo,
+    creditCard: opts.creditCard,
+  };
+  return asaas('/subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 async function getPayment(id) {
   if (!/^[A-Za-z0-9_-]+$/.test(id)) {
     throw new Error('Invalid payment ID format');
@@ -107,4 +125,4 @@ async function createSubscriptionCheckout(opts) {
   return asaas('/checkouts', { method: 'POST', body: JSON.stringify(body) });
 }
 
-module.exports = { findOrCreateCustomer, createPayment, getPayment, createSubscriptionCheckout };
+module.exports = { findOrCreateCustomer, createPayment, createRecurringCardSubscription, getPayment, createSubscriptionCheckout };
