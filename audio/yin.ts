@@ -10,7 +10,7 @@
 //   3. Parabolic interpolation around the chosen dip for sub-sample precision.
 // ──────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_THRESHOLD = 0.12;
+const DEFAULT_THRESHOLD = 0.10;
 const DEFAULT_SAMPLE_RATE = 44100;
 // When no tau clears the absolute threshold, we only accept a fallback pitch
 // if the global minimum is a clear local valley below this value. Raising
@@ -133,7 +133,7 @@ export function detectPitchYin(
   let sum = 0;
   for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
   const rms = Math.sqrt(sum / buffer.length);
-  if (rms < 0.003) {
+  if (rms < 0.002) {
     return { frequency: 0, confidence: 0, rms };
   }
 

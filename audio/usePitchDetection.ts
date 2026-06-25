@@ -43,7 +43,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     bufferSize = DEFAULT_BUFFER_SIZE,
     minFreq = 60,        // lowered from 70 → catches bass/baritone lows (C2=65.4Hz)
     maxFreq = 1200,
-    threshold = 0.12,
+    threshold = 0.10,
     smoothing = true,
     minConfidence,       // undefined → smoother uses its own default (0.45)
     record = false,

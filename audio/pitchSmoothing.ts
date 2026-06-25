@@ -32,12 +32,12 @@ export interface PitchSmootherOptions {
 }
 
 const DEFAULTS: Required<PitchSmootherOptions> = {
-  windowSize: 7,        // slightly wider median → kills more single-frame outliers
-  emaAlpha: 0.45,       // smoother: less needle jitter while still tracking the voice
+  windowSize: 9,        // wider median → kills more single-frame outliers + octave flicker
+  emaAlpha: 0.40,       // slightly smoother: less needle jitter while still tracking the voice
   maxOctaveJump: 0.5,
   a4: 440,
-  minConfidence: 0.45,  // accept slightly noisier frames (real mics are imperfect)
-  holdFrames: 3,        // hold the last pitch a touch longer through brief dips
+  minConfidence: 0.40,  // accept noisier frames (real phone/laptop mics); octave guard still rejects junk
+  holdFrames: 4,        // hold the last pitch longer through brief dips
 };
 
 function median(values: number[]): number {
