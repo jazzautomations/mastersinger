@@ -25,33 +25,14 @@ module.exports = async function handler(req, res) {
   if (!admin) return json(res, 500, { error: 'Backend não configurado (SUPABASE_SERVICE_ROLE_KEY ausente).' });
 
   try {
-    const { data: existing } = await admin.from('payment_events')
-      .select('payload, asaas_payment_id')
-      .eq('user_id', user.id)
-      .eq('event_type', 'CHECKOUT_CREATED')
-      .eq('plan', plan.id)
-      .order('id', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existing && existing.payload && existing.payload.checkoutUrl) {
-      try {
-        const url = new URL(existing.payload.checkoutUrl);
-        const ALLOWED = ['asaas.com', 'asaas.com.br'];
-        const host = url.hostname.toLowerCase();
-        const ok = url.protocol.startsWith('http') && ALLOWED.some(d => host === d || host.endsWith('.' + d));
-        if (ok) {
-          return json(res, 200, { checkoutUrl: existing.payload.checkoutUrl, checkoutId: existing.asaas_payment_id });
-        }
-      } catch (_e) {}
-    }
-
+    // Always create a fresh checkout — Asaas links expire in 30 minutes,
+    // so caching the URL causes expired-link errors on second attempts.
     if (!user.email || !user.email.includes('@')) {
       return json(res, 400, { error: 'E-mail inválido na conta. Atualize seu perfil.' });
     }
 
     const customer = await findOrCreateCustomer(user.email, null, digits);
-    const appBase = 'https://mastersinger.vercel.app';
+    const appBase = process.env.APP_BASE_URL || 'https://mastersinger.vercel.app';
     const cycle = plan.billingCycle === 'monthly' ? 'MONTHLY' : 'YEARLY';
     const checkout = await createSubscriptionCheckout({
       customerId: customer.id,

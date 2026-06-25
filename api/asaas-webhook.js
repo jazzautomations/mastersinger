@@ -67,9 +67,37 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // Refund / cancellation — downgrade the user immediately
+    const refunded = payment.status === 'REFUNDED' || payment.status === 'CHARGEDBACK';
+    const canceled = payment.status === 'CANCELED' || payment.status === 'DELETED';
+    if (refunded || canceled) {
+      await admin.from('subscriptions').update({
+        status: canceled ? 'canceled' : 'refunded',
+        current_period_end: new Date().toISOString(),
+      }).eq('user_id', userId);
+      await admin.from('payment_events').insert({
+        user_id: userId,
+        asaas_payment_id: payment.id,
+        amount: payment.value,
+        status: payment.status,
+        event_type: refunded ? 'PAYMENT_REFUNDED' : 'PAYMENT_CANCELED',
+        payload: event,
+      });
+      res.status(200);
+      return res.json({ ok: true, refunded, canceled });
+    }
+
+    // Look up the plan the user signed up for (by user_id — checkout id ≠ payment id)
+    const { data: intent } = await admin.from('payment_events')
+      .select('plan').eq('user_id', userId).eq('event_type', 'CHECKOUT_CREATED')
+      .order('id', { ascending: false }).limit(1).maybeSingle();
+    const resolvedPlanId = (intent && intent.plan)
+      || (payment.value >= 300 ? 'pro-yearly' : 'pro-monthly');
+
     const { error: insertError } = await admin.from('payment_events').insert({
       user_id: userId,
       asaas_payment_id: payment.id,
+      plan: resolvedPlanId,
       amount: payment.value,
       status: payment.status,
       event_type: activated ? 'PAYMENT_RECEIVED' : 'PAYMENT_UPDATE',
@@ -78,15 +106,10 @@ module.exports = async function handler(req, res) {
     if (insertError) console.error('webhook: payment_events insert failed:', insertError.message);
 
     if (activated) {
-      // Renovação de assinatura recorrente (cartão de crédito): quando o Asaas
-      // cobra mensalmente/anualmente, este campo vem preenchido com o id da
-      // subscription. Detectamos e renovamos o período do usuário.
+      // Renovação de assinatura recorrente: payment.subscription indica que é
+      // uma cobrança de renovação (não o primeiro pagamento).
       const isRenewal = !!payment.subscription;
-      const { data: intent } = await admin.from('payment_events')
-        .select('plan').eq('asaas_payment_id', paymentId).eq('event_type', 'CHECKOUT_CREATED').maybeSingle();
-      const planId = (intent && intent.plan)
-        || (payment.value >= 300 ? 'pro-yearly' : 'pro-monthly');
-      const plan = getPlan(planId);
+      const plan = getPlan(resolvedPlanId);
       const days = plan && plan.billingCycle === 'yearly' ? 365 : 30;
 
       // Para renovação: estende a partir do fim do período atual (se ainda
@@ -96,13 +119,13 @@ module.exports = async function handler(req, res) {
       let base = Date.now();
       if (isRenewal && currentSub && currentSub.current_period_end) {
         const endMs = new Date(currentSub.current_period_end).getTime();
-        if (endMs > Date.now()) base = endMs; // estende o período ainda ativo
+        if (endMs > Date.now()) base = endMs;
       }
       const periodEnd = new Date(base + days * 86400000).toISOString();
 
       const { error } = await admin.from('subscriptions').upsert({
         user_id: userId,
-        plan: planId,
+        plan: resolvedPlanId,
         status: 'active',
         current_period_end: periodEnd,
         trial_ends_at: null,

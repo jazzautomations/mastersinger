@@ -26,7 +26,7 @@ import type { View } from './types';
 const ONBOARDED_KEY = 'mastersinger:onboarded';
 
 function MainApp() {
-  const { profile, canAccessView, openUpgrade, isPro, authUser } = useStore();
+  const { profile, canAccessView, openUpgrade, isPro, authUser, refreshSubscription } = useStore();
   const lang = profile.settings.language;
 
   // Detect if URL contains OAuth redirect params.
@@ -71,6 +71,31 @@ function MainApp() {
   });
   const [view, setView] = useState<View>('home');
   const [viewOpts, setViewOpts] = useState<any>(null);
+  const [checkoutBanner, setCheckoutBanner] = useState<'success' | 'cancelled' | 'expired' | null>(null);
+
+  // Detect checkout result from Asaas callback URL (#app?checkout=success&plan=...)
+  useEffect(() => {
+    const raw = window.location.hash; // e.g. "#app?checkout=success&plan=pro-monthly"
+    const qStart = raw.indexOf('?');
+    if (qStart === -1) return;
+    const params = new URLSearchParams(raw.slice(qStart + 1));
+    const result = params.get('checkout');
+    if (!result) return;
+    // Clean the query params from the hash so refreshes don't re-trigger
+    window.history.replaceState(null, '', window.location.pathname + '#app');
+    if (result === 'success') {
+      setCheckoutBanner('success');
+      void refreshSubscription();
+      setTimeout(() => setCheckoutBanner(null), 8000);
+    } else if (result === 'cancelled') {
+      setCheckoutBanner('cancelled');
+      setTimeout(() => setCheckoutBanner(null), 5000);
+    } else if (result === 'expired') {
+      setCheckoutBanner('expired');
+      setTimeout(() => setCheckoutBanner(null), 5000);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { warmAudioOnUserGesture(); }, []);
 
@@ -203,6 +228,23 @@ function MainApp() {
           </div>
         </div>
       </header>
+
+      {checkoutBanner && (
+        <div className={`fixed top-16 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none`}>
+          <div className={`pointer-events-auto max-w-sm w-full rounded-2xl px-5 py-4 shadow-2xl border text-sm font-semibold flex items-center gap-3 animate-fade-in
+            ${checkoutBanner === 'success' ? 'bg-green-500/20 border-green-400/40 text-green-200' : 'bg-amber-500/20 border-amber-400/40 text-amber-200'}`}>
+            <span className="text-xl">{checkoutBanner === 'success' ? '🎉' : '⚠️'}</span>
+            <span>
+              {checkoutBanner === 'success'
+                ? (lang === 'pt-BR' ? 'Pagamento confirmado! Bem-vindo ao Pro 👑' : 'Payment confirmed! Welcome to Pro 👑')
+                : checkoutBanner === 'cancelled'
+                ? (lang === 'pt-BR' ? 'Checkout cancelado. Sem cobranças.' : 'Checkout cancelled. No charges made.')
+                : (lang === 'pt-BR' ? 'Link de pagamento expirado. Tente novamente.' : 'Payment link expired. Please try again.')}
+            </span>
+            <button onClick={() => setCheckoutBanner(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-3xl mx-auto px-4 py-6 pb-8">
         {is404 && (

@@ -13,10 +13,18 @@ function authHeaders() {
 
 async function asaas(path, init) {
   init = init || {};
-  const res = await fetch(`${BASE()}${path}`, {
-    ...init,
-    headers: { ...authHeaders(), ...(init.headers || {}) },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let res;
+  try {
+    res = await fetch(`${BASE()}${path}`, {
+      ...init,
+      headers: { ...authHeaders(), ...(init.headers || {}) },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await res.text();
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch (_e) { data = { raw: text }; }
@@ -96,9 +104,9 @@ async function getPayment(id) {
 //    cycle: 'MONTHLY' | 'YEARLY'
 async function createSubscriptionCheckout(opts) {
   const body = {
-    billingTypes: ['CREDIT_CARD'],
+    billingTypes: ['CREDIT_CARD', 'PIX', 'BOLETO'],
     chargeTypes: ['RECURRENT'],
-    minutesToExpire: 30,
+    minutesToExpire: 60,
     externalReference: opts.externalReference,
     callback: {
       successUrl: opts.successUrl,
