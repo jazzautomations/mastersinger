@@ -26,7 +26,7 @@ import type { View } from './types';
 const ONBOARDED_KEY = 'mastersinger:onboarded';
 
 function MainApp() {
-  const { profile, canAccessView, openUpgrade, isPro, authUser, refreshSubscription } = useStore();
+  const { profile, canAccessView, openUpgrade, isPro, isTeacher, authUser, refreshSubscription } = useStore();
   const lang = profile.settings.language;
 
   // Detect if URL contains OAuth redirect params.
@@ -216,6 +216,11 @@ function MainApp() {
             <button onClick={() => handleNavigate('harmony')} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${!canAccessView('harmony') ? 'text-slate-500 hover:text-amber-300 hover:bg-amber-500/10' : 'text-slate-400 hover:text-violet-300 hover:bg-white/5'}`}>
               {t(lang, 'nav.harmony')} {!canAccessView('harmony') && '🔒'}
             </button>
+            {isTeacher && (
+              <button onClick={() => handleNavigate('teacher')} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${view === 'teacher' ? 'text-cyan-300 bg-cyan-500/10' : 'text-cyan-400 hover:text-cyan-300 hover:bg-white/5'}`}>
+                🎓 Professor
+              </button>
+            )}
             <button onClick={() => openUpgrade()} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all font-bold ${isPro ? 'text-amber-300 bg-amber-500/10 hover:bg-amber-500/20' : 'text-slate-400 hover:text-amber-300 hover:bg-amber-500/10'}`} title={isPro ? 'Você é Pro' : 'Assinar Pro'}>
               {isPro ? '👑 Pro' : '⚡ Upgrade'}
             </button>

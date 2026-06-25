@@ -60,6 +60,7 @@ interface StoreContextValue {
   // ── Monetização / entitlements ──
   subscription: Subscription | null;
   isPro: boolean;
+  isTeacher: boolean;
   authUser: { id: string; email?: string | null } | null;
   upgradeOpen: boolean;
   upgradeDefaultPlan: PlanId | null;
@@ -154,11 +155,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeDefaultPlan, setUpgradeDefaultPlan] = useState<PlanId | null>(null);
-  const isPro = isSubscriptionActive(subscription);
+  const [isTeacher, setIsTeacher] = useState(false);
   const authUser = supabaseUser;
 
+  // ── Teacher emails that bypass paywall (hardcoded for quick setup) ──
+  const TEACHER_EMAILS = ['amandix.maria@gmail.com', 'slnorego@gmail.com'];
+  const isTeacherByEmail = authUser?.email ? TEACHER_EMAILS.includes(authUser.email) : false;
+  const isTeacherFinal = isTeacher || isTeacherByEmail;
+  const isPro = isSubscriptionActive(subscription) || isTeacherFinal;
+
   const refreshSubscription = useCallback(async () => {
-    if (!supabase || !supabaseUser) { setSubscription(null); return; }
+    if (!supabase || !supabaseUser) { setSubscription(null); setIsTeacher(false); return; }
     try {
       const { data } = await supabase
         .from('subscriptions')
@@ -166,6 +173,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .eq('user_id', supabaseUser.id)
         .maybeSingle();
       setSubscription((data as Subscription) ?? null);
+
+      // Check if user is a teacher
+      const { data: teacherData } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('id', supabaseUser.id)
+        .maybeSingle();
+      setIsTeacher(!!teacherData);
     } catch (e) {
       console.error('refreshSubscription failed', e);
     }
@@ -192,9 +207,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
   const closeUpgrade = useCallback(() => setUpgradeOpen(false), []);
 
-  const canAccessView = useCallback((view: View) => entCanAccessView(view, subscription), [subscription]);
-  const canAccessCourse = useCallback((courseId: string) => entCanAccessCourse(courseId, subscription), [subscription]);
-  const canAccessExercise = useCallback((exerciseId: string) => entCanAccessExercise(exerciseId, subscription), [subscription]);
+  const canAccessView = useCallback((view: View) => {
+    if (isTeacherFinal) return true;
+    return entCanAccessView(view, subscription);
+  }, [isTeacherFinal, subscription]);
+  const canAccessCourse = useCallback((courseId: string) => {
+    if (isTeacherFinal) return true;
+    return entCanAccessCourse(courseId, subscription);
+  }, [isTeacherFinal, subscription]);
+  const canAccessExercise = useCallback((exerciseId: string) => {
+    if (isTeacherFinal) return true;
+    return entCanAccessExercise(exerciseId, subscription);
+  }, [isTeacherFinal, subscription]);
 
   // ── Rate limiting for auth attempts (max 5 per 10 min per email) ──
   const authAttempts = useRef<Map<string, number[]>>(new Map());
@@ -620,6 +644,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // ── Monetização / entitlements ──
       subscription,
       isPro,
+      isTeacher: isTeacherFinal,
       authUser,
       upgradeOpen,
       upgradeDefaultPlan,
