@@ -114,6 +114,13 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     let sum = 0;
     for (let i = 0; i < bufferRef.current.length; i++) sum += bufferRef.current[i] * bufferRef.current[i];
     const rms = Math.sqrt(sum / bufferRef.current.length);
+    
+    // Log every 30 frames (~500ms) to avoid flooding console
+    const frameCount = Math.floor((performance.now() - startTimeRef.current) / 16.67);
+    if (frameCount % 30 === 0) {
+      console.log('[Pitch] Frame:', frameCount, 'RMS:', rms.toFixed(4), 'noiseGate:', noiseGateRef.current, 'sensitivity:', sensitivityRef.current);
+    }
+    
     if (rms < noiseGateRef.current) {
       setMicLevel(0);
       silentStreakRef.current += 1;
@@ -144,6 +151,11 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     );
 
     setMicLevel(result.rms);
+    
+    // Log YIN result every 30 frames
+    if (frameCount % 30 === 0) {
+      console.log('[Pitch] YIN result:', result.frequency.toFixed(1), 'Hz, confidence:', result.confidence.toFixed(3), 'rms:', result.rms.toFixed(4));
+    }
 
     const ts = performance.now() - startTimeRef.current;
     const a4 = a4Ref.current;
@@ -229,6 +241,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     startingRef.current = true;
     setError(null);
     try {
+      console.log('[Pitch] Starting pitch detection...');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
@@ -238,11 +251,14 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
         },
       });
       streamRef.current = stream;
+      console.log('[Pitch] Microphone access granted');
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioCtx();
+      console.log('[Pitch] AudioContext state:', ctx.state);
       if (ctx.state === 'suspended') {
         await ctx.resume();
+        console.log('[Pitch] AudioContext resumed');
       }
       audioContextRef.current = ctx;
 
@@ -254,10 +270,12 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       analyser.smoothingTimeConstant = 0;
       source.connect(analyser);
       analyserRef.current = analyser;
+      console.log('[Pitch] Analyser created, bufferSize:', bufferSize);
 
       if (smoothingRef.current) smootherRef.current.reset();
       startTimeRef.current = performance.now();
       setIsListening(true);
+      console.log('[Pitch] Pitch detection started');
       rafRef.current = requestAnimationFrame(processFrame);
 
       // ── Start raw-audio recording if requested. We grab the SAME stream the
