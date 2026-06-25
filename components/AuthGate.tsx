@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import { getSupabaseClient } from '../services/supabase';
 
-export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
+export function AuthGate({ onDone }: { onDone: () => void }) {
   const { authUser } = useStore();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,15 +63,6 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
 
           <p className="text-center text-[11px] text-slate-500 leading-relaxed">
             Login rápido e seguro via Google. Não criamos nem armazenamos senhas.
-          </p>
-        </div>
-
-        <div className="text-center">
-          <button onClick={onSkip} className="text-xs text-slate-500 hover:text-slate-300 transition-all">
-            Pular por enquanto (só local)
-          </button>
-          <p className="text-[10px] text-slate-600 mt-1 font-mono">
-            Sem login, dados ficam só neste dispositivo
           </p>
         </div>
       </div>

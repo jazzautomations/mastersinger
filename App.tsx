@@ -23,7 +23,6 @@ import { warmAudioOnUserGesture } from './services/audioService';
 import type { View } from './types';
 
 const ONBOARDED_KEY = 'mastersinger:onboarded';
-const GUEST_KEY = 'mastersinger:guest';
 
 function MainApp() {
   const { profile, canAccessView, openUpgrade, isPro, authUser } = useStore();
@@ -65,9 +64,6 @@ function MainApp() {
   const [onboarded, setOnboarded] = useState<boolean>(() => {
     try { return localStorage.getItem(ONBOARDED_KEY) === '1'; } catch { return false; }
   });
-  const [isGuest, setIsGuest] = useState<boolean>(() => {
-    try { return localStorage.getItem(GUEST_KEY) === '1'; } catch { return false; }
-  });
   const [showTutorial, setShowTutorial] = useState<boolean>(() => {
     if (onboarded) return false;
     return !hasTutorialBeenSeen();
@@ -107,14 +103,14 @@ function MainApp() {
   // Also: if Supabase already has a session (e.g. from localStorage),
   // skip straight to app on page load.
   // Show loading spinner while auth session is loading to avoid flash-of-AuthGate.
-  const [authLoading, setAuthLoading] = useState(() => showApp && !isGuest);
+  const [authLoading, setAuthLoading] = useState(() => showApp);
   useEffect(() => {
-    if (showApp && !isGuest && !authUser && authLoading) {
+    if (showApp && !authUser && authLoading) {
       const t = setTimeout(() => setAuthLoading(false), 2000);
       return () => clearTimeout(t);
     }
     if (authUser) setAuthLoading(false);
-  }, [showApp, authUser, isGuest, authLoading]);
+  }, [showApp, authUser, authLoading]);
 
   const enterApp = () => {
     window.location.hash = '#app';
@@ -124,8 +120,6 @@ function MainApp() {
   const enterLanding = () => {
     window.location.hash = '';
     setShowApp(false);
-    try { localStorage.removeItem(GUEST_KEY); } catch {}
-    setIsGuest(false);
   };
 
   const handleNavigate = (v: View, opts?: any) => {
@@ -141,7 +135,7 @@ function MainApp() {
     return <Landing onEnterApp={enterApp} onUpgrade={openUpgrade} onLogin={enterApp} />;
   }
 
-  if (authLoading && !authUser && !isGuest) {
+  if (authLoading && !authUser) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -152,11 +146,8 @@ function MainApp() {
     );
   }
 
-  if (!authUser && !isGuest) {
-    return <AuthGate onDone={() => {}} onSkip={() => {
-      try { localStorage.setItem(GUEST_KEY, '1'); } catch {}
-      setIsGuest(true);
-    }} />;
+  if (!authUser) {
+    return <AuthGate onDone={() => {}} />;
   }
 
   if (!onboarded) {
