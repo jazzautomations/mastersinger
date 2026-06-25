@@ -122,7 +122,15 @@ export function UpgradeModal() {
       } catch {
         throw new Error('URL de pagamento inválida. Tente novamente.');
       }
-      if (!invoiceUrl.protocol.startsWith('http') || !invoiceUrl.hostname.includes('asaas')) {
+      if (!invoiceUrl.protocol.startsWith('http')) {
+        throw new Error('URL de pagamento inválida. Tente novamente.');
+      }
+      // Strict allowlist: only the real Asaas checkout domains. `.includes('asaas')`
+      // would accept phishing hosts like asaas.evil.com.
+      const ALLOWED = ['asaas.com', 'asaas.com.br'];
+      const host = invoiceUrl.hostname.toLowerCase();
+      const ok = ALLOWED.some(d => host === d || host.endsWith('.' + d));
+      if (!ok) {
         throw new Error('URL de pagamento inválida. Tente novamente.');
       }
 

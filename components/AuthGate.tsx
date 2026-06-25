@@ -4,6 +4,7 @@ import { getSupabaseClient } from '../services/supabase';
 
 export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const { signIn, signUp, authUser } = useStore();
+  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -19,17 +20,26 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
   const handleSubmit = async () => {
     setError(null);
     setBusy(true);
+    // Explicit mode: signin logs in, signup creates. On signup collision we
+    // fall back to signin so a returning user isn't blocked by the default tab.
+    if (mode === 'signin') {
+      const res = await signIn(email.trim(), password);
+      setBusy(false);
+      if (!res.ok) { setError(res.error || 'E-mail ou senha incorretos.'); return; }
+      onDone();
+      return;
+    }
     const res = await signUp(email.trim(), password);
     if (!res.ok) {
       if (res.error?.includes('already') || res.error?.includes('registered') || res.error?.includes('exists')) {
         const signInRes = await signIn(email.trim(), password);
         setBusy(false);
-        if (!signInRes.ok) { setError(signInRes.error || 'Falha no login. Verifique sua senha.'); return; }
+        if (!signInRes.ok) { setError('Esse e-mail já tem conta. Tente entrar com sua senha.'); return; }
         onDone();
         return;
       }
       setBusy(false);
-      setError(res.error || 'Falha na autenticação');
+      setError(res.error || 'Falha no cadastro.');
       return;
     }
     setBusy(false);
@@ -69,7 +79,7 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
           <span className="text-4xl">🎤</span>
           <h1 className="text-2xl font-black display neon-text">MasterSinger</h1>
           <p className="text-sm text-slate-400">
-            Crie sua conta gratuita ou entre na sua existente.
+            {mode === 'signup' ? 'Crie sua conta gratuita e salve seu progresso na nuvem.' : 'Bem-vindo de volta! Entre na sua conta.'}
           </p>
         </div>
 
@@ -124,7 +134,13 @@ export function AuthGate({ onDone, onSkip }: { onDone: () => void; onSkip: () =>
             disabled={busy || !email || password.length < 6}
             className="btn-primary w-full text-sm py-3 disabled:opacity-40"
           >
-            {busy ? 'Aguarde...' : 'Criar conta ou entrar'}
+            {busy ? 'Aguarde...' : mode === 'signup' ? 'Criar conta' : 'Entrar'}
+          </button>
+          <button
+            onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(null); }}
+            className="w-full text-xs text-slate-400 hover:text-violet-300 transition-all"
+          >
+            {mode === 'signup' ? 'Já tem conta? Entrar' : 'Não tem conta? Criar agora'}
           </button>
         </div>
 

@@ -37,7 +37,10 @@ module.exports = async function handler(req, res) {
     if (existing && existing.payload && existing.payload.invoiceUrl) {
       try {
         const url = new URL(existing.payload.invoiceUrl);
-        if (url.protocol.startsWith('http') && url.hostname.includes('asaas')) {
+        const ALLOWED = ['asaas.com', 'asaas.com.br'];
+        const host = url.hostname.toLowerCase();
+        const ok = url.protocol.startsWith('http') && ALLOWED.some(d => host === d || host.endsWith('.' + d));
+        if (ok) {
           return json(res, 200, { invoiceUrl: existing.payload.invoiceUrl, paymentId: existing.asaas_payment_id });
         }
       } catch (_e) { /* malformed URL — fall through */ }

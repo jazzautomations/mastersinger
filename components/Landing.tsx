@@ -39,7 +39,7 @@ const COMPARISON = [
   { feature: 'Estúdio de melodias (MIDI)', ms: true, lesson: false, others: false },
   { feature: 'Treine quando e onde quiser', ms: true, lesson: false, others: true },
   { feature: 'Gamificação e progresso', ms: true, lesson: false, others: 'parcial' },
-  { feature: 'Custo mensal', ms: 'a partir de R$29', lesson: 'R$400+', others: 'R$40+' },
+  { feature: 'Custo mensal', ms: 'a partir de R$28,90', lesson: 'R$400+', others: 'R$40+' },
 ];
 
 const PERSONAS = [
@@ -68,7 +68,7 @@ const SOCIAL_STATS = [
 ];
 
 export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => void; onUpgrade?: () => void; onLogin: () => void }) {
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -135,7 +135,7 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
 
           <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
             O treinador vocal completo que cabe no seu bolso. Afinador preciso em tempo real,
-            exercícios gamificados, aquecimentos guiados e cursos — por <span className="text-violet-300 font-bold">a partir de R$29/mês</span>.
+            exercícios gamificados, aquecimentos guiados e cursos — por <span className="text-violet-300 font-bold">a partir de R$28,90/mês</span>.
             Ou comece <span className="text-green-300 font-bold">grátis</span> agora.
           </p>
 
