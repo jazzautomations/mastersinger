@@ -165,7 +165,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const isTeacherFinal = isTeacher || isTeacherByEmail;
   const isPro = isSubscriptionActive(subscription) || isTeacherFinal;
 
-  if (import.meta.env.DEV) console.log('[Teacher] email:', userEmail, 'isTeacherByEmail:', isTeacherByEmail, 'isTeacher:', isTeacher, 'isTeacherFinal:', isTeacherFinal, 'isPro:', isPro);
+  // Log teacher detection in production for debugging (remove after verified)
+  console.log('[Teacher] email:', userEmail, 'isTeacherByEmail:', isTeacherByEmail, 'isTeacher:', isTeacher, 'isTeacherFinal:', isTeacherFinal, 'isPro:', isPro);
 
   const refreshSubscription = useCallback(async () => {
     if (!supabase || !supabaseUser) { setSubscription(null); setIsTeacher(false); return; }
@@ -350,14 +351,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // We only need to: (a) read the initial session, (b) listen for auth
     // state changes, and (c) clean up stale URL params.
 
-    if (import.meta.env.DEV) console.log('[Auth] init, hash:', window.location.hash, 'query:', window.location.search || 'none');
+    console.log('[Auth] init, hash:', window.location.hash, 'query:', window.location.search || 'none');
 
     supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
       const sessionUser = data.session?.user;
-      if (import.meta.env.DEV) console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
+      console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
       if (error) {
-        if (import.meta.env.DEV) console.warn('[Auth] clearing invalid session:', error.message);
+        console.warn('[Auth] clearing invalid session:', error.message);
         void supabase.auth.signOut({ scope: 'local' });
         try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
         return;
@@ -367,11 +368,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // stale (user deleted on server). Validate against the server.
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData?.user) {
-          if (import.meta.env.DEV) console.warn('[Auth] session invalid on server, clearing:', userError?.message ?? 'no user');
+          console.warn('[Auth] session invalid on server, clearing:', userError?.message ?? 'no user');
           void supabase.auth.signOut({ scope: 'local' });
           try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
           return;
         }
+        console.log('[Auth] setting supabaseUser:', { id: userData.user.id, email: userData.user.email });
         setSupabaseUser({ id: userData.user.id, email: userData.user.email });
         setSyncEnabled(loadSyncEnabled());
         setSyncStatus(loadSyncEnabled() ? 'connected' : 'local');
@@ -379,7 +381,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (import.meta.env.DEV) console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
+      console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
       if (event === 'SIGNED_OUT') {
         setSupabaseUser(null);
         setSubscription(null);
@@ -391,6 +393,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const user = session?.user;
       if (user) {
+        console.log('[Auth] setting supabaseUser from onAuthStateChange:', { id: user.id, email: user.email });
         setSupabaseUser({ id: user.id, email: user.email });
         const enabled = loadSyncEnabled();
         setSyncEnabled(enabled);
