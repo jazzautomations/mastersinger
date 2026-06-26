@@ -98,16 +98,21 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
 
     setDetectedByMic(false);
     setShowQuestion(false);
-    setWaitingForSing(true);
+    setWaitingForSing(false);
 
-    // Play reference note
+    // 1. Stop mic FIRST — must be silent while reference plays
+    pitch.stop();
+
+    // 2. Play reference note (mic is OFF, so no bleed)
     await ensureAudioStarted();
     playNote(notes[idx], 400, 0, a4);
 
-    // Start listening after a brief pause
+    // 3. Wait for note to finish playing + decay (400ms + 300ms buffer)
     setTimeout(async () => {
+      // 4. NOW turn on mic — reference is done, only user's voice
+      setWaitingForSing(true);
       await pitch.start();
-    }, 600);
+    }, 700);
   }, [a4, pitch]);
 
   const handleStartTest = async () => {
@@ -122,6 +127,10 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
   const handleAnswer = (hit: boolean) => {
     const notes = phaseRef.current === 'descending' ? DESC_NOTES : ASC_NOTES;
     const idx = currentNoteIdxRef.current;
+
+    // Stop mic immediately
+    pitch.stop();
+    setWaitingForSing(false);
 
     if (hit) {
       detectedNotesRef.current.push(notes[idx]);
@@ -161,6 +170,10 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
   const handleSkipNote = () => {
     const notes = phaseRef.current === 'descending' ? DESC_NOTES : ASC_NOTES;
     const idx = currentNoteIdxRef.current;
+
+    // Stop mic
+    pitch.stop();
+    setWaitingForSing(false);
 
     setNoteStatuses(prev => { const n = [...prev]; n[idx] = 'miss'; return n; });
     setHitFlash('miss');
