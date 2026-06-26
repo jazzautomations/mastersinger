@@ -115,26 +115,32 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
     const s = ensureSynth();
     const freq = midiToFrequency(midi, a4);
     const durSec = Math.max(0.05, durationMs / 1000);
+    const token = playbackGen;
+
+    const doPlay = () => {
+      if (!isPlaybackActive(token)) return;
+      try {
+        resumeIfSuspended();
+        s.triggerAttack(freq);
+        setTimeout(() => {
+          if (!isPlaybackActive(token)) return;
+          try { s.triggerRelease(freq); } catch (_) {}
+        }, durSec * 1000);
+      } catch (e) {
+        console.warn('[AudioService] playNote failed:', e);
+      }
+    };
 
     if (timeOffsetMs > 0) {
-      const token = playbackGen;
       const id = window.setTimeout(() => {
         scheduledTimeouts.delete(id);
-        if (!isPlaybackActive(token)) return;
-        try {
-          resumeIfSuspended();
-          s.triggerAttackRelease(freq, durSec);
-        } catch (e) {
-          console.warn('[AudioService] Scheduled note failed:', e);
-        }
+        doPlay();
       }, timeOffsetMs);
       scheduledTimeouts.add(id);
       return;
     }
 
-    // Release any sustaining notes first to prevent stacking
-    s.releaseAll();
-    s.triggerAttackRelease(freq, durSec);
+    doPlay();
   } catch (err) {
     console.warn('[AudioService] playNote failed:', err);
   }
