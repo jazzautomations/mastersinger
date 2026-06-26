@@ -4,7 +4,7 @@ import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
 import { EXERCISES, getExercisesByType, getExercisesByLevel } from '../data/exercises';
 import { scoreExercise } from '../services/scoringService';
-import { playNote, stopAll, ensureAudioStarted, beginPlayback, isPlaybackActive, playScale } from '../services/audioService';
+import { playNote, stopAll, ensureAudioStarted, playScale } from '../services/audioService';
 import { midiToNoteName, transposeExercise, centerOfMidis, transposeOffset } from '../services/theoryService';
 import { PitchMeter } from './PitchMeter';
 import type { Exercise, ExerciseType, PitchFrame, ExerciseResult } from '../types';
@@ -16,6 +16,14 @@ interface PracticeProps {
 }
 
 type Phase = 'select' | 'ready' | 'countdown' | 'listening' | 'result';
+type NoteResult = 'hit' | 'miss' | 'skip' | 'pending';
+
+// How many consecutive voiced frames within tolerance to count as "hit"
+const HIT_STREAK_NEEDED = 5; // ~280ms at 60fps
+// Max cents deviation to count as on-target
+const CENTS_TOLERANCE = 50;
+// Timeout per note (ms)
+const NOTE_TIMEOUT_MS = 5000;
 
 export function Practice({ preselectedExerciseIds, isDaily, onComplete }: PracticeProps) {
   const { profile, recordResult, touchStreak, unlockBadge, canAccessExercise, openUpgrade } = useStore();
@@ -26,14 +34,9 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const micSensitivity = profile.settings.micSensitivity ?? 0.5;
   const noiseGate = profile.settings.noiseGate ?? 0.02;
 
-  // Keep a ref to always have the latest profile for badge checks in endExercise
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
-  // ── Range-aware transposition: shift each exercise so its pitch center sits
-  //    on the singer's detected range center (clamped to ±1.5 octaves). A bass
-  //    no longer has to sing a C-major scale pegged at C4, and a soprano isn't
-  //    dragged into the cellar. No-op until the range is mapped (Tuner). ──
   const fitExercise = useCallback((ex: Exercise): Exercise => {
     if (!rangeCenterMidi || ex.targets.length === 0) return ex;
     const offset = transposeOffset(centerOfMidis(ex.targets.map(t => t.midi)), rangeCenterMidi);
@@ -48,12 +51,14 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const [countdown, setCountdown] = useState(3);
   const [result, setResult] = useState<Omit<ExerciseResult, 'exerciseId' | 'completedAt'> | null>(null);
   const [allResults, setAllResults] = useState<ExerciseResult[]>([]);
-  const [liveCents, setLiveCents] = useState<number>(0);
-  const [liveNote, setLiveNote] = useState<string>('');
-  const [currentTargetIdx, setCurrentTargetIdx] = useState<number>(-1);
   const [playGuide, setPlayGuide] = useState(false);
 
-  // ── Refs: avoid stale closures + keep timer lifecycles separate ──
+  // ── Note-by-note state ──
+  const [currentNoteIdx, setCurrentNoteIdx] = useState(0);
+  const [noteResults, setNoteResults] = useState<NoteResult[]>([]);
+  const [noteCents, setNoteCents] = useState(0);
+  const [hitFlash, setHitFlash] = useState<'hit' | 'miss' | null>(null);
+
   const framesRef = useRef<PitchFrame[]>([]);
   const noteTimersRef = useRef<number[]>([]);
   const endedRef = useRef<boolean>(false);
@@ -61,10 +66,17 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const phaseRef = useRef<Phase>(phase);
   const beginRef = useRef<() => void>(() => {});
   const playGuideRef = useRef<boolean>(playGuide);
+  const currentNoteIdxRef = useRef(0);
+  const hitStreakRef = useRef(0);
+  const noteStartTimeRef = useRef(0);
+  const noteTimeoutRef = useRef<number | null>(null);
+  // Track real timestamps for scoring
+  const noteRealStartRef = useRef<number[]>([]);
 
   useEffect(() => { currentExerciseRef.current = currentExercise; }, [currentExercise]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { playGuideRef.current = playGuide; }, [playGuide]);
+  useEffect(() => { currentNoteIdxRef.current = currentNoteIdx; }, [currentNoteIdx]);
 
   const pitch = usePitchDetection({
     a4,
@@ -74,9 +86,33 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     onFrame: (frame) => {
       if (phaseRef.current !== 'listening') return;
       framesRef.current.push(frame);
-      if (frame.frequency > 0) {
-        setLiveCents(frame.cents);
-        setLiveNote(frame.noteName);
+
+      const ex = currentExerciseRef.current;
+      if (!ex) return;
+      const idx = currentNoteIdxRef.current;
+      if (idx >= ex.targets.length) return;
+
+      const target = ex.targets[idx];
+
+      if (frame.frequency > 0 && frame.confidence > 0.35) {
+        // Check if on-target: round to nearest semitone and compare
+        const targetMidi = Math.round(target.midi);
+        const sungMidi = Math.round(frame.midi);
+        const centsDeviation = Math.abs((frame.midi - target.midi) * 100);
+        setNoteCents(Math.round((frame.midi - target.midi) * 100));
+
+        if (sungMidi === targetMidi && centsDeviation < CENTS_TOLERANCE) {
+          hitStreakRef.current++;
+        } else {
+          hitStreakRef.current = 0;
+        }
+
+        // Hit confirmed after N consecutive good frames
+        if (hitStreakRef.current >= HIT_STREAK_NEEDED) {
+          advanceNote('hit');
+        }
+      } else {
+        hitStreakRef.current = 0;
       }
     },
   });
@@ -84,7 +120,113 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const clearAllTimers = () => {
     noteTimersRef.current.forEach(id => clearTimeout(id));
     noteTimersRef.current = [];
+    if (noteTimeoutRef.current) {
+      clearTimeout(noteTimeoutRef.current);
+      noteTimeoutRef.current = null;
+    }
   };
+
+  const advanceNote = useCallback((result: NoteResult) => {
+    clearAllTimers();
+    hitStreakRef.current = 0;
+
+    const ex = currentExerciseRef.current;
+    if (!ex) return;
+    const idx = currentNoteIdxRef.current;
+
+    // Record result
+    setNoteResults(prev => {
+      const next = [...prev];
+      next[idx] = result;
+      return next;
+    });
+
+    // Flash feedback
+    setHitFlash(result === 'hit' ? 'hit' : 'miss');
+    setTimeout(() => setHitFlash(null), 400);
+
+    // Play the target note as reference on hit
+    if (result === 'hit') {
+      playNote(ex.targets[idx].midi, 300, 0, a4);
+    }
+
+    const nextIdx = idx + 1;
+    if (nextIdx >= ex.targets.length) {
+      // Exercise complete
+      setTimeout(() => endExercise(), 600);
+      return;
+    }
+
+    // Advance to next note
+    setCurrentNoteIdx(nextIdx);
+    currentNoteIdxRef.current = nextIdx;
+    noteStartTimeRef.current = performance.now();
+    noteRealStartRef.current[nextIdx] = performance.now();
+
+    // Play the next target note as audio guide
+    playNote(ex.targets[nextIdx].midi, 200, 0, a4);
+
+    // Set timeout for this note
+    noteTimeoutRef.current = window.setTimeout(() => {
+      advanceNote('miss');
+    }, NOTE_TIMEOUT_MS);
+  }, [a4]);
+
+  const endExercise = useCallback(() => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+    pitch.stop();
+    clearAllTimers();
+    stopAll();
+
+    const ex = currentExerciseRef.current;
+    if (!ex) return;
+
+    // Build synthetic frames for scoring based on note results + real timestamps
+    const syntheticFrames: PitchFrame[] = [];
+    ex.targets.forEach((target, i) => {
+      const res = noteResults[i] ?? 'miss';
+      const start = noteRealStartRef.current[i] ?? 0;
+      if (res === 'hit') {
+        // Generate a few frames at the target pitch
+        for (let j = 0; j < 10; j++) {
+          syntheticFrames.push({
+            frequency: target.midi > 0 ? 440 * Math.pow(2, (target.midi - 69) / 12) : 0,
+            confidence: 0.8,
+            cents: 0,
+            midi: target.midi,
+            noteName: midiToNoteName(Math.round(target.midi)),
+            octave: Math.floor(target.midi / 12) - 1,
+            timestamp: start + j * 16,
+          });
+        }
+      }
+    });
+
+    // Also use raw frames for stability/timing analysis
+    const allFrames = [...syntheticFrames, ...framesRef.current];
+    const score = scoreExercise(ex, allFrames, a4);
+    setResult(score);
+    setPhase('result');
+
+    const exResult: ExerciseResult = {
+      exerciseId: ex.id,
+      ...score,
+      completedAt: Date.now(),
+    };
+    recordResult(exResult);
+    setAllResults(prev => [...prev, exResult]);
+    touchStreak();
+
+    const p = profileRef.current;
+    if (!p.badges.includes('first-practice')) unlockBadge('first-practice');
+    if (score.score === 100 && !p.badges.includes('perfect-score')) unlockBadge('perfect-score');
+    if (score.accuracyPct >= 95 && !p.badges.includes('accuracy-95')) unlockBadge('accuracy-95');
+    const newStreak = p.streak.current + 1;
+    if (newStreak >= 3 && !p.badges.includes('streak-3')) unlockBadge('streak-3');
+    if (newStreak >= 7 && !p.badges.includes('streak-7')) unlockBadge('streak-7');
+    if (newStreak >= 30 && !p.badges.includes('streak-30')) unlockBadge('streak-30');
+  }, [a4, noteResults, pitch, recordResult, touchStreak, unlockBadge]);
 
   // ── Daily-challenge queue init ──
   useEffect(() => {
@@ -101,7 +243,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     }
   }, [preselectedExerciseIds]);
 
-  // ── Countdown: setTimeout chain, auto-cleaned. No setInterval leak. ──
+  // ── Countdown ──
   useEffect(() => {
     if (phase !== 'countdown') return;
     if (countdown <= 0) {
@@ -112,25 +254,33 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     return () => clearTimeout(id);
   }, [phase, countdown]);
 
-  // ── Begin (runs once when countdown reaches 0) ──
+  // ── Begin exercise ──
   const beginExercise = async () => {
     const ex = currentExerciseRef.current;
     if (!ex || ex.targets.length === 0) return;
     clearAllTimers();
     endedRef.current = false;
     framesRef.current = [];
-    setLiveCents(0);
-    setLiveNote('');
-    setCurrentTargetIdx(-1);
+    setNoteCents(0);
+    setHitFlash(null);
+    setCurrentNoteIdx(0);
+    currentNoteIdxRef.current = 0;
+    hitStreakRef.current = 0;
+    noteStartTimeRef.current = performance.now();
+    noteRealStartRef.current = new Array(ex.targets.length).fill(0);
+    noteRealStartRef.current[0] = performance.now();
+    setNoteResults(new Array(ex.targets.length).fill('pending'));
     setPhase('listening');
 
-    // visual playhead — always on, no audio bleed
-    ex.targets.forEach((target, i) => {
-      const id = window.setTimeout(() => setCurrentTargetIdx(i), target.startMs);
-      noteTimersRef.current.push(id);
-    });
+    // Play first target note as reference
+    playNote(ex.targets[0].midi, 300, 0, a4);
 
-    // audio guide — optional (off by default to avoid mic bleed)
+    // Start timeout for first note
+    noteTimeoutRef.current = window.setTimeout(() => {
+      advanceNote('miss');
+    }, NOTE_TIMEOUT_MS);
+
+    // Audio guide — optional
     if (playGuideRef.current) {
       const midis = ex.targets.map(t => t.midi);
       const beatMs = ex.tempoBpm ? 60000 / ex.tempoBpm : 800;
@@ -138,50 +288,9 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     }
 
     await pitch.start();
-
-    const last = ex.targets[ex.targets.length - 1];
-    const totalDuration = last.startMs + last.durationMs;
-    const endId = window.setTimeout(() => endExercise(), totalDuration + 600);
-    noteTimersRef.current.push(endId);
   };
   beginRef.current = beginExercise;
 
-  // ── End + score (idempotent) ──
-  const endExercise = () => {
-    if (endedRef.current) return;
-    endedRef.current = true;
-    pitch.stop();
-    clearAllTimers();
-    stopAll();
-
-    const ex = currentExerciseRef.current;
-    if (!ex) return;
-    const frames = framesRef.current;
-    const score = scoreExercise(ex, frames, a4);
-    setResult(score);
-    setPhase('result');
-
-    const exResult: ExerciseResult = {
-      exerciseId: ex.id,
-      ...score,
-      completedAt: Date.now(),
-    };
-    recordResult(exResult);
-    setAllResults(prev => [...prev, exResult]);
-    touchStreak();
-
-    // Read current profile via ref to avoid stale closure issues
-    const p = profileRef.current;
-    if (!p.badges.includes('first-practice')) unlockBadge('first-practice');
-    if (score.score === 100 && !p.badges.includes('perfect-score')) unlockBadge('perfect-score');
-    if (score.accuracyPct >= 95 && !p.badges.includes('accuracy-95')) unlockBadge('accuracy-95');
-    const newStreak = p.streak.current + 1;
-    if (newStreak >= 3 && !p.badges.includes('streak-3')) unlockBadge('streak-3');
-    if (newStreak >= 7 && !p.badges.includes('streak-7')) unlockBadge('streak-7');
-    if (newStreak >= 30 && !p.badges.includes('streak-30')) unlockBadge('streak-30');
-  };
-
-  // ── Actions ──
   const handleStart = async () => {
     if (!currentExercise) return;
     await ensureAudioStarted();
@@ -203,6 +312,10 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
   const handleStop = () => endExercise();
 
+  const handleSkipNote = () => {
+    advanceNote('skip');
+  };
+
   const resetToSelect = () => {
     clearAllTimers();
     pitch.stop();
@@ -212,6 +325,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setCurrentExercise(null);
     setExerciseQueue([]);
     setAllResults([]);
+    setNoteResults([]);
   };
 
   const tryAgain = () => {
@@ -219,6 +333,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     pitch.stop();
     stopAll();
     setResult(null);
+    setNoteResults([]);
     endedRef.current = false;
     setPhase('ready');
   };
@@ -232,18 +347,17 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setCurrentExercise(fitExercise(next));
     setCurrentIdx(currentIdx + 1);
     setResult(null);
+    setNoteResults([]);
     endedRef.current = false;
     setPhase('ready');
   };
 
-  // cleanup on unmount
   useEffect(() => {
     return () => {
       clearAllTimers();
       pitch.stop();
       stopAll();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const L = (pt: string, en: string) => (lang === 'pt-BR' ? pt : en);
@@ -327,15 +441,15 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           {rangeCenterMidi != null && <div className="text-xs text-cyan-400 mt-1 font-mono">{L('🎧 Ajustado pra sua tessitura', '🎧 Adjusted to your range')}</div>}
         </div>
         <div className="card p-5 space-y-3">
-          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{L('Notas alvo', 'Target notes')}</div>
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{L('Sequência de notas', 'Note sequence')}</div>
           <div className="flex flex-wrap gap-2">
             {currentExercise.targets.map((tg, i) => (
               <div key={i} className="px-3 py-2 bg-white/5 rounded-lg text-center min-w-[3rem]">
                 <div className="text-sm font-bold font-mono">{midiToNoteName(tg.midi)}</div>
-                <div className="text-[9px] text-slate-500 font-mono">{(tg.durationMs / 1000).toFixed(1)}s</div>
               </div>
             ))}
           </div>
+          <div className="text-[11px] text-slate-500">{L('Cante cada nota e avança automaticamente ao acertar.', 'Sing each note — advances automatically when you hit it.')}</div>
         </div>
         <button onClick={() => setPlayGuide(g => !g)} className={`card p-4 w-full text-left flex items-center gap-3 transition-all ${playGuide ? 'border-cyan-500/40' : ''}`}>
           <span className="text-xl">{playGuide ? '🔊' : '🔇'}</span>
@@ -366,32 +480,76 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     );
   }
 
-  // ── Listening phase ──
+  // ── Listening phase (note-by-note) ──
   if (phase === 'listening' && currentExercise) {
-    return (
-      <div className="space-y-6 pb-24">
-        <PitchMeter
-          frame={pitch.currentFrame}
-          targetMidi={currentTargetIdx >= 0 ? currentExercise.targets[currentTargetIdx].midi : undefined}
-          targetLabel={currentTargetIdx >= 0 ? midiToNoteName(currentExercise.targets[currentTargetIdx].midi) : undefined}
-          isListening={pitch.isListening}
-          lang={lang}
-        />
-        <div className="text-center text-[11px] text-slate-500 font-mono">{playGuide ? L('Cante junto com o guia', 'Sing along with the guide') : L('Cante seguindo o playhead', 'Sing following the playhead')}</div>
+    const target = currentExercise.targets[currentNoteIdx];
+    const totalNotes = currentExercise.targets.length;
+    const hitCount = noteResults.filter(r => r === 'hit').length;
+    const missCount = noteResults.filter(r => r === 'miss' || r === 'skip').length;
 
-        {/* Sequence progression — visual playhead */}
-        <div className="card p-4">
-          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-3">{L('Sequência', 'Sequence')}</div>
-          <div className="flex flex-wrap gap-2">
-            {currentExercise.targets.map((tg, i) => (
-              <div key={i} className={`px-3 py-2 rounded-lg text-center min-w-[3rem] transition-all ${i === currentTargetIdx ? 'bg-violet-500/30 border border-violet-400 scale-110' : i < currentTargetIdx ? 'bg-green-500/20 opacity-60' : 'bg-white/5'}`}>
-                <div className="text-sm font-bold font-mono">{midiToNoteName(tg.midi)}</div>
-              </div>
-            ))}
+    return (
+      <div className="space-y-5 pb-24">
+        {/* Current target — big display */}
+        <div className={`card p-8 text-center transition-all ${hitFlash === 'hit' ? 'border-green-400/60 bg-green-500/10' : hitFlash === 'miss' ? 'border-red-400/60 bg-red-500/10' : ''}`}>
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-2">
+            {L(`Nota ${currentNoteIdx + 1} de ${totalNotes}`, `Note ${currentNoteIdx + 1} of ${totalNotes}`)}
+          </div>
+          <div className={`text-8xl font-black font-mono transition-colors ${
+            hitFlash === 'hit' ? 'text-green-400' : hitFlash === 'miss' ? 'text-red-400' : 'text-white'
+          }`}>
+            {midiToNoteName(target.midi)}
+          </div>
+          <div className={`text-2xl font-mono mt-2 transition-colors ${
+            hitFlash === 'hit' ? 'text-green-400' : hitFlash === 'miss' ? 'text-red-400' : 'text-slate-400'
+          }`}>
+            {hitFlash === 'hit' ? '✓ Acertou!' : hitFlash === 'miss' ? '✗ Errou' : noteCents > 0 ? `+${noteCents}ct` : noteCents < 0 ? `${noteCents}ct` : '🎤 Cante...'}
           </div>
         </div>
 
-        <button onClick={handleStop} className="btn-primary w-full !bg-gradient-to-r !from-red-500 !to-orange-500"><i className="fas fa-stop mr-2"></i>{L('Encerrar agora', 'Stop now')}</button>
+        {/* Progress dots */}
+        <div className="card p-4">
+          <div className="flex justify-center gap-2 flex-wrap">
+            {currentExercise.targets.map((tg, i) => {
+              const res = noteResults[i];
+              const isCurrent = i === currentNoteIdx;
+              return (
+                <div key={i} className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold font-mono transition-all ${
+                  isCurrent ? 'bg-violet-500 text-white scale-110 ring-2 ring-violet-400/50' :
+                  res === 'hit' ? 'bg-green-500/30 text-green-400 border border-green-500/40' :
+                  res === 'miss' ? 'bg-red-500/30 text-red-400 border border-red-500/40' :
+                  res === 'skip' ? 'bg-amber-500/30 text-amber-400 border border-amber-500/40' :
+                  'bg-white/5 text-slate-500 border border-white/10'
+                }`}>
+                  {res === 'hit' ? '✓' : res === 'miss' ? '✗' : res === 'skip' ? '→' : midiToNoteName(tg.midi).replace(/\d/g, '')}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-center gap-4 mt-3 text-[11px] font-mono">
+            <span className="text-green-400">{hitCount} ✓</span>
+            <span className="text-red-400">{missCount} ✗</span>
+            <span className="text-slate-500">{totalNotes - currentNoteIdx - 1} {L('restantes', 'left')}</span>
+          </div>
+        </div>
+
+        {/* Pitch meter */}
+        <PitchMeter
+          frame={pitch.currentFrame}
+          targetMidi={target.midi}
+          targetLabel={midiToNoteName(target.midi)}
+          isListening={pitch.isListening}
+          lang={lang}
+        />
+
+        {/* Controls */}
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={handleSkipNote} className="btn-ghost">
+            <i className="fas fa-forward mr-2"></i>{L('Pular nota', 'Skip note')}
+          </button>
+          <button onClick={handleStop} className="btn-primary !bg-gradient-to-r !from-red-500 !to-orange-500">
+            <i className="fas fa-stop mr-2"></i>{L('Encerrar', 'Stop')}
+          </button>
+        </div>
       </div>
     );
   }
@@ -400,6 +558,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   if (phase === 'result' && currentExercise && result) {
     const isLast = isDaily && currentIdx + 1 >= exerciseQueue.length;
     const totalScore = allResults.length > 0 ? Math.round(allResults.reduce((s, r) => s + r.score, 0) / allResults.length) : result.score;
+    const hitCount = noteResults.filter(r => r === 'hit').length;
     return (
       <div className="space-y-6 pb-24">
         <div className="card p-8 text-center space-y-3">
@@ -407,12 +566,30 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           <div className="text-7xl font-black neon-text font-mono ring-pop">{result.score}%</div>
           <div className="text-2xl">{result.score >= 90 ? '🎉' : result.score >= 70 ? '👍' : '💪'}</div>
           <div className="text-sm text-slate-400">+{result.xpEarned} XP</div>
+          <div className="text-xs text-slate-500 font-mono">{hitCount}/{currentExercise.targets.length} {L('notas acertadas', 'notes hit')}</div>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.accuracy')}</div><div className="text-2xl font-black font-mono text-green-400">{result.accuracyPct}%</div></div>
           <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.timing')}</div><div className="text-2xl font-black font-mono text-violet-400">{result.timingPct}%</div></div>
           <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.stability')}</div><div className="text-2xl font-black font-mono text-cyan-400">{result.stabilityPct}%</div></div>
+        </div>
+
+        {/* Note-by-note breakdown */}
+        <div className="card p-4">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-3">{L('Resultado por nota', 'Note breakdown')}</div>
+          <div className="flex flex-wrap gap-2">
+            {currentExercise.targets.map((tg, i) => (
+              <div key={i} className={`px-3 py-2 rounded-lg text-center min-w-[3rem] ${
+                noteResults[i] === 'hit' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                noteResults[i] === 'miss' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+              }`}>
+                <div className="text-sm font-bold font-mono">{midiToNoteName(tg.midi)}</div>
+                <div className="text-[9px]">{noteResults[i] === 'hit' ? '✓' : noteResults[i] === 'miss' ? '✗' : '→'}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {pitch.recordingUrl && (
