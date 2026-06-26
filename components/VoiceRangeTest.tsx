@@ -25,7 +25,8 @@ interface VoiceRangeTestProps {
 }
 
 type TestPhase = 'intro' | 'descending' | 'ascending' | 'result' | 'manual';
-type NoteStatus = 'pending' | 'active' | 'hit' | 'miss';
+type NoteStatus = 'pending' | 'hit' | 'miss';
+type SingPhase = 'idle' | 'listening' | 'pause' | 'sing';
 
 export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps) {
   const { profile, updateRange } = useStore();
@@ -43,17 +44,22 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
   const [selectedVoiceType, setSelectedVoiceType] = useState<VoiceType>('unknown');
   const [showQuestion, setShowQuestion] = useState(false);
   const [detectedByMic, setDetectedByMic] = useState(false);
-  const [waitingForSing, setWaitingForSing] = useState(false);
-  const [singPhase, setSingPhase] = useState<'listening' | 'pause' | 'sing'>('listening');
+  const [singPhase, setSingPhase] = useState<SingPhase>('idle');
 
   const currentNoteIdxRef = useRef(0);
   const phaseRef = useRef<TestPhase>(phase);
   const detectedNotesRef = useRef<number[]>([]);
   const hitStreakRef = useRef(0);
-  const listenTimeoutRef = useRef<number | null>(null);
-  const singTimeoutRef = useRef<number | null>(null);
+  const singPhaseRef = useRef<SingPhase>('idle');
+  const timeoutsRef = useRef<number[]>([]);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { singPhaseRef.current = singPhase; }, [singPhase]);
+
+  const clearTimeouts = useCallback(() => {
+    for (const id of timeoutsRef.current) clearTimeout(id);
+    timeoutsRef.current = [];
+  }, []);
 
   const pitch = usePitchDetection({
     a4,
@@ -61,7 +67,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     micSensitivity,
     noiseGate,
     onFrame: (frame) => {
-      if (!waitingForSing) return;
+      if (singPhaseRef.current !== 'sing') return;
       if (phaseRef.current !== 'descending' && phaseRef.current !== 'ascending') return;
       if (frame.frequency <= 0 || frame.confidence < 0.35) {
         hitStreakRef.current = 0;
@@ -73,86 +79,95 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
       if (idx >= notes.length) return;
 
       const targetMidi = notes[idx];
-      const centsDev = Math.abs((frame.midi - targetMidi) * 100);
       const semitoneDiff = Math.abs(Math.round(frame.midi) - targetMidi);
 
-      // Accept ±2 semitones
-      if (semitoneDiff <= 2 && centsDev < 250) {
+      if (semitoneDiff <= 2) {
         hitStreakRef.current++;
       } else {
         hitStreakRef.current = 0;
       }
 
-      // Detected! Stop listening and show question
       if (hitStreakRef.current >= 5) {
         setDetectedByMic(true);
-        setWaitingForSing(false);
         setShowQuestion(true);
+        setSingPhase('idle');
         hitStreakRef.current = 0;
-        pitch.stop();
       }
     },
   });
 
-  const playReferenceAndListen = useCallback(async () => {
-    const notes = phaseRef.current === 'descending' ? DESC_NOTES : ASC_NOTES;
-    const idx = currentNoteIdxRef.current;
-    if (idx >= notes.length) return;
+  const playNoteForTest = useCallback(async (midi: number) => {
+    await ensureAudioStarted();
+    playNote(midi, 600, 0, a4);
+  }, [a4]);
 
+  const advanceToNextNote = useCallback((notes: number[], idx: number, nextIdx: number) => {
+    if (nextIdx >= notes.length) {
+      if (phaseRef.current === 'descending') {
+        setCurrentNoteIdx(0);
+        currentNoteIdxRef.current = 0;
+        setNoteStatuses(new Array(ASC_NOTES.length).fill('pending'));
+        setPhase('ascending');
+      } else {
+        finishTest();
+      }
+    } else {
+      setCurrentNoteIdx(nextIdx);
+      currentNoteIdxRef.current = nextIdx;
+    }
+  }, []);
+
+  const startNoteSequence = useCallback((midi: number) => {
+    clearTimeouts();
     setDetectedByMic(false);
     setShowQuestion(false);
-    setWaitingForSing(false);
     setSingPhase('listening');
 
-    // 1. Stop mic + silence everything FIRST
-    pitch.stop();
     stopAll();
 
-    // 2. Play reference note (mic is OFF, so no bleed)
-    await ensureAudioStarted();
-    playNote(notes[idx], 600, 0, a4);
+    playNoteForTest(midi);
 
-    // 3. After note ends → show "Pausa" for 1.5s (silence, user processes what they heard)
-    const pauseTimeout = window.setTimeout(() => {
+    const t1 = window.setTimeout(() => {
       setSingPhase('pause');
     }, 650);
-
-    // 4. After pause → turn on mic + show "Agora cante!"
-    const singTimeout = window.setTimeout(async () => {
+    const t2 = window.setTimeout(() => {
       setSingPhase('sing');
-      setWaitingForSing(true);
-      await pitch.start();
-    }, 2150);
+    }, 2200);
+    const t3 = window.setTimeout(() => {
+      if (singPhaseRef.current === 'sing' && !showQuestion) {
+        setDetectedByMic(false);
+        setShowQuestion(true);
+        setSingPhase('idle');
+      }
+    }, 7200);
 
-    listenTimeoutRef.current = pauseTimeout;
-    singTimeoutRef.current = singTimeout;
-  }, [a4, pitch]);
+    timeoutsRef.current = [t1, t2, t3];
+  }, [playNoteForTest, clearTimeouts, showQuestion]);
 
   const handleStartTest = async () => {
+    clearTimeouts();
     detectedNotesRef.current = [];
     setCurrentNoteIdx(0);
     currentNoteIdxRef.current = 0;
     setNoteStatuses(new Array(DESC_NOTES.length).fill('pending'));
     setPhase('descending');
     stopAll();
-    setTimeout(() => playReferenceAndListen(), 300);
+
+    await pitch.start();
+
+    const t = window.setTimeout(() => {
+      startNoteSequence(DESC_NOTES[0]);
+    }, 500);
+    timeoutsRef.current = [t];
   };
 
   const handleAnswer = (hit: boolean) => {
     const notes = phaseRef.current === 'descending' ? DESC_NOTES : ASC_NOTES;
     const idx = currentNoteIdxRef.current;
 
-    // Stop mic + cancel pending mic start
-    pitch.stop();
-    setWaitingForSing(false);
-    if (listenTimeoutRef.current != null) {
-      clearTimeout(listenTimeoutRef.current);
-      listenTimeoutRef.current = null;
-    }
-    if (singTimeoutRef.current != null) {
-      clearTimeout(singTimeoutRef.current);
-      singTimeoutRef.current = null;
-    }
+    clearTimeouts();
+    setSingPhase('idle');
+    stopAll();
 
     if (hit) {
       detectedNotesRef.current.push(notes[idx]);
@@ -167,76 +182,45 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     setShowQuestion(false);
     setDetectedByMic(false);
 
-    // Move to next note after brief pause
-    setTimeout(() => {
-      const nextIdx = idx + 1;
-      if (nextIdx >= notes.length) {
-        // Phase complete
-        if (phaseRef.current === 'descending') {
-          setCurrentNoteIdx(0);
-          currentNoteIdxRef.current = 0;
-          setNoteStatuses(new Array(ASC_NOTES.length).fill('pending'));
-          setPhase('ascending');
-          setTimeout(() => playReferenceAndListen(), 300);
-        } else {
-          finishTest();
-        }
-      } else {
-        setCurrentNoteIdx(nextIdx);
-        currentNoteIdxRef.current = nextIdx;
-        setTimeout(() => playReferenceAndListen(), 300);
+    const nextIdx = idx + 1;
+    const t = window.setTimeout(() => {
+      advanceToNextNote(notes, idx, nextIdx);
+      if (nextIdx < notes.length) {
+        startNoteSequence(notes[nextIdx]);
       }
-    }, 500);
+    }, 600);
+    timeoutsRef.current = [t];
   };
 
   const handleSkipNote = () => {
     const notes = phaseRef.current === 'descending' ? DESC_NOTES : ASC_NOTES;
     const idx = currentNoteIdxRef.current;
 
-    // Stop mic + cancel pending mic start + stop audio
-    pitch.stop();
-    setWaitingForSing(false);
+    clearTimeouts();
+    setSingPhase('idle');
     stopAll();
-    if (listenTimeoutRef.current != null) {
-      clearTimeout(listenTimeoutRef.current);
-      listenTimeoutRef.current = null;
-    }
-    if (singTimeoutRef.current != null) {
-      clearTimeout(singTimeoutRef.current);
-      singTimeoutRef.current = null;
-    }
 
     setNoteStatuses(prev => { const n = [...prev]; n[idx] = 'miss'; return n; });
     setHitFlash('miss');
     setTimeout(() => setHitFlash(null), 400);
-
     setShowQuestion(false);
     setDetectedByMic(false);
 
-    setTimeout(() => {
-      const nextIdx = idx + 1;
-      if (nextIdx >= notes.length) {
-        if (phaseRef.current === 'descending') {
-          setCurrentNoteIdx(0);
-          currentNoteIdxRef.current = 0;
-          setNoteStatuses(new Array(ASC_NOTES.length).fill('pending'));
-          setPhase('ascending');
-          setTimeout(() => playReferenceAndListen(), 300);
-        } else {
-          finishTest();
-        }
-      } else {
-        setCurrentNoteIdx(nextIdx);
-        currentNoteIdxRef.current = nextIdx;
-        setTimeout(() => playReferenceAndListen(), 300);
+    const nextIdx = idx + 1;
+    const t = window.setTimeout(() => {
+      advanceToNextNote(notes, idx, nextIdx);
+      if (nextIdx < notes.length) {
+        startNoteSequence(notes[nextIdx]);
       }
-    }, 300);
+    }, 400);
+    timeoutsRef.current = [t];
   };
 
   const finishTest = useCallback(() => {
+    clearTimeouts();
     pitch.stop();
     stopAll();
-    setWaitingForSing(false);
+    setSingPhase('idle');
 
     const detected = detectedNotesRef.current;
     if (detected.length === 0) {
@@ -250,7 +234,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     setHighestDetected(hi);
     setSelectedVoiceType(classifyVoiceType(lo, hi));
     setPhase('result');
-  }, [pitch]);
+  }, [pitch, clearTimeouts]);
 
   const handleUseResult = () => {
     if (lowestDetected != null && highestDetected != null) {
@@ -281,14 +265,26 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
 
   useEffect(() => {
     return () => {
+      clearTimeouts();
       pitch.stop();
       stopAll();
-      if (listenTimeoutRef.current != null) clearTimeout(listenTimeoutRef.current);
-      if (singTimeoutRef.current != null) clearTimeout(singTimeoutRef.current);
     };
   }, []);
 
-  // ── INTRO ──
+  const getSingPhaseText = () => {
+    if (showQuestion) {
+      return detectedByMic
+        ? L('✓ Detectei sua voz!', '✓ Voice detected!')
+        : L('🎤 Não detectei...', '🎤 Not detected...');
+    }
+    switch (singPhase) {
+      case 'listening': return L('🔊 Ouça a nota...', '🔊 Listen...');
+      case 'pause':     return L('⏸️ Prepare-se...', '⏸️ Get ready...');
+      case 'sing':      return L('🎤 Agora cante!', '🎤 Sing now!');
+      default:          return '';
+    }
+  };
+
   if (phase === 'intro') {
     return (
       <div className="space-y-6 pb-8">
@@ -306,7 +302,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
           </div>
           <div className="flex items-start gap-3">
             <span className="text-lg">2.</span>
-            <span>{L('Canta a mesma nota e segura', 'Sing the same note and hold it')}</span>
+            <span>{L('Prepara e canta a mesma nota', 'Prepare and sing the same note')}</span>
           </div>
           <div className="flex items-start gap-3">
             <span className="text-lg">3.</span>
@@ -317,6 +313,11 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
             <span>{L('Você confirma se teve dificuldade', 'You confirm if you had trouble')}</span>
           </div>
         </div>
+        {pitch.error && (
+          <div className="card p-4 text-red-400 text-sm">
+            <i className="fas fa-exclamation-triangle mr-2"></i>{pitch.error}
+          </div>
+        )}
         <button onClick={handleStartTest} className="btn-primary w-full">
           <i className="fas fa-play mr-2"></i>{L('Iniciar teste', 'Start test')}
         </button>
@@ -327,12 +328,12 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     );
   }
 
-  // ── DESCENDING / ASCENDING ──
   if (phase === 'descending' || phase === 'ascending') {
     const notes = phase === 'descending' ? DESC_NOTES : ASC_NOTES;
     const note = notes[currentNoteIdx] ?? notes[0];
     const label = phase === 'descending' ? L('Descendo a escala', 'Going down') : L('Subindo a escala', 'Going up');
     const totalInPhase = notes.length;
+    const singText = getSingPhaseText();
 
     return (
       <div className="space-y-5 pb-8">
@@ -343,8 +344,11 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
           </div>
         </div>
 
-        {/* Current note — big */}
-        <div className={`card p-8 text-center transition-all ${hitFlash === 'hit' ? 'border-green-400/60 bg-green-500/10' : hitFlash === 'miss' ? 'border-red-400/60 bg-red-500/10' : ''}`}>
+        <div className={`card p-8 text-center transition-all ${
+          hitFlash === 'hit' ? 'border-green-400/60 bg-green-500/10' :
+          hitFlash === 'miss' ? 'border-red-400/60 bg-red-500/10' :
+          singPhase === 'sing' ? 'border-violet-400/40 bg-violet-500/5' : ''
+        }`}>
           <div className={`text-8xl font-black font-mono transition-colors ${
             hitFlash === 'hit' ? 'text-green-400' : hitFlash === 'miss' ? 'text-red-400' : 'text-white'
           }`}>
@@ -353,17 +357,10 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
           <div className={`text-xl font-mono mt-3 transition-colors ${
             hitFlash === 'hit' ? 'text-green-400' : hitFlash === 'miss' ? 'text-red-400' : 'text-slate-400'
           }`}>
-            {showQuestion
-              ? (detectedByMic ? L('✓ Detectei sua voz!', '✓ Voice detected!') : L('🎤 Não detectei...', '🎤 Not detected...'))
-              : singPhase === 'listening' ? L('🔊 Ouça a nota...', '🔊 Listen...')
-              : singPhase === 'pause' ? L('⏸️ Prepare-se...', '⏸️ Get ready...')
-              : singPhase === 'sing' ? L('🎤 Agora cante!', '🎤 Sing now!')
-              : hitFlash === 'hit' ? '✓' : hitFlash === 'miss' ? '✗' : ''
-            }
+            {singText}
           </div>
         </div>
 
-        {/* Progress dots */}
         <div className="card p-4">
           <div className="flex justify-center gap-1.5 flex-wrap">
             {notes.map((n, i) => (
@@ -379,13 +376,12 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
           </div>
         </div>
 
-        {/* Question after detection or miss */}
         {showQuestion && (
           <div className="card p-5 space-y-3">
             <div className="text-center text-sm font-bold text-slate-200">
               {detectedByMic
                 ? L('Detectei que você cantou! Conseguiu manter a nota?', 'I heard you sing! Could you hold the note?')
-                : L('Não consegui detectar sua voz. Tente de novo ou pule.', "I couldn't detect your voice. Try again or skip.")}
+                : L('Não detectei sua voz. Tente de novo ou pule.', "I couldn't detect your voice. Try again or skip.")}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => handleAnswer(true)} className="btn-primary !bg-green-600 hover:!bg-green-500">
@@ -401,10 +397,9 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
           </div>
         )}
 
-        {/* Controls when waiting */}
         {!showQuestion && (
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => { pitch.stop(); setWaitingForSing(false); handleSkipNote(); }} className="btn-ghost">
+            <button onClick={handleSkipNote} className="btn-ghost">
               <i className="fas fa-forward mr-2"></i>{L('Pular', 'Skip')}
             </button>
             <button onClick={finishTest} className="btn-primary">
@@ -416,7 +411,6 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     );
   }
 
-  // ── RESULT ──
   if (phase === 'result' && lowestDetected != null && highestDetected != null) {
     const vt = classifyVoiceType(lowestDetected, highestDetected);
     const label = VOICE_LABELS[vt];
@@ -451,7 +445,6 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     );
   }
 
-  // ── MANUAL SELECT ──
   if (phase === 'manual') {
     const voiceTypes: VoiceType[] = ['soprano', 'mezzo', 'alto', 'tenor', 'baritone', 'bass'];
     return (
