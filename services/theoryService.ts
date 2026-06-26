@@ -80,6 +80,13 @@ export const INTERVALS: Record<string, { name: string; semitones: number }> = {
   octave:       { name: 'Octave',           semitones: 12 },
   min9:         { name: 'Minor 9th',        semitones: 13 },
   maj9:         { name: 'Major 9th',        semitones: 14 },
+  min10:        { name: 'Minor 10th',       semitones: 15 },
+  maj10:        { name: 'Major 10th',       semitones: 16 },
+  p11:          { name: 'Perfect 11th',     semitones: 17 },
+  aug11:        { name: 'Augmented 11th',   semitones: 18 },
+  p12:          { name: 'Perfect 12th',     semitones: 19 },
+  min13:        { name: 'Minor 13th',       semitones: 20 },
+  maj13:        { name: 'Major 13th',       semitones: 21 },
 };
 
 // ── Build scale degrees at a root ──
