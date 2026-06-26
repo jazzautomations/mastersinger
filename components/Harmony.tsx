@@ -63,7 +63,7 @@ interface TriadsProps { lang: 'pt-BR' | 'en'; a4: number; }
 function TriadsExplorer({ lang, a4 }: TriadsProps) {
   const [rootPc, setRootPc] = useState(0);
   const [chordType, setChordType] = useState('major');
-  const rootMidi = 48 + rootPc; // C3 + pitch class offset
+  const rootMidi = 60 + rootPc; // C4 + pitch class offset
   const chord = CHORD_TYPES[chordType];
 
   // Stop all audio when navigating away

@@ -274,6 +274,7 @@ export function stopDrone(): void {
 
 /**
  * Silence everything: bump generation, cancel timeouts, release synths.
+ * Disposes the PolySynth to guarantee all old voices are gone.
  */
 export function stopAll(): void {
   playbackGen++;
@@ -282,14 +283,19 @@ export function stopAll(): void {
   }
   scheduledTimeouts.clear();
 
+  // Dispose the PolySynth so old sustaining voices are completely gone.
+  // A fresh one is created on next play via ensureSynth().
   try {
-    if (synth) synth.releaseAll();
+    if (synth) {
+      synth.dispose();
+      synth = null;
+    }
   } catch {}
   try {
     if (monoSynth) monoSynth.triggerRelease();
   } catch {}
 
-  // Stop all individual synths immediately
+  // Stop all individual synths (from playNote)
   for (const s of activeSynths) {
     try { s.triggerRelease(); } catch {}
     try { s.dispose(); } catch {}
