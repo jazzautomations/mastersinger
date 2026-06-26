@@ -99,10 +99,19 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         const centsDeviation = Math.abs((frame.midi - target.midi) * 100);
         setNoteCents(Math.round((frame.midi - target.midi) * 100));
 
+        const roundedDetected = Math.round(frame.midi);
+        const roundedTarget = Math.round(target.midi);
+
+        // Octave fallback: singer may be +/– one octave off
+        const octaveMatch = roundedDetected === roundedTarget + 12 ||
+          roundedDetected === roundedTarget - 12;
+
         // Primary check: within tolerance by cents (most reliable)
         // Secondary check: rounded semitone matches (catches wider tolerance)
+        // Tertiary check: same note name in wrong octave
         const onTarget = centsDeviation < CENTS_TOLERANCE ||
-          Math.round(frame.midi) === Math.round(target.midi);
+          roundedDetected === roundedTarget ||
+          octaveMatch;
 
         if (onTarget) {
           hitStreakRef.current++;

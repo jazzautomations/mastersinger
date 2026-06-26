@@ -21,8 +21,8 @@ let droneFreq = 0;
 
 const scheduledTimeouts = new Set<number>();
 
-// Individual synths for chord playback (bypassing PolySynth's unreliable release)
-const chordSynths = new Set<Tone.Synth>();
+// Individual synths (bypassing PolySynth's unreliable release)
+const activeSynths = new Set<Tone.Synth>();
 
 let limiter: Tone.Limiter | null = null;
 function ensureMaster(): Tone.Gain {
@@ -33,15 +33,22 @@ function ensureMaster(): Tone.Gain {
   return master;
 }
 
-function ensureSynth(): Tone.PolySynth {
-  if (!synth) {
+function ensureFx(): Tone.FeedbackDelay {
+  if (!fx) {
     const out = ensureMaster();
     fx = new Tone.FeedbackDelay({ delayTime: 0.18, feedback: 0.18, wet: 0.12 }).connect(out);
+  }
+  return fx;
+}
+
+function ensureSynth(): Tone.PolySynth {
+  if (!synth) {
+    const delay = ensureFx();
     synth = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'sine' },
       envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.3 },
       volume: -3,
-    }).connect(fx);
+    }).connect(delay);
     synth.maxPolyphony = 8;
   }
   return synth;
@@ -122,18 +129,32 @@ export function isPlaybackActive(token: number): boolean {
 export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 = 440): void {
   try {
     resumeIfSuspended();
-    const s = ensureSynth();
-    // Restore master gain if it was muted by stopAll
-    if (master) master.gain.value = 1.6;
     const freq = midiToFrequency(midi, a4);
     const durSec = Math.max(0.05, durationMs / 1000);
     const token = playbackGen;
+
+    // Restore master gain if it was muted by stopAll
+    if (master) master.gain.value = 1.6;
 
     const doPlay = () => {
       if (!isPlaybackActive(token)) return;
       try {
         resumeIfSuspended();
+        const s = new Tone.Synth({
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.3 },
+          volume: -3,
+        }).connect(ensureFx());
+
         s.triggerAttackRelease(freq, durSec);
+        activeSynths.add(s);
+
+        // Auto-cleanup ~500ms after note should have ended
+        const cleanupId = window.setTimeout(() => {
+          activeSynths.delete(s);
+          try { s.dispose(); } catch {}
+        }, durSec * 1000 + 500);
+        scheduledTimeouts.add(cleanupId);
       } catch (e) {
         console.warn('[AudioService] playNote failed:', e);
       }
@@ -157,11 +178,13 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
 export function playChord(midis: number[], durationMs: number, a4 = 440): void {
   try {
     resumeIfSuspended();
-    const out = ensureMaster();
     const durSec = Math.max(0.05, durationMs / 1000);
 
     // Restore master gain if it was muted by stopAll
     if (master) master.gain.value = 1.6;
+
+    // Route through the FeedbackDelay fx for warmth (same chain as PolySynth)
+    const delay = ensureFx();
 
     // Use individual Tone.Synth per note (no PolySynth) so each
     // triggerAttackRelease schedules its own reliable release.
@@ -170,14 +193,14 @@ export function playChord(midis: number[], durationMs: number, a4 = 440): void {
         oscillator: { type: 'sine' },
         envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.3 },
         volume: -3,
-      }).connect(out);
+      }).connect(delay);
 
       s.triggerAttackRelease(midiToFrequency(m, a4), durSec);
-      chordSynths.add(s);
+      activeSynths.add(s);
 
       // Auto-cleanup ~500ms after note should have ended
       const cleanupId = window.setTimeout(() => {
-        chordSynths.delete(s);
+        activeSynths.delete(s);
         try { s.dispose(); } catch {}
       }, durSec * 1000 + 500);
       scheduledTimeouts.add(cleanupId);
@@ -282,12 +305,12 @@ export function stopAll(): void {
     if (monoSynth) monoSynth.triggerRelease();
   } catch {}
 
-  // Stop all individual chord synths immediately
-  for (const s of chordSynths) {
+  // Stop all individual synths immediately
+  for (const s of activeSynths) {
     try { s.triggerRelease(); } catch {}
     try { s.dispose(); } catch {}
   }
-  chordSynths.clear();
+  activeSynths.clear();
 
   droneFreq = 0;
 

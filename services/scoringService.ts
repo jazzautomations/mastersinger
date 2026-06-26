@@ -67,7 +67,13 @@ export function scoreExercise(
     //    because you're effectively singing the wrong note). Robust to brief
     //    slips via the median. ──
     const targetMidi = target.midi;
-    const deviations = framesInWindow.map(f => Math.abs(f.midi - targetMidi) * 100);
+    const deviations = framesInWindow.map(f => {
+      // Octave fallback: allow ±12 semitones for same note in wrong octave
+      const direct = Math.abs(f.midi - targetMidi) * 100;
+      const up = Math.abs(f.midi - (targetMidi + 12)) * 100;
+      const down = Math.abs(f.midi - (targetMidi - 12)) * 100;
+      return Math.min(direct, up, down);
+    });
     const medDev = median(deviations);
     const accuracy = Math.max(0, Math.min(100, 100 * Math.max(0, 1 - Math.pow(medDev / 50, 1.5))));
     totalAccuracy += accuracy;

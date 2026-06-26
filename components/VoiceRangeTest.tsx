@@ -95,9 +95,14 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
       if (idx >= notes.length) return;
 
       const targetMidi = notes[idx];
-      const semitoneDiff = Math.abs(Math.round(frame.midi) - targetMidi);
+      const roundedMidi = Math.round(frame.midi);
+      const semitoneDiff = Math.abs(roundedMidi - targetMidi);
 
-      if (semitoneDiff <= 1) {
+      // Octave fallback: same note in wrong octave
+      const octaveMatch = roundedMidi === targetMidi + 12 ||
+        roundedMidi === targetMidi - 12;
+
+      if (semitoneDiff === 0 || octaveMatch) {
         hitStreakRef.current++;
       } else {
         hitStreakRef.current = 0;
