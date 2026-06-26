@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { detectPitchYin } from '../audio/yin';
+import { detectPitch } from '../audio/detection';
 import { PitchSmoother } from '../audio/pitchSmoothing';
 import { frequencyToMidi, midiToNoteName, midiToCents } from '../services/theoryService';
 import type { PitchFrame } from '../types';
@@ -141,7 +141,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       }
     }
 
-    const result = detectPitchYin(
+    const result = detectPitch(
       bufferRef.current,
       audioContextRef.current?.sampleRate ?? 44100,
       thresholdRef.current,

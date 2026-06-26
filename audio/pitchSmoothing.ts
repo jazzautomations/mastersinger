@@ -110,9 +110,9 @@ export class PitchSmoother {
       const ref = median(this.history);
       if (ref > 0) {
         const ratio = freq / ref;
-        if (ratio > 1.94 && ratio < 2.04) freq = freq / 2;
-        else if (ratio > 0.49 && ratio < 0.52) freq = freq * 2;
-        else if (this.hasEma && (ratio > 2.04 || ratio < 0.49)) {
+        if (ratio > 1.97 && ratio < 2.03) freq = freq / 2;
+        else if (ratio > 0.485 && ratio < 0.515) freq = freq * 2;
+        else if (this.hasEma && (ratio > 2.03 || ratio < 0.485)) {
           // Wild outlier — trust the recent median rather than this frame,
           // but only while we were continuously tracking (hasEma). Right
           // after a silent gap the history is a stale reference kept only for
