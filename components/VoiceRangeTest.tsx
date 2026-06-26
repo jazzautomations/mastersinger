@@ -85,7 +85,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
       if (singPhaseRef.current !== 'sing') return;
       if (phaseRef.current !== 'descending' && phaseRef.current !== 'ascending') return;
       if (showQuestionRef.current) return;
-      if (frame.frequency <= 0 || frame.confidence < 0.35) {
+      if (frame.frequency <= 0 || frame.confidence < 0.25) {
         hitStreakRef.current = 0;
         return;
       }

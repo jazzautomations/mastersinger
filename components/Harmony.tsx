@@ -204,7 +204,7 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile, micS
     micSensitivity,
     noiseGate,
     onFrame: (frame) => {
-      if (frame.frequency > 0 && frame.confidence > 0.5) {
+      if (frame.frequency > 0 && frame.confidence > 0.35) {
         setUserMidi(Math.round(frame.midi));
         setUserCents(frame.cents);
       }

@@ -78,7 +78,7 @@ export function Recorder() {
       ctx.fillRect(0, 0, W, H);
 
       const frame = pitch.currentFrame;
-      const isVoiced = frame && frame.confidence > 0.35 && frame.frequency > 50;
+      const isVoiced = frame && frame.confidence > 0.25 && frame.frequency > 50;
 
       // Logo (top-left)
       ctx.fillStyle = 'rgba(255,255,255,0.9)';

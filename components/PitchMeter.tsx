@@ -43,7 +43,7 @@ export function PitchMeter({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[]>([]); // cents history, NaN for silence
 
-  const voiced = isListening && frame && frame.frequency > 0 && frame.confidence > 0.5;
+  const voiced = isListening && frame && frame.frequency > 0 && frame.confidence > 0.35;
   const cents = voiced ? frame!.cents : 0;
   const noteName = voiced ? frame!.noteName : '—';
   const freq = voiced ? frame!.frequency : 0;

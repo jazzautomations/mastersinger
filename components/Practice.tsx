@@ -97,7 +97,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
       const target = ex.targets[idx];
 
-      if (frame.frequency > 0 && frame.confidence > 0.35) {
+      if (frame.frequency > 0 && frame.confidence > 0.25) {
         // Check if on-target using cents deviation from target midi
         const centsDeviation = Math.abs((frame.midi - target.midi) * 100);
         setNoteCents(Math.round((frame.midi - target.midi) * 100));

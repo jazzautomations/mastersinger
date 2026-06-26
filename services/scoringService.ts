@@ -23,7 +23,7 @@ export function scoreExercise(
     return { score: 0, accuracyPct: 0, timingPct: 0, stabilityPct: 0, xpEarned: 0 };
   }
 
-  const voiced = userFrames.filter(f => f.frequency > 0 && f.confidence > 0.4);
+  const voiced = userFrames.filter(f => f.frequency > 0 && f.confidence > 0.3);
   if (voiced.length === 0) {
     return { score: 0, accuracyPct: 0, timingPct: 0, stabilityPct: 0, xpEarned: 0 };
   }

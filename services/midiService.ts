@@ -120,7 +120,7 @@ interface FrameLite { frequency: number; confidence: number; timestamp: number; 
 export function framesToNotes(
   frames: FrameLite[],
   a4 = 440,
-  minConfidence = 0.35,
+  minConfidence = 0.25,
   minNoteMs = 70,
   gapMs = 90,
 ): Note[] {

@@ -46,7 +46,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     maxFreq = 1200,
     threshold = 0.15,    // raised from 0.12 → less noise-triggering on cheap mics
     smoothing = true,
-    minConfidence = 0.30, // lowered from 0.45 → keeps needle alive on imperfect mics
+    minConfidence = 0.20, // calibrated for SWIPE clarity scale (YIN was 0.30)
     record = false,
     onFrame,
     micSensitivity = 0.5, // default balanced sensitivity
@@ -200,7 +200,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       // soft/edge-of-voiced frames still reach the transcriber, which then
       // applies its own median filter + segmentation. A higher gate here
       // would drop the attack and tail of every sung note.
-      if (result.frequency > 0 && result.confidence > 0.3) {
+      if (result.frequency > 0 && result.confidence > 0.2) {
         voicedStreakRef.current += 1;
         silentStreakRef.current = 0;
         const midi = frequencyToMidi(result.frequency, a4);

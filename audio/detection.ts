@@ -36,7 +36,7 @@ export function detectPitch(
       if (result && result.freq > 0) {
         return {
           frequency: result.freq,
-          confidence: result.clarity,
+          confidence: Math.min(1, result.clarity * 1.4),
           rms,
         };
       }

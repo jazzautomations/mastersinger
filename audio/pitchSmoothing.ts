@@ -36,7 +36,7 @@ const DEFAULTS: Required<PitchSmootherOptions> = {
   emaAlpha: 0.55,       // raised from 0.45 → more responsive, less lag on pitch changes
   maxOctaveJump: 0.5,
   a4: 440,
-  minConfidence: 0.30,  // lowered from 0.45 → accepts noisier frames from real mics
+  minConfidence: 0.20,  // calibrated for SWIPE clarity scale (YIN was 0.30)
   holdFrames: 3,        // hold the last pitch a touch longer through brief dips
 };
 
