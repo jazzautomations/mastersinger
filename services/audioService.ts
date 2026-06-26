@@ -183,28 +183,12 @@ export function playChord(midis: number[], durationMs: number, a4 = 440): void {
     // Restore master gain if it was muted by stopAll
     if (master) master.gain.value = 1.6;
 
-    // Route through the FeedbackDelay fx for warmth (same chain as PolySynth)
-    const delay = ensureFx();
-
-    // Use individual Tone.Synth per note (no PolySynth) so each
-    // triggerAttackRelease schedules its own reliable release.
-    midis.forEach(m => {
-      const s = new Tone.Synth({
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.3 },
-        volume: -3,
-      }).connect(delay);
-
-      s.triggerAttackRelease(midiToFrequency(m, a4), durSec);
-      activeSynths.add(s);
-
-      // Auto-cleanup ~500ms after note should have ended
-      const cleanupId = window.setTimeout(() => {
-        activeSynths.delete(s);
-        try { s.dispose(); } catch {}
-      }, durSec * 1000 + 500);
-      scheduledTimeouts.add(cleanupId);
-    });
+    // Use PolySynth for proper chord voicing (richer sound than individual synths).
+    // No releaseAll() before playing — it causes voice-stealing glitches.
+    // The master gain mute in stopAll() guarantees silence on stop.
+    const s = ensureSynth();
+    const freqs = midis.map(m => midiToFrequency(m, a4));
+    s.triggerAttackRelease(freqs, durSec);
   } catch (err) {
     console.warn('[AudioService] playChord failed:', err);
   }
