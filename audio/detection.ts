@@ -15,7 +15,7 @@ export function detectPitch(
   threshold: number = 0.15,
   minFreq: number = 60,
   maxFreq: number = 1200,
-  mode: DetectorMode = 'swipe',
+  mode: DetectorMode = 'yin',
 ): PitchResult {
   let sum = 0;
   for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];

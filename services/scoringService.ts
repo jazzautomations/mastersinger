@@ -64,10 +64,20 @@ export function scoreExercise(
     // ── Accuracy: median cents deviation via a NONLINEAR curve.
     //    This is the core of "precision". Within ±10 cents → near-perfect.
     //    ±25 cents → ~71%. Half-semitone (50 cents) → 0 (hard fail).
-    //    No octave equivalence — you sing the wrong octave, you miss the note.
+    //    Octave equivalence with penalty: singing the right note one octave
+    //    off is treated as ~20 cents error (not 0, not full 1200).
     //    Robust to brief slips via the median. ──
     const targetMidi = target.midi;
-    const deviations = framesInWindow.map(f => Math.abs(f.midi - targetMidi) * 100);
+    const deviations = framesInWindow.map(f => {
+      const raw = Math.abs(f.midi - targetMidi) * 100;
+      // Check for octave equivalence: within 50 cents of an octave multiple
+      const octaveCents = raw % 1200;
+      if (octaveCents < 50 || octaveCents > 1150) {
+        // Near an octave boundary — treat as ~20 cent error
+        return Math.min(raw, 20);
+      }
+      return raw;
+    });
     const medDev = median(deviations);
     const accuracy = Math.max(0, Math.min(100, 100 * Math.max(0, 1 - Math.pow(medDev / 50, 1.2))));
     totalAccuracy += accuracy;
