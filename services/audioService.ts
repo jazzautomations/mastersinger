@@ -4,9 +4,8 @@ import { midiToFrequency } from './theoryService';
 // ──────────────────────────────────────────────────────────────────────────
 // Audio engine for MasterSinger.
 //
-// Uses Tone.Transport for sample-accurate scheduling. All sequence playback
-// goes through Transport.schedule() which runs on the AudioContext clock,
-// not window.setTimeout (which has 4-16ms jitter and causes note stacking).
+// Uses setTimeout with generation-token cancellation. playScale uses
+// monoSynth with release-before-attack to prevent note stacking.
 // ──────────────────────────────────────────────────────────────────────────
 
 let synth: Tone.PolySynth | null = null;
@@ -18,8 +17,7 @@ let warmed = false;
 let playbackGen = 0;
 let droneFreq = 0;
 
-// Transport-scheduled event IDs for cancellation
-const transportEvents = new Set<number>();
+const scheduledTimeouts = new Set<number>();
 
 let limiter: Tone.Limiter | null = null;
 function ensureMaster(): Tone.Gain {
@@ -49,7 +47,7 @@ function ensureMonoSynth(): Tone.Synth {
     const out = ensureMaster();
     monoSynth = new Tone.Synth({
       oscillator: { type: 'triangle' },
-      envelope: { attack: 0.02, decay: 0.1, sustain: 0.6, release: 0.4 },
+      envelope: { attack: 0.02, decay: 0.1, sustain: 0.6, release: 0.15 },
       volume: -3,
     }).connect(out);
   }
@@ -111,9 +109,6 @@ export function isPlaybackActive(token: number): boolean {
   return token === playbackGen;
 }
 
-/**
- * Play a single note immediately (no scheduling).
- */
 export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 = 440): void {
   try {
     resumeIfSuspended();
@@ -122,14 +117,18 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
     const durSec = Math.max(0.05, durationMs / 1000);
 
     if (timeOffsetMs > 0) {
-      // Use Transport.schedule for precise timing instead of setTimeout
       const token = playbackGen;
-      const sec = timeOffsetMs / 1000;
-      const id = Tone.Transport.schedule((time) => {
+      const id = window.setTimeout(() => {
+        scheduledTimeouts.delete(id);
         if (!isPlaybackActive(token)) return;
-        s.triggerAttackRelease(freq, durSec, time);
-      }, `+${sec}`);
-      transportEvents.add(id);
+        try {
+          resumeIfSuspended();
+          s.triggerAttackRelease(freq, durSec);
+        } catch (e) {
+          console.warn('[AudioService] Scheduled note failed:', e);
+        }
+      }, timeOffsetMs);
+      scheduledTimeouts.add(id);
       return;
     }
 
@@ -162,45 +161,48 @@ export function playSequence(midis: number[], noteDurationMs: number, gapMs = 50
 /**
  * Play a scale/arpeggio: monophonic, one note at a time.
  * Releases previous note before attacking next — no stacking.
+ * Uses setTimeout chain with generation-token cancellation.
  */
 export function playScale(midis: number[], noteDurationMs: number, a4 = 440): void {
   resumeIfSuspended();
   const s = ensureMonoSynth();
-  beginPlayback();
-  const token = playbackGen;
-  const noteSec = noteDurationMs / 1000;
-  const gapSec = 0.03; // 30ms gap between notes
+  const token = beginPlayback();
+  const noteMs = Math.max(80, noteDurationMs); // minimum 80ms per note
+  const gapMs = 20; // gap between notes for clean release
 
-  // Stop any previous drone/mono sound
+  // Release any sustaining note
   s.triggerRelease();
 
   midis.forEach((midi, i) => {
-    const sec = i * noteSec;
-    const id = Tone.Transport.schedule((time) => {
+    const delay = i * noteMs;
+    const id = window.setTimeout(() => {
+      scheduledTimeouts.delete(id);
       if (!isPlaybackActive(token)) {
-        s.triggerRelease(time);
+        s.triggerRelease();
         return;
       }
       const freq = midiToFrequency(midi, a4);
-      // Release previous, attack new
-      s.triggerRelease(time);
-      s.triggerAttack(freq, time);
-      // Schedule release for this note (except last)
+      // Release previous, then attack new
+      s.triggerRelease();
+      s.triggerAttack(freq);
+      // Schedule release (except last note)
       if (i < midis.length - 1) {
-        const releaseTime = time + noteSec - gapSec;
-        s.triggerRelease(releaseTime);
+        const releaseId = window.setTimeout(() => {
+          scheduledTimeouts.delete(releaseId);
+          if (isPlaybackActive(token)) s.triggerRelease();
+        }, noteMs - gapMs);
+        scheduledTimeouts.add(releaseId);
       } else {
-        // Last note: hold briefly then release
-        s.triggerRelease(time + noteSec * 0.8);
+        // Last note: hold then release
+        const releaseId = window.setTimeout(() => {
+          scheduledTimeouts.delete(releaseId);
+          s.triggerRelease();
+        }, noteMs * 0.7);
+        scheduledTimeouts.add(releaseId);
       }
-    }, `+${sec}`);
-    transportEvents.add(id);
+    }, delay);
+    scheduledTimeouts.add(id);
   });
-
-  // Start Transport if not already running
-  if (Tone.Transport.state !== 'started') {
-    Tone.Transport.start();
-  }
 }
 
 export function playDrone(midi: number, a4 = 440): Tone.Synth | null {
@@ -227,20 +229,15 @@ export function stopDrone(): void {
 }
 
 /**
- * Silence everything: bump generation, cancel Transport events, release synths.
+ * Silence everything: bump generation, cancel timeouts, release synths.
  */
 export function stopAll(): void {
   try {
     playbackGen++;
-    // Cancel all Transport-scheduled events
-    for (const id of transportEvents) {
-      Tone.Transport.clear(id);
+    for (const id of scheduledTimeouts) {
+      clearTimeout(id);
     }
-    transportEvents.clear();
-    // Stop Transport (will be restarted by next playScale)
-    Tone.Transport.stop();
-    Tone.Transport.position = 0;
-    // Release all voices
+    scheduledTimeouts.clear();
     if (synth) synth.releaseAll();
     if (monoSynth) {
       monoSynth.triggerRelease();
@@ -249,7 +246,7 @@ export function stopAll(): void {
   } catch (err) {
     console.warn('[AudioService] stopAll failed:', err);
     playbackGen++;
-    transportEvents.clear();
+    scheduledTimeouts.clear();
     droneFreq = 0;
   }
 }
