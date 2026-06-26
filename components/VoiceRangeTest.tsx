@@ -49,6 +49,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
   const phaseRef = useRef<TestPhase>(phase);
   const detectedNotesRef = useRef<number[]>([]);
   const hitStreakRef = useRef(0);
+  const listenTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
@@ -100,19 +101,21 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     setShowQuestion(false);
     setWaitingForSing(false);
 
-    // 1. Stop mic FIRST — must be silent while reference plays
+    // 1. Stop mic + silence everything FIRST
     pitch.stop();
+    stopAll();
 
     // 2. Play reference note (mic is OFF, so no bleed)
     await ensureAudioStarted();
     playNote(notes[idx], 400, 0, a4);
 
     // 3. Wait for note to finish playing + decay (400ms + 300ms buffer)
-    setTimeout(async () => {
+    const listenTimeout = window.setTimeout(async () => {
       // 4. NOW turn on mic — reference is done, only user's voice
       setWaitingForSing(true);
       await pitch.start();
     }, 700);
+    listenTimeoutRef.current = listenTimeout;
   }, [a4, pitch]);
 
   const handleStartTest = async () => {
@@ -121,6 +124,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     currentNoteIdxRef.current = 0;
     setNoteStatuses(new Array(DESC_NOTES.length).fill('pending'));
     setPhase('descending');
+    stopAll();
     setTimeout(() => playReferenceAndListen(), 300);
   };
 
@@ -128,9 +132,13 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     const notes = phaseRef.current === 'descending' ? DESC_NOTES : ASC_NOTES;
     const idx = currentNoteIdxRef.current;
 
-    // Stop mic immediately
+    // Stop mic + cancel pending mic start
     pitch.stop();
     setWaitingForSing(false);
+    if (listenTimeoutRef.current != null) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
 
     if (hit) {
       detectedNotesRef.current.push(notes[idx]);
@@ -171,9 +179,14 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     const notes = phaseRef.current === 'descending' ? DESC_NOTES : ASC_NOTES;
     const idx = currentNoteIdxRef.current;
 
-    // Stop mic
+    // Stop mic + cancel pending mic start + stop audio
     pitch.stop();
     setWaitingForSing(false);
+    stopAll();
+    if (listenTimeoutRef.current != null) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
 
     setNoteStatuses(prev => { const n = [...prev]; n[idx] = 'miss'; return n; });
     setHitFlash('miss');
@@ -249,7 +262,11 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
   const L = (pt: string, en: string) => (lang === 'pt-BR' ? pt : en);
 
   useEffect(() => {
-    return () => { pitch.stop(); stopAll(); };
+    return () => {
+      pitch.stop();
+      stopAll();
+      if (listenTimeoutRef.current != null) clearTimeout(listenTimeoutRef.current);
+    };
   }, []);
 
   // ── INTRO ──

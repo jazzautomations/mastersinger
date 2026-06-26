@@ -132,6 +132,8 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
       return;
     }
 
+    // Release any sustaining notes first to prevent stacking
+    s.releaseAll();
     s.triggerAttackRelease(freq, durSec);
   } catch (err) {
     console.warn('[AudioService] playNote failed:', err);
