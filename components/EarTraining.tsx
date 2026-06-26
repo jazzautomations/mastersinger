@@ -19,7 +19,7 @@ export function EarTraining() {
   const [streak, setStreak] = useState(0);
   const noteTimersRef = useRef<number[]>([]);
   const a4Ref = useRef(a4);
-  a4Ref.current = a4;
+  useEffect(() => { a4Ref.current = a4; }, [a4]);
 
   const clearTimers = () => {
     noteTimersRef.current.forEach(id => clearTimeout(id));
@@ -154,8 +154,8 @@ export function EarTraining() {
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-black display tracking-tight">{t(lang, types.find(x => x.type === selectedType)!.titleKey)}</h1>
-          <div className="text-xs text-slate-400 font-mono">{lang === 'pt-BR' ? 'Sequência' : 'Streak'}: {streak} 🔥</div>
+          <h1 className="text-xl font-black display tracking-tight">{t(lang, types.find(x => x.type === selectedType)?.titleKey ?? 'ear.title')}</h1>
+          <div className="text-xs text-slate-400 font-mono">{t(lang, 'ear.streak')}: {streak} 🔥</div>
         </div>
         <button onClick={() => { setSelectedType(null); setQuestion(null); setStreak(0); }} className="btn-ghost">
           {t(lang, 'common.back')}
@@ -194,9 +194,9 @@ export function EarTraining() {
               </div>
               {showResult && question.optionAudios?.[opt] && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); playOption(opt); }}
+                  onClick={(e) => { e.stopPropagation(); void playOption(opt); }}
                   className="shrink-0 w-9 h-9 rounded-lg bg-white/10 hover:bg-violet-500/30 flex items-center justify-center active:scale-95"
-                  title={lang === 'pt-BR' ? 'Ouvir esta alternativa' : 'Play this option'}
+                  title={t(lang, 'ear.playOption')}
                 >
                   <i className="fas fa-volume-up text-cyan-300"></i>
                 </button>
@@ -216,10 +216,10 @@ export function EarTraining() {
             <div className="text-sm text-violet-400">+{question.xp} XP</div>
           )}
           {selectedAnswer !== question.answer && (
-            <div className="text-xs text-slate-400">{lang === 'pt-BR' ? 'Toque no 🔊 de cada alternativa pra ouvir a diferença e gravar.' : 'Tap 🔊 on each option to hear the difference and learn.'}</div>
+            <div className="text-xs text-slate-400">{t(lang, 'ear.tapToLearn')}</div>
           )}
           <button onClick={next} className="btn-primary mx-auto">
-            {lang === 'pt-BR' ? 'Próxima pergunta' : 'Next question'} <i className="fas fa-arrow-right ml-2"></i>
+            {t(lang, 'ear.nextQuestion')} <i className="fas fa-arrow-right ml-2"></i>
           </button>
         </div>
       )}

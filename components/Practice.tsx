@@ -69,11 +69,14 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const noteStartTimeRef = useRef(0);
   // Track real timestamps for scoring
   const noteRealStartRef = useRef<number[]>([]);
+  // Ref for noteResults to avoid stale closures in endExercise
+  const noteResultsRef = useRef<NoteResult[]>([]);
 
   useEffect(() => { currentExerciseRef.current = currentExercise; }, [currentExercise]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { playGuideRef.current = playGuide; }, [playGuide]);
   useEffect(() => { currentNoteIdxRef.current = currentNoteIdx; }, [currentNoteIdx]);
+  useEffect(() => { noteResultsRef.current = noteResults; }, [noteResults]);
 
   const pitch = usePitchDetection({
     a4,
@@ -92,13 +95,16 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
       const target = ex.targets[idx];
 
       if (frame.frequency > 0 && frame.confidence > 0.35) {
-        // Check if on-target: round to nearest semitone and compare
-        const targetMidi = Math.round(target.midi);
-        const sungMidi = Math.round(frame.midi);
+        // Check if on-target using cents deviation from target midi
         const centsDeviation = Math.abs((frame.midi - target.midi) * 100);
         setNoteCents(Math.round((frame.midi - target.midi) * 100));
 
-        if (sungMidi === targetMidi && centsDeviation < CENTS_TOLERANCE) {
+        // Primary check: within tolerance by cents (most reliable)
+        // Secondary check: rounded semitone matches (catches wider tolerance)
+        const onTarget = centsDeviation < CENTS_TOLERANCE ||
+          Math.round(frame.midi) === Math.round(target.midi);
+
+        if (onTarget) {
           hitStreakRef.current++;
         } else {
           hitStreakRef.current = 0;
@@ -127,10 +133,11 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     if (!ex) return;
     const idx = currentNoteIdxRef.current;
 
-    // Record result
+    // Record result (both state and ref for stale-closure safety)
     setNoteResults(prev => {
       const next = [...prev];
       next[idx] = result;
+      noteResultsRef.current = next;
       return next;
     });
 
@@ -162,10 +169,13 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     const ex = currentExerciseRef.current;
     if (!ex) return;
 
+    // Use ref to avoid stale closure on noteResults
+    const currentNoteResults = noteResultsRef.current;
+
     // Build synthetic frames for scoring based on note results + real timestamps
     const syntheticFrames: PitchFrame[] = [];
     ex.targets.forEach((target, i) => {
-      const res = noteResults[i] ?? 'miss';
+      const res = currentNoteResults[i] ?? 'miss';
       const start = noteRealStartRef.current[i] ?? 0;
       if (res === 'hit') {
         // Generate a few frames at the target pitch
@@ -206,7 +216,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     if (newStreak >= 3 && !p.badges.includes('streak-3')) unlockBadge('streak-3');
     if (newStreak >= 7 && !p.badges.includes('streak-7')) unlockBadge('streak-7');
     if (newStreak >= 30 && !p.badges.includes('streak-30')) unlockBadge('streak-30');
-  }, [a4, noteResults, pitch, recordResult, touchStreak, unlockBadge]);
+  }, [a4, pitch, recordResult, touchStreak, unlockBadge]);
 
   // ── Daily-challenge queue init ──
   useEffect(() => {
@@ -294,6 +304,8 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setExerciseQueue([]);
     setAllResults([]);
     setNoteResults([]);
+    noteResultsRef.current = [];
+    endedRef.current = false;
   };
 
   const tryAgain = () => {
@@ -302,6 +314,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     stopAll();
     setResult(null);
     setNoteResults([]);
+    noteResultsRef.current = [];
     endedRef.current = false;
     setPhase('ready');
   };
@@ -316,6 +329,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setCurrentIdx(currentIdx + 1);
     setResult(null);
     setNoteResults([]);
+    noteResultsRef.current = [];
     endedRef.current = false;
     setPhase('ready');
   };

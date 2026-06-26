@@ -95,7 +95,8 @@ export function MelodyStudio() {
 
   // ── Coordinate mapping (scroll-safe via getBoundingClientRect) ──
   const toCoords = (e: React.PointerEvent | React.MouseEvent) => {
-    const canvas = canvasRef.current!;
+    const canvas = canvasRef.current;
+    if (!canvas) return { tMs: 0, midi: 60, x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -107,7 +108,8 @@ export function MelodyStudio() {
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = rows * ROW_HEIGHT;
@@ -216,12 +218,17 @@ export function MelodyStudio() {
       return;
     }
     framesRef.current = [];
-    setNotes([]);
     setDuration(0);
     setSelectedNote(null);
     setLiveNote('');
     setIsRecording(true);
-    await pitch.start();
+    try {
+      await pitch.start();
+      setNotes([]); // Clear notes only after mic is confirmed working
+    } catch {
+      // If mic fails, revert recording state — don't lose existing notes
+      setIsRecording(false);
+    }
   };
 
   // ── Playback (Tone-scheduled = sample-accurate; rAF only drives the playhead) ──
@@ -231,6 +238,9 @@ export function MelodyStudio() {
     if (playTimerRef.current) { cancelAnimationFrame(playTimerRef.current); playTimerRef.current = null; }
     stopAll();
     await ensureAudioStarted();
+    // Clear both playback states before starting new one
+    setIsPlaying(false);
+    setPlayingLibId(null);
     if (libId) setPlayingLibId(libId); else setIsPlaying(true);
     setPlayheadMs(0);
     const startT = performance.now();
@@ -282,7 +292,7 @@ export function MelodyStudio() {
   };
 
   const handleSave = () => {
-    if (notes.length === 0) return;
+    if (notes.length === 0 || !savingName.trim()) return;
     const dur = notes.length > 0 ? Math.max(...notes.map(n => n.endTime)) : 0;
     saveMelody(savingName, notes, dur);
     setSavingName('');
@@ -576,7 +586,8 @@ export function MelodyStudio() {
 }
 
 function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '');
+  // Preserve Unicode letters/digits, strip only dangerous path characters
+  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim() || 'melody';
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

@@ -93,7 +93,7 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
     stepStartRef.current = performance.now();
 
     if (step.guide) playGuide(step.guide, step.durationMs);
-    if (step.tracksPitch && !pitch.isListening) pitch.start();
+    if (step.tracksPitch && !pitch.isListening) void pitch.start();
 
     const tick = () => {
       const el = performance.now() - stepStartRef.current;

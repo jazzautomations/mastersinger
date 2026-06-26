@@ -238,10 +238,10 @@ export function Settings() {
           {lang === 'pt-BR' ? 'Tessitura Vocal' : 'Voice Range'}
         </div>
         {showVoiceTest ? (
-          <VoiceRangeTest mode="settings" onComplete={() => setShowVoiceTest(false)} />
+          <VoiceRangeTest mode="settings" onComplete={() => setShowVoiceTest(false)} onSkip={() => setShowVoiceTest(false)} />
         ) : (
           <>
-            {profile.range.voiceType && profile.range.voiceType !== 'unknown' ? (
+            {profile.range?.voiceType && profile.range.voiceType !== 'unknown' ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center text-xl">

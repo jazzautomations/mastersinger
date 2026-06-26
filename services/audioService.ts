@@ -6,6 +6,8 @@ import { midiToFrequency } from './theoryService';
 //
 // Uses setTimeout with generation-token cancellation. playScale uses
 // monoSynth with release-before-attack to prevent note stacking.
+// Chords use individual Tone.Synth instances (not PolySynth) to avoid
+// PolySynth's unreliable releaseAll behavior.
 // ──────────────────────────────────────────────────────────────────────────
 
 let synth: Tone.PolySynth | null = null;
@@ -18,6 +20,9 @@ let playbackGen = 0;
 let droneFreq = 0;
 
 const scheduledTimeouts = new Set<number>();
+
+// Individual synths for chord playback (bypassing PolySynth's unreliable release)
+const chordSynths = new Set<Tone.Synth>();
 
 let limiter: Tone.Limiter | null = null;
 function ensureMaster(): Tone.Gain {
@@ -57,7 +62,9 @@ function ensureMonoSynth(): Tone.Synth {
 function resumeIfSuspended(): void {
   const ctx = Tone.getContext();
   if (ctx.state !== 'running') {
-    ctx.resume().catch(() => {});
+    Tone.start().catch(() => {
+      console.warn('[AudioService] Could not resume audio context. Try interacting with the page first.');
+    });
   }
 }
 
@@ -69,6 +76,8 @@ export async function ensureAudioStarted(): Promise<void> {
     }
     ensureSynth();
     ensureMonoSynth();
+    // Restore master gain if it was muted by stopAll
+    if (master) master.gain.rampTo(1.6, 0.02);
     warmed = true;
   } catch (err) {
     console.error('[AudioService] Failed to start audio context:', err);
@@ -77,10 +86,11 @@ export async function ensureAudioStarted(): Promise<void> {
       await Tone.start();
       ensureSynth();
       ensureMonoSynth();
+      if (master) master.gain.rampTo(1.6, 0.02);
       warmed = true;
     } catch (retryErr) {
       console.error('[AudioService] Retry also failed:', retryErr);
-      throw new Error('Could not start audio. Please allow microphone access and try again.');
+      throw new Error('Could not start audio. Please interact with the page (click/tap) and try again.');
     }
   }
 }
@@ -96,9 +106,9 @@ export function warmAudioOnUserGesture(): void {
     window.removeEventListener('keydown', unlock);
     window.removeEventListener('touchstart', unlock);
   };
-  window.addEventListener('pointerdown', unlock, { once: false });
-  window.addEventListener('keydown', unlock, { once: false });
-  window.addEventListener('touchstart', unlock, { once: false });
+  window.addEventListener('pointerdown', unlock, { once: true });
+  window.addEventListener('keydown', unlock, { once: true });
+  window.addEventListener('touchstart', unlock, { once: true });
 }
 
 export function beginPlayback(): number {
@@ -113,6 +123,8 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
   try {
     resumeIfSuspended();
     const s = ensureSynth();
+    // Restore master gain if it was muted by stopAll
+    if (master) master.gain.value = 1.6;
     const freq = midiToFrequency(midi, a4);
     const durSec = Math.max(0.05, durationMs / 1000);
     const token = playbackGen;
@@ -121,11 +133,7 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
       if (!isPlaybackActive(token)) return;
       try {
         resumeIfSuspended();
-        s.triggerAttack(freq);
-        setTimeout(() => {
-          if (!isPlaybackActive(token)) return;
-          try { s.triggerRelease(freq); } catch (_) {}
-        }, durSec * 1000);
+        s.triggerAttackRelease(freq, durSec);
       } catch (e) {
         console.warn('[AudioService] playNote failed:', e);
       }
@@ -149,9 +157,31 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
 export function playChord(midis: number[], durationMs: number, a4 = 440): void {
   try {
     resumeIfSuspended();
-    const s = ensureSynth();
-    const freqs = midis.map(m => midiToFrequency(m, a4));
-    s.triggerAttackRelease(freqs, durationMs / 1000);
+    const out = ensureMaster();
+    const durSec = Math.max(0.05, durationMs / 1000);
+
+    // Restore master gain if it was muted by stopAll
+    if (master) master.gain.value = 1.6;
+
+    // Use individual Tone.Synth per note (no PolySynth) so each
+    // triggerAttackRelease schedules its own reliable release.
+    midis.forEach(m => {
+      const s = new Tone.Synth({
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.3 },
+        volume: -3,
+      }).connect(out);
+
+      s.triggerAttackRelease(midiToFrequency(m, a4), durSec);
+      chordSynths.add(s);
+
+      // Auto-cleanup ~500ms after note should have ended
+      const cleanupId = window.setTimeout(() => {
+        chordSynths.delete(s);
+        try { s.dispose(); } catch {}
+      }, durSec * 1000 + 500);
+      scheduledTimeouts.add(cleanupId);
+    });
   } catch (err) {
     console.warn('[AudioService] playChord failed:', err);
   }
@@ -190,8 +220,7 @@ export function playScale(midis: number[], noteDurationMs: number, a4 = 440): vo
         return;
       }
       const freq = midiToFrequency(midi, a4);
-      // Release previous, then attack new
-      s.triggerRelease();
+      // Attack new note
       s.triggerAttack(freq);
       // Schedule release (except last note)
       if (i < midis.length - 1) {
@@ -204,7 +233,7 @@ export function playScale(midis: number[], noteDurationMs: number, a4 = 440): vo
         // Last note: hold then release
         const releaseId = window.setTimeout(() => {
           scheduledTimeouts.delete(releaseId);
-          s.triggerRelease();
+          if (isPlaybackActive(token)) s.triggerRelease();
         }, noteMs * 0.7);
         scheduledTimeouts.add(releaseId);
       }
@@ -240,21 +269,30 @@ export function stopDrone(): void {
  * Silence everything: bump generation, cancel timeouts, release synths.
  */
 export function stopAll(): void {
+  playbackGen++;
+  for (const id of scheduledTimeouts) {
+    clearTimeout(id);
+  }
+  scheduledTimeouts.clear();
+
   try {
-    playbackGen++;
-    for (const id of scheduledTimeouts) {
-      clearTimeout(id);
-    }
-    scheduledTimeouts.clear();
     if (synth) synth.releaseAll();
-    if (monoSynth) {
-      monoSynth.triggerRelease();
-      droneFreq = 0;
-    }
-  } catch (err) {
-    console.warn('[AudioService] stopAll failed:', err);
-    playbackGen++;
-    scheduledTimeouts.clear();
-    droneFreq = 0;
+  } catch {}
+  try {
+    if (monoSynth) monoSynth.triggerRelease();
+  } catch {}
+
+  // Stop all individual chord synths immediately
+  for (const s of chordSynths) {
+    try { s.triggerRelease(); } catch {}
+    try { s.dispose(); } catch {}
+  }
+  chordSynths.clear();
+
+  droneFreq = 0;
+
+  // Mute master gain — guaranteed silence
+  if (master) {
+    master.gain.value = 0;
   }
 }

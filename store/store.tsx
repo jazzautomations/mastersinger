@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, ReactNode } from 'react';
 import type { UserProfile, ExerciseResult, StudentLevel, Language, League, SavedMelody, Note, View } from '../types';
 import { todayISO, weekStartISO, classifyVoiceType } from '../services/theoryService';
 import { getSupabaseClient } from '../services/supabase';
@@ -55,7 +55,7 @@ interface StoreContextValue {
   syncStatus: SyncStatus;
   syncMessage: string | null;
   connectSupabase: () => Promise<boolean>;
-  disconnectSupabase: () => void;
+  disconnectSupabase: () => Promise<void>;
   forceSyncToSupabase: () => Promise<boolean>;
   // ── Monetização / entitlements ──
   subscription: Subscription | null;
@@ -133,15 +133,10 @@ function saveSyncEnabled(value: boolean) {
   } catch {}
 }
 
-function ensureSupabaseShape(profile: UserProfile, melodies: SavedMelody[]) {
-  return {
-    profile,
-    melodies,
-  };
-}
-
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
   const [melodies, setMelodies] = useState<SavedMelody[]>(() => loadMelodies());
   const [profileSaveFailed, setProfileSaveFailed] = useState(false);
   const [melodiesSaveFailed, setMelodiesSaveFailed] = useState(false);
@@ -164,9 +159,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const isTeacherByEmail = TEACHER_EMAILS.some(e => e.toLowerCase() === userEmail);
   const isTeacherFinal = isTeacher || isTeacherByEmail;
   const isPro = isSubscriptionActive(subscription) || isTeacherFinal;
-
-  // Log teacher detection in production for debugging (remove after verified)
-  console.log('[Teacher] email:', userEmail, 'isTeacherByEmail:', isTeacherByEmail, 'isTeacher:', isTeacher, 'isTeacherFinal:', isTeacherFinal, 'isPro:', isPro);
 
   const refreshSubscription = useCallback(async () => {
     if (!supabase || !supabaseUser) { setSubscription(null); setIsTeacher(false); return; }
@@ -236,6 +228,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (recent.length >= maxAttempts) return false;
     recent.push(now);
     authAttempts.current.set(email, recent);
+    // Clean up expired entries periodically (every 20 calls)
+    if (Math.random() < 0.05) {
+      for (const [key, times] of authAttempts.current) {
+        const valid = times.filter(t => now - t < window);
+        if (valid.length === 0) authAttempts.current.delete(key);
+        else authAttempts.current.set(key, valid);
+      }
+    }
     return true;
   }, []);
 
@@ -284,7 +284,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSyncStatus('syncing');
     setSyncMessage(null);
     try {
-      const payload = ensureSupabaseShape(nextProfile, nextMelodies);
+      const payload = { profile: nextProfile, melodies: nextMelodies };
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -306,14 +306,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [melodies, profile, supabase, supabaseUser]);
 
-  const hydrateFromSupabase = useCallback(async () => {
-    if (!supabase || !supabaseUser) return false;
+  const hydrateFromSupabase = useCallback(async (user?: SupabaseAuthUser | null) => {
+    const targetUser = user ?? supabaseUser;
+    if (!supabase || !targetUser) return false;
     try {
       setSyncStatus('syncing');
       const { data, error } = await supabase
         .from('profiles')
         .select('profile, melodies')
-        .eq('id', supabaseUser.id)
+        .eq('id', targetUser.id)
         .maybeSingle();
       if (error) throw error;
       if (data?.profile) {
@@ -356,9 +357,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
       const sessionUser = data.session?.user;
-      console.log('[Auth] getSession result:', sessionUser ? `user=${sessionUser.email}` : 'no session', error?.message ?? '');
       if (error) {
-        console.warn('[Auth] clearing invalid session:', error.message);
         void supabase.auth.signOut({ scope: 'local' });
         try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
         return;
@@ -368,20 +367,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // stale (user deleted on server). Validate against the server.
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData?.user) {
-          console.warn('[Auth] session invalid on server, clearing:', userError?.message ?? 'no user');
           void supabase.auth.signOut({ scope: 'local' });
           try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
           return;
         }
         console.log('[Auth] setting supabaseUser:', { id: userData.user.id, email: userData.user.email });
-        setSupabaseUser({ id: userData.user.id, email: userData.user.email });
+        const authUserData = { id: userData.user.id, email: userData.user.email };
+        setSupabaseUser(authUserData);
         setSyncEnabled(loadSyncEnabled());
         setSyncStatus(loadSyncEnabled() ? 'connected' : 'local');
+        // Hydrate from Supabase now that we have the user
+        if (loadSyncEnabled()) void hydrateRef.current(authUserData);
       }
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth] onAuthStateChange:', event, session?.user?.email ?? 'no user');
       if (event === 'SIGNED_OUT') {
         setSupabaseUser(null);
         setSubscription(null);
@@ -393,13 +393,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       const user = session?.user;
       if (user) {
-        console.log('[Auth] setting supabaseUser from onAuthStateChange:', { id: user.id, email: user.email });
-        setSupabaseUser({ id: user.id, email: user.email });
+        const authUserData = { id: user.id, email: user.email };
+        setSupabaseUser(authUserData);
         const enabled = loadSyncEnabled();
         setSyncEnabled(enabled);
         setSyncStatus(enabled ? 'connected' : 'local');
         saveSyncEnabled(enabled);
-        if (enabled) void hydrateRef.current();
+        if (enabled) void hydrateRef.current(authUserData);
         // Clean up any auth tokens from the URL after successful auth
         const h = window.location.hash;
         const q = window.location.search;
@@ -425,10 +425,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase]);
 
+  // Debounced sync to Supabase — avoids rapid-fire upserts on fast state changes
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!syncEnabled) return;
     if (!supabaseUser) return;
-    void syncToSupabase(profile, melodies);
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      void syncToSupabase(profile, melodies);
+    }, 1500);
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
   }, [melodies, profile, syncEnabled, syncToSupabase, supabaseUser]);
 
   const addXp = useCallback((xp: number) => {
@@ -469,19 +475,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [addXp]);
 
   const unlockBadge = useCallback((badgeId: string): boolean => {
-    let wasNew = false;
+    // Check current profile state (read from ref to avoid stale closure)
+    const current = profileRef.current;
+    if (current.badges.includes(badgeId)) return false;
     setProfile(prev => {
       if (prev.badges.includes(badgeId)) return prev;
-      wasNew = true;
       return { ...prev, badges: [...prev.badges, badgeId] };
     });
-    return wasNew;
+    return true;
   }, []);
 
   const updateRange = useCallback((lowest: number, highest: number) => {
     setProfile(prev => {
-      const newLow = Math.min(prev.range.lowestMidi ?? 127, lowest);
-      const newHigh = Math.max(prev.range.highestMidi ?? 0, highest);
+      const range = prev.range ?? {};
+      const newLow = Math.min(range.lowestMidi ?? 127, lowest);
+      const newHigh = Math.max(range.highestMidi ?? 0, highest);
       const voiceType = classifyVoiceType(newLow, newHigh);
       const rangeCenterMidi = Math.round((newLow + newHigh) / 2);
       return {
@@ -556,9 +564,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!Array.isArray(parsed.badges)) return false;
       if (!parsed.streak || typeof parsed.streak !== 'object') return false;
       if (!parsed.settings || typeof parsed.settings !== 'object') return false;
-      // Cap imported values to prevent cheating
-      parsed.level = Math.min(Math.max(1, Math.floor(parsed.level)), 99);
-      parsed.xp = Math.min(Math.max(0, Math.floor(parsed.xp)), 100000);
+      // Cap imported values to prevent cheating; validate against NaN
+      parsed.level = Number.isFinite(parsed.level) ? Math.min(Math.max(1, Math.floor(parsed.level)), 99) : 1;
+      parsed.xp = Number.isFinite(parsed.xp) ? Math.min(Math.max(0, Math.floor(parsed.xp)), 100000) : 0;
       parsed.badges = parsed.badges.filter((b: unknown) => typeof b === 'string').slice(0, 50);
       const next = { ...DEFAULT_PROFILE, ...parsed, settings: { ...DEFAULT_PROFILE.settings, ...parsed.settings } };
       setProfile(next);
@@ -611,20 +619,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return false;
   }, [supabase, supabaseUser]);
 
-  const disconnectSupabase = useCallback(() => {
+  const disconnectSupabase = useCallback(async () => {
+    if (supabase) {
+      try { await supabase.auth.signOut(); } catch { /* session may already be invalid */ }
+    }
     setSupabaseUser(null);
+    setSubscription(null);
     setSyncEnabled(false);
     saveSyncEnabled(false);
     setSyncStatus('local');
     setSyncMessage('Sincronização desligada.');
-  }, []);
+    try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
+  }, [supabase]);
 
   const forceSyncToSupabase = useCallback(async () => {
     return syncToSupabase(profile, melodies);
   }, [melodies, profile, syncToSupabase]);
 
   return (
-    <StoreContext.Provider value={{
+    <StoreContext.Provider value={useMemo(() => ({
       profile,
       addXp,
       recordResult,
@@ -663,7 +676,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signOut,
-    }}>
+    }), [profile, addXp, recordResult, completeLesson, unlockBadge, updateRange, updateSettings, resetProfile, touchStreak, setDailyChallenge, exportProfile, importProfile, storageWarning, melodies, saveMelody, deleteMelody, renameMelody, syncStatus, syncMessage, connectSupabase, disconnectSupabase, forceSyncToSupabase, subscription, isPro, isTeacherFinal, authUser, upgradeOpen, upgradeDefaultPlan, openUpgrade, closeUpgrade, canAccessView, canAccessCourse, canAccessExercise, refreshSubscription, signIn, signUp, signOut])}>
       {storageWarning && (
         <div className="fixed top-0 inset-x-0 z-[100] bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center shadow-lg pointer-events-none" role="alert" aria-live="assertive">
           ⚠ {storageWarning}
