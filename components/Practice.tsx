@@ -72,6 +72,8 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const exerciseStartRef = useRef(0);
   // Ref for noteResults to avoid stale closures in endExercise
   const noteResultsRef = useRef<NoteResult[]>([]);
+  // Track real cents deviation per note during the streak
+  const noteCentsRef = useRef<number[][]>([]);
 
   useEffect(() => { currentExerciseRef.current = currentExercise; }, [currentExercise]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
@@ -114,6 +116,9 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
         if (onTarget) {
           hitStreakRef.current++;
+          // Accumulate cents for this note's median
+          if (!noteCentsRef.current[idx]) noteCentsRef.current[idx] = [];
+          noteCentsRef.current[idx].push(Math.round((frame.midi - target.midi) * 100));
         } else {
           hitStreakRef.current = 0;
         }
@@ -188,13 +193,21 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
       const res = currentNoteResults[i] ?? 'miss';
       const start = noteRealStartRef.current[i] ?? 0;
       if (res === 'hit') {
-        // Generate a few frames at the target pitch
+        // Use median of real cents collected during streak, or 0 if none
+        const centsHistory = noteCentsRef.current[i] ?? [];
+        const sortedCents = [...centsHistory].sort((a, b) => a - b);
+        const mid = Math.floor(sortedCents.length / 2);
+        const realCents = sortedCents.length > 0
+          ? (sortedCents.length % 2 ? sortedCents[mid] : (sortedCents[mid - 1] + sortedCents[mid]) / 2)
+          : 0;
+        const realMidi = target.midi + realCents / 100;
+        const realFreq = target.midi > 0 ? 440 * Math.pow(2, (realMidi - 69) / 12) : 0;
         for (let j = 0; j < 10; j++) {
           syntheticFrames.push({
-            frequency: target.midi > 0 ? 440 * Math.pow(2, (target.midi - 69) / 12) : 0,
+            frequency: realFreq,
             confidence: 0.8,
-            cents: 0,
-            midi: target.midi,
+            cents: realCents,
+            midi: realMidi,
             noteName: midiToNoteName(Math.round(target.midi)),
             octave: Math.floor(target.midi / 12) - 1,
             timestamp: start + j * 16,
@@ -268,6 +281,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     hitStreakRef.current = 0;
     noteStartTimeRef.current = performance.now();
     setNoteResults(new Array(ex.targets.length).fill('pending'));
+    noteCentsRef.current = [];
     setPhase('listening');
 
     // NO audio during exercise — user listens before starting or uses headphones
@@ -319,6 +333,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setAllResults([]);
     setNoteResults([]);
     noteResultsRef.current = [];
+    noteCentsRef.current = [];
     endedRef.current = false;
   };
 
@@ -329,6 +344,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setResult(null);
     setNoteResults([]);
     noteResultsRef.current = [];
+    noteCentsRef.current = [];
     endedRef.current = false;
     setPhase('ready');
   };
@@ -344,6 +360,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setResult(null);
     setNoteResults([]);
     noteResultsRef.current = [];
+    noteCentsRef.current = [];
     endedRef.current = false;
     setPhase('ready');
   };

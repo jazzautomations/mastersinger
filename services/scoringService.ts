@@ -63,27 +63,22 @@ export function scoreExercise(
 
     // ── Accuracy: median cents deviation via a NONLINEAR curve.
     //    This is the core of "precision". Within ±10 cents → near-perfect.
-    //    ±25 cents (yellow) → ~65%. Half-semitone (50 cents) → 0 (hard fail,
-    //    because you're effectively singing the wrong note). Robust to brief
-    //    slips via the median. ──
+    //    ±25 cents → ~71%. Half-semitone (50 cents) → 0 (hard fail).
+    //    No octave equivalence — you sing the wrong octave, you miss the note.
+    //    Robust to brief slips via the median. ──
     const targetMidi = target.midi;
-    const deviations = framesInWindow.map(f => {
-      // Octave fallback: allow ±12 semitones for same note in wrong octave
-      const direct = Math.abs(f.midi - targetMidi) * 100;
-      const up = Math.abs(f.midi - (targetMidi + 12)) * 100;
-      const down = Math.abs(f.midi - (targetMidi - 12)) * 100;
-      return Math.min(direct, up, down);
-    });
+    const deviations = framesInWindow.map(f => Math.abs(f.midi - targetMidi) * 100);
     const medDev = median(deviations);
-    const accuracy = Math.max(0, Math.min(100, 100 * Math.max(0, 1 - Math.pow(medDev / 50, 1.5))));
+    const accuracy = Math.max(0, Math.min(100, 100 * Math.max(0, 1 - Math.pow(medDev / 50, 1.2))));
     totalAccuracy += accuracy;
 
     // ── Stability: MAD of cents (robust spread). ──
     const centsValues = framesInWindow.map(f => f.cents);
     const medCents = median(centsValues);
     const spread = mad(centsValues, medCents);
-    // MAD of 0 = 100%, MAD of 15 = 0% (1.5x stricter than stdDev equivalent)
-    const stability = Math.max(0, Math.min(100, 100 - spread * 6.7));
+    // MAD of 0 = 100%, MAD of ~22 = 0% (4.5x multiplier).
+    // More tolerant of natural vibrato (~10-15 cents MAD) than before.
+    const stability = Math.max(0, Math.min(100, 100 - spread * 4.5));
     totalStability += stability;
 
     // ── Timing: symmetric — how close was the FIRST voiced onset to the
@@ -111,8 +106,8 @@ export function scoreExercise(
   const timingPct = Math.round(totalTiming / n);
   const coveragePct = Math.round(totalCoverage / n);
 
-  // Weighted: accuracy 45%, stability 25%, timing 15%, coverage 15%
-  const score = Math.round(accuracyPct * 0.45 + stabilityPct * 0.25 + timingPct * 0.15 + coveragePct * 0.15);
+  // Weighted: accuracy 50%, stability 20%, timing 15%, coverage 15%
+  const score = Math.round(accuracyPct * 0.50 + stabilityPct * 0.20 + timingPct * 0.15 + coveragePct * 0.15);
   const xpEarned = Math.round(exercise.xp * (score / 100));
 
   return { score, accuracyPct, stabilityPct, timingPct, xpEarned };

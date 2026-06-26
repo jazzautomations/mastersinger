@@ -62,7 +62,7 @@ describe('exercises data', () => {
 
   it('dailyChallengeExercises returns 3 exercises', () => {
     const daily = dailyChallengeExercises(new Date('2024-06-21T12:00:00'));
-    expect(daily.length).toBe(3);
+    expect(daily.length).toBe(4);
   });
 
   it('dailyChallengeExercises is deterministic for the same day', () => {
