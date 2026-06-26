@@ -49,6 +49,8 @@ export function Onboarding({ onDone }: OnboardingProps) {
   };
 
   const handleNext = () => {
+    // Stop mic before VoiceRangeTest to avoid AudioContext conflict
+    if (step === 4) pitch.stop();
     if (step < totalSteps - 1) {
       setStep(step + 1);
     } else {
