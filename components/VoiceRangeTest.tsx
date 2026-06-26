@@ -44,12 +44,14 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
   const [showQuestion, setShowQuestion] = useState(false);
   const [detectedByMic, setDetectedByMic] = useState(false);
   const [waitingForSing, setWaitingForSing] = useState(false);
+  const [singPhase, setSingPhase] = useState<'listening' | 'pause' | 'sing'>('listening');
 
   const currentNoteIdxRef = useRef(0);
   const phaseRef = useRef<TestPhase>(phase);
   const detectedNotesRef = useRef<number[]>([]);
   const hitStreakRef = useRef(0);
   const listenTimeoutRef = useRef<number | null>(null);
+  const singTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
@@ -100,6 +102,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     setDetectedByMic(false);
     setShowQuestion(false);
     setWaitingForSing(false);
+    setSingPhase('listening');
 
     // 1. Stop mic + silence everything FIRST
     pitch.stop();
@@ -107,15 +110,22 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
 
     // 2. Play reference note (mic is OFF, so no bleed)
     await ensureAudioStarted();
-    playNote(notes[idx], 400, 0, a4);
+    playNote(notes[idx], 600, 0, a4);
 
-    // 3. Wait for note to finish playing + decay (400ms + 300ms buffer)
-    const listenTimeout = window.setTimeout(async () => {
-      // 4. NOW turn on mic — reference is done, only user's voice
+    // 3. After note ends → show "Pausa" for 1.5s (silence, user processes what they heard)
+    const pauseTimeout = window.setTimeout(() => {
+      setSingPhase('pause');
+    }, 650);
+
+    // 4. After pause → turn on mic + show "Agora cante!"
+    const singTimeout = window.setTimeout(async () => {
+      setSingPhase('sing');
       setWaitingForSing(true);
       await pitch.start();
-    }, 700);
-    listenTimeoutRef.current = listenTimeout;
+    }, 2150);
+
+    listenTimeoutRef.current = pauseTimeout;
+    singTimeoutRef.current = singTimeout;
   }, [a4, pitch]);
 
   const handleStartTest = async () => {
@@ -138,6 +148,10 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     if (listenTimeoutRef.current != null) {
       clearTimeout(listenTimeoutRef.current);
       listenTimeoutRef.current = null;
+    }
+    if (singTimeoutRef.current != null) {
+      clearTimeout(singTimeoutRef.current);
+      singTimeoutRef.current = null;
     }
 
     if (hit) {
@@ -186,6 +200,10 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     if (listenTimeoutRef.current != null) {
       clearTimeout(listenTimeoutRef.current);
       listenTimeoutRef.current = null;
+    }
+    if (singTimeoutRef.current != null) {
+      clearTimeout(singTimeoutRef.current);
+      singTimeoutRef.current = null;
     }
 
     setNoteStatuses(prev => { const n = [...prev]; n[idx] = 'miss'; return n; });
@@ -266,6 +284,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
       pitch.stop();
       stopAll();
       if (listenTimeoutRef.current != null) clearTimeout(listenTimeoutRef.current);
+      if (singTimeoutRef.current != null) clearTimeout(singTimeoutRef.current);
     };
   }, []);
 
@@ -334,10 +353,11 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
           <div className={`text-xl font-mono mt-3 transition-colors ${
             hitFlash === 'hit' ? 'text-green-400' : hitFlash === 'miss' ? 'text-red-400' : 'text-slate-400'
           }`}>
-            {waitingForSing
-              ? L('🎤 Ouça e cante esta nota...', '🎤 Listen and sing this note...')
-              : showQuestion
+            {showQuestion
               ? (detectedByMic ? L('✓ Detectei sua voz!', '✓ Voice detected!') : L('🎤 Não detectei...', '🎤 Not detected...'))
+              : singPhase === 'listening' ? L('🔊 Ouça a nota...', '🔊 Listen...')
+              : singPhase === 'pause' ? L('⏸️ Prepare-se...', '⏸️ Get ready...')
+              : singPhase === 'sing' ? L('🎤 Agora cante!', '🎤 Sing now!')
               : hitFlash === 'hit' ? '✓' : hitFlash === 'miss' ? '✗' : ''
             }
           </div>
