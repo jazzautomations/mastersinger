@@ -19,11 +19,9 @@ type Phase = 'select' | 'ready' | 'countdown' | 'listening' | 'result';
 type NoteResult = 'hit' | 'miss' | 'skip' | 'pending';
 
 // How many consecutive voiced frames within tolerance to count as "hit"
-const HIT_STREAK_NEEDED = 5; // ~280ms at 60fps
+const HIT_STREAK_NEEDED = 8; // ~500ms of sustained singing on target
 // Max cents deviation to count as on-target
-const CENTS_TOLERANCE = 50;
-// Timeout per note (ms)
-const NOTE_TIMEOUT_MS = 5000;
+const CENTS_TOLERANCE = 40;
 
 export function Practice({ preselectedExerciseIds, isDaily, onComplete }: PracticeProps) {
   const { profile, recordResult, touchStreak, unlockBadge, canAccessExercise, openUpgrade } = useStore();
@@ -69,7 +67,6 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const currentNoteIdxRef = useRef(0);
   const hitStreakRef = useRef(0);
   const noteStartTimeRef = useRef(0);
-  const noteTimeoutRef = useRef<number | null>(null);
   // Track real timestamps for scoring
   const noteRealStartRef = useRef<number[]>([]);
 
@@ -120,10 +117,6 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const clearAllTimers = () => {
     noteTimersRef.current.forEach(id => clearTimeout(id));
     noteTimersRef.current = [];
-    if (noteTimeoutRef.current) {
-      clearTimeout(noteTimeoutRef.current);
-      noteTimeoutRef.current = null;
-    }
   };
 
   const advanceNote = useCallback((result: NoteResult) => {
@@ -165,11 +158,6 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
     // Play the next target note as audio guide
     playNote(ex.targets[nextIdx].midi, 200, 0, a4);
-
-    // Set timeout for this note
-    noteTimeoutRef.current = window.setTimeout(() => {
-      advanceNote('miss');
-    }, NOTE_TIMEOUT_MS);
   }, [a4]);
 
   const endExercise = useCallback(() => {
@@ -274,11 +262,6 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
     // Play first target note as reference
     playNote(ex.targets[0].midi, 300, 0, a4);
-
-    // Start timeout for first note
-    noteTimeoutRef.current = window.setTimeout(() => {
-      advanceNote('miss');
-    }, NOTE_TIMEOUT_MS);
 
     // Audio guide — optional
     if (playGuideRef.current) {
@@ -449,7 +432,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
               </div>
             ))}
           </div>
-          <div className="text-[11px] text-slate-500">{L('Cante cada nota e avança automaticamente ao acertar.', 'Sing each note — advances automatically when you hit it.')}</div>
+          <div className="text-[11px] text-slate-500">{L('Cante cada nota — avança quando acertar. Pule se quiser.', 'Sing each note — advances when you hit it. Skip if you want.')}</div>
         </div>
         <button onClick={() => setPlayGuide(g => !g)} className={`card p-4 w-full text-left flex items-center gap-3 transition-all ${playGuide ? 'border-cyan-500/40' : ''}`}>
           <span className="text-xl">{playGuide ? '🔊' : '🔇'}</span>
@@ -502,7 +485,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           <div className={`text-2xl font-mono mt-2 transition-colors ${
             hitFlash === 'hit' ? 'text-green-400' : hitFlash === 'miss' ? 'text-red-400' : 'text-slate-400'
           }`}>
-            {hitFlash === 'hit' ? '✓ Acertou!' : hitFlash === 'miss' ? '✗ Errou' : noteCents > 0 ? `+${noteCents}ct` : noteCents < 0 ? `${noteCents}ct` : '🎤 Cante...'}
+            {hitFlash === 'hit' ? '✓ Acertou!' : hitFlash === 'miss' ? '✗ Errou' : noteCents > 0 ? `+${noteCents}ct` : noteCents < 0 ? `${noteCents}ct` : '🎤 Segure a nota...'}
           </div>
         </div>
 
