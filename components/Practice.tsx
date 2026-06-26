@@ -138,11 +138,6 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setHitFlash(result === 'hit' ? 'hit' : 'miss');
     setTimeout(() => setHitFlash(null), 400);
 
-    // Play the target note as reference on hit
-    if (result === 'hit') {
-      playNote(ex.targets[idx].midi, 300, 0, a4);
-    }
-
     const nextIdx = idx + 1;
     if (nextIdx >= ex.targets.length) {
       // Exercise complete
@@ -155,9 +150,6 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     currentNoteIdxRef.current = nextIdx;
     noteStartTimeRef.current = performance.now();
     noteRealStartRef.current[nextIdx] = performance.now();
-
-    // Play the next target note as audio guide
-    playNote(ex.targets[nextIdx].midi, 200, 0, a4);
   }, [a4]);
 
   const endExercise = useCallback(() => {
@@ -260,15 +252,8 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setNoteResults(new Array(ex.targets.length).fill('pending'));
     setPhase('listening');
 
-    // Play first target note as reference
-    playNote(ex.targets[0].midi, 300, 0, a4);
-
-    // Audio guide — optional
-    if (playGuideRef.current) {
-      const midis = ex.targets.map(t => t.midi);
-      const beatMs = ex.tempoBpm ? 60000 / ex.tempoBpm : 800;
-      playScale(midis, beatMs, a4);
-    }
+    // NO audio during exercise — user listens before starting or uses headphones
+    // The playGuide toggle is ignored during singing to prevent mic bleed
 
     await pitch.start();
   };
@@ -437,8 +422,8 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         <button onClick={() => setPlayGuide(g => !g)} className={`card p-4 w-full text-left flex items-center gap-3 transition-all ${playGuide ? 'border-cyan-500/40' : ''}`}>
           <span className="text-xl">{playGuide ? '🔊' : '🔇'}</span>
           <div className="flex-1">
-            <div className="text-sm font-bold">{L('Tocar guia durante', 'Play guide while singing')}</div>
-            <div className="text-[11px] text-slate-400">{playGuide ? L('As notas-guia vão tocar junto (pode vazar no microfone).', 'Guide notes will play along (may bleed into mic).') : L('Só playhead visual. Ouça antes pra decorar a melodia.', 'Visual playhead only. Listen first to learn the melody.')}</div>
+            <div className="text-sm font-bold">{L('Guia sonoro (use fone!)', 'Audio guide (use headphones!)')}</div>
+            <div className="text-[11px] text-slate-400">{playGuide ? L('USE FONE senão o microfone pega o som e confunde a detecção.', 'USE HEADPHONES or the mic will pick up the guide and confuse detection.') : L('Desligado — ouça antes de iniciar pra decorar as notas.', 'Off — listen before starting to learn the notes.')}</div>
           </div>
           <span className={`text-xs font-mono ${playGuide ? 'text-cyan-400' : 'text-slate-500'}`}>{playGuide ? L('LIGADO', 'ON') : L('DESLIGADO', 'OFF')}</span>
         </button>
