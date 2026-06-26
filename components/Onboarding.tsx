@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
 import type { StudentLevel } from '../types';
+import { VoiceRangeTest } from './VoiceRangeTest';
 
 const MUSICAL_STYLES = [
   'Pop', 'MPB', 'Sertanejo', 'Gospel', 'Rock',
@@ -27,7 +28,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
   const [hadLessons, setHadLessons] = useState<boolean | null>(null);
   const [lessonsTime, setLessonsTime] = useState('');
 
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   const toggleStyle = (style: string) => {
     setFavoriteStyles(prev =>
@@ -221,6 +222,18 @@ export function Onboarding({ onDone }: OnboardingProps) {
               <div className="text-center text-sm text-green-400">{t(lang, 'onb.allReady')}</div>
             )}
           </div>
+        );
+
+      case 5: // Voice range test
+        return (
+          <VoiceRangeTest
+            mode="onboarding"
+            onComplete={() => {
+              // Range saved inside VoiceRangeTest via updateRange
+              handleNext();
+            }}
+            onSkip={() => handleNext()}
+          />
         );
 
       default:

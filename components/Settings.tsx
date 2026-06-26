@@ -1,15 +1,18 @@
 import { useState, useRef } from 'react';
 import { useStore } from '../store/store';
 import { t } from '../i18n/strings';
-import type { Language, StudentLevel } from '../types';
+import type { Language, StudentLevel, VoiceType } from '../types';
 import { downloadBlob } from '../services/midiService';
 import { isSubscriptionActive } from '../services/entitlements';
+import { VoiceRangeTest } from './VoiceRangeTest';
+import { midiToNoteName } from '../services/theoryService';
 
 export function Settings() {
   const { profile, updateSettings, resetProfile, exportProfile, importProfile, authUser, subscription, isPro, signOut, openUpgrade } = useStore();
   const lang = profile.settings.language;
   const [resetOpen, setResetOpen] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [showVoiceTest, setShowVoiceTest] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
@@ -227,6 +230,54 @@ export function Settings() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* ── Voice Range / Tessitura ── */}
+      <div className="card p-5 space-y-4">
+        <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">
+          {lang === 'pt-BR' ? 'Tessitura Vocal' : 'Voice Range'}
+        </div>
+        {showVoiceTest ? (
+          <VoiceRangeTest mode="settings" onComplete={() => setShowVoiceTest(false)} />
+        ) : (
+          <>
+            {profile.range.voiceType && profile.range.voiceType !== 'unknown' ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center text-xl">
+                    {profile.range.voiceType === 'soprano' ? '🎵' :
+                     profile.range.voiceType === 'mezzo' ? '🎶' :
+                     profile.range.voiceType === 'alto' ? '🎼' :
+                     profile.range.voiceType === 'tenor' ? '🎤' :
+                     profile.range.voiceType === 'baritone' ? '🔊' : '🔈'}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold">{lang === 'pt-BR' ? profile.range.voiceType.charAt(0).toUpperCase() + profile.range.voiceType.slice(1) : profile.range.voiceType}</div>
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      {profile.range.lowestMidi != null && profile.range.highestMidi != null
+                        ? `${midiToNoteName(profile.range.lowestMidi)} → ${midiToNoteName(profile.range.highestMidi)}`
+                        : ''}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setShowVoiceTest(true)} className="btn-ghost w-full text-xs">
+                  <i className="fas fa-redo mr-2"></i>{lang === 'pt-BR' ? 'Refazer teste' : 'Retake test'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="text-sm text-slate-300">
+                  {lang === 'pt-BR'
+                    ? 'Descubra sua faixa vocal para que os exercícios se ajustem automaticamente.'
+                    : 'Discover your vocal range so exercises adapt automatically.'}
+                </div>
+                <button onClick={() => setShowVoiceTest(true)} className="btn-primary w-full">
+                  <i className="fas fa-microphone mr-2"></i>{lang === 'pt-BR' ? 'Testar Tessitura' : 'Test Voice Range'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Data management */}
