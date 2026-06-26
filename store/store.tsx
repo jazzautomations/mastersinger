@@ -253,18 +253,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { ok: false, error: error.message };
     // Auto-sign-in if signup returned a session (email confirmation disabled).
-    if (data.session) {
-      setSupabaseUser({ id: data.user!.id, email: data.user!.email });
+    if (data.session && data.user) {
+      setSupabaseUser({ id: data.user.id, email: data.user.email });
     }
     return { ok: true };
   }, [supabase, checkRateLimit]);
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
-    try { await supabase.auth.signOut(); } catch { /* session may already be invalid */ }
-    setSubscription(null);
     setSupabaseUser(null);
+    setSubscription(null);
     try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
+    try { await supabase.auth.signOut(); } catch { /* session may already be invalid */ }
   }, [supabase]);
 
   useEffect(() => { setProfileSaveFailed(!saveProfile(profile)); }, [profile]);
@@ -280,7 +280,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const syncToSupabase = useCallback(async (nextProfile = profile, nextMelodies = melodies) => {
-    if (!supabase || !supabaseUser) return false;
+    if (!supabase) return false;
+    // Capture current user at start — abort if user logs out during sync
+    const currentUser = supabaseUser;
+    if (!currentUser) return false;
     setSyncStatus('syncing');
     setSyncMessage(null);
     try {
@@ -288,8 +291,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase
         .from('profiles')
         .upsert({
-          id: supabaseUser.id,
-          email: supabaseUser.email ?? null,
+          id: currentUser.id,
+          email: currentUser.email ?? null,
           profile: payload.profile,
           melodies: payload.melodies,
           updated_at: new Date().toISOString(),
@@ -438,10 +441,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [melodies, profile, syncEnabled, syncToSupabase, supabaseUser]);
 
   const addXp = useCallback((xp: number) => {
+    if (!Number.isFinite(xp) || xp < 0) return;
     setProfile(prev => {
       let newXp = prev.xp + xp;
-      let newLevel = prev.level;
-      while (newXp >= xpForLevel(newLevel)) {
+      let newLevel = Math.max(1, prev.level);
+      while (newLevel > 0 && newXp >= xpForLevel(newLevel)) {
         newXp -= xpForLevel(newLevel);
         newLevel++;
       }
@@ -486,16 +490,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateRange = useCallback((lowest: number, highest: number) => {
+    const low = Math.max(0, Math.min(127, Math.round(lowest)));
+    const high = Math.max(0, Math.min(127, Math.round(highest)));
+    if (low >= high) return;
     setProfile(prev => {
       const range = prev.range ?? {};
-      const newLow = Math.min(range.lowestMidi ?? 127, lowest);
-      const newHigh = Math.max(range.highestMidi ?? 0, highest);
-      const voiceType = classifyVoiceType(newLow, newHigh);
-      const rangeCenterMidi = Math.round((newLow + newHigh) / 2);
+      const newLow = Math.min(range.lowestMidi ?? 127, low);
+      const newHigh = Math.max(range.highestMidi ?? 0, high);
       return {
         ...prev,
-        range: { lowestMidi: newLow, highestMidi: newHigh, detectedAt: Date.now(), voiceType },
-        settings: { ...prev.settings, rangeCenterMidi },
+        range: { lowestMidi: newLow, highestMidi: newHigh, detectedAt: Date.now(), voiceType: classifyVoiceType(newLow, newHigh) },
+        settings: { ...prev.settings, rangeCenterMidi: Math.round((newLow + newHigh) / 2) },
       };
     });
   }, []);
@@ -568,7 +573,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       parsed.level = Number.isFinite(parsed.level) ? Math.min(Math.max(1, Math.floor(parsed.level)), 99) : 1;
       parsed.xp = Number.isFinite(parsed.xp) ? Math.min(Math.max(0, Math.floor(parsed.xp)), 100000) : 0;
       parsed.badges = parsed.badges.filter((b: unknown) => typeof b === 'string').slice(0, 50);
-      const next = { ...DEFAULT_PROFILE, ...parsed, settings: { ...DEFAULT_PROFILE.settings, ...parsed.settings } };
+      // Validate settings fields
+      const settings = parsed.settings || {};
+      if (typeof settings.a4 === 'number' && !Number.isFinite(settings.a4)) settings.a4 = DEFAULT_PROFILE.settings.a4;
+      if (settings.a4 < 400 || settings.a4 > 500) settings.a4 = DEFAULT_PROFILE.settings.a4;
+      if (typeof settings.micSensitivity !== 'number' || settings.micSensitivity < 0 || settings.micSensitivity > 1) settings.micSensitivity = DEFAULT_PROFILE.settings.micSensitivity;
+      if (typeof settings.noiseGate !== 'number' || settings.noiseGate < 0 || settings.noiseGate > 0.1) settings.noiseGate = DEFAULT_PROFILE.settings.noiseGate;
+      const next = { ...DEFAULT_PROFILE, ...parsed, settings: { ...DEFAULT_PROFILE.settings, ...settings } };
       setProfile(next);
       if (Array.isArray(parsed.melodies)) setMelodies(parsed.melodies);
       persistLocalSnapshot(next, Array.isArray(parsed.melodies) ? parsed.melodies : melodies);

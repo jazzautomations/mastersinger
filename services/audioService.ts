@@ -66,12 +66,14 @@ function ensureMonoSynth(): Tone.Synth {
   return monoSynth;
 }
 
-function resumeIfSuspended(): void {
+async function resumeIfSuspended(): Promise<void> {
   const ctx = Tone.getContext();
   if (ctx.state !== 'running') {
-    Tone.start().catch(() => {
+    try {
+      await Tone.start();
+    } catch {
       console.warn('[AudioService] Could not resume audio context. Try interacting with the page first.');
-    });
+    }
   }
 }
 
@@ -128,18 +130,16 @@ export function isPlaybackActive(token: number): boolean {
 
 export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 = 440): void {
   try {
-    resumeIfSuspended();
     const freq = midiToFrequency(midi, a4);
     const durSec = Math.max(0.05, durationMs / 1000);
     const token = playbackGen;
 
     // Restore master gain if it was muted by stopAll
-    if (master) master.gain.value = 1.6;
+    if (master) master.gain.rampTo(1.6, 0.02);
 
     const doPlay = () => {
       if (!isPlaybackActive(token)) return;
       try {
-        resumeIfSuspended();
         const s = new Tone.Synth({
           oscillator: { type: 'sine' },
           envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.3 },
@@ -177,16 +177,18 @@ export function playNote(midi: number, durationMs: number, timeOffsetMs = 0, a4 
 
 export function playChord(midis: number[], durationMs: number, a4 = 440): void {
   try {
-    resumeIfSuspended();
     const durSec = Math.max(0.05, durationMs / 1000);
+    const token = playbackGen;
+    if (!isPlaybackActive(token)) return;
 
     // Restore master gain if it was muted by stopAll
-    if (master) master.gain.value = 1.6;
+    if (master) master.gain.rampTo(1.6, 0.02);
 
     // Individual Tone.Synth per note (no PolySynth) — each triggerAttackRelease
     // schedules its own reliable release, no infinite sustain.
     const delay = ensureFx();
     midis.forEach(m => {
+      if (!isPlaybackActive(token)) return;
       const s = new Tone.Synth({
         oscillator: { type: 'sine' },
         envelope: { attack: 0.02, decay: 0.1, sustain: 0.8, release: 0.3 },
@@ -209,11 +211,13 @@ export function playChord(midis: number[], durationMs: number, a4 = 440): void {
 }
 
 export function playSequence(midis: number[], noteDurationMs: number, gapMs = 50, a4 = 440): void {
-  resumeIfSuspended();
-  ensureSynth();
-  beginPlayback();
+  if (noteDurationMs <= gapMs) {
+    console.warn('[AudioService] playSequence: noteDurationMs must be > gapMs');
+    return;
+  }
+  const dur = noteDurationMs - gapMs;
   midis.forEach((midi, i) => {
-    playNote(midi, noteDurationMs - gapMs, i * noteDurationMs, a4);
+    playNote(midi, dur, i * noteDurationMs, a4);
   });
 }
 
@@ -265,7 +269,7 @@ export function playScale(midis: number[], noteDurationMs: number, a4 = 440): vo
 
 export function playDrone(midi: number, a4 = 440): Tone.Synth | null {
   try {
-    resumeIfSuspended();
+    if (master) master.gain.rampTo(1.6, 0.02);
     const s = ensureMonoSynth();
     const freq = midiToFrequency(midi, a4);
     if (droneFreq === freq) return s;
@@ -302,11 +306,11 @@ export function stopAll(): void {
   try {
     if (synth) {
       synth.dispose();
-      synth = null;
     }
   } catch {}
+  synth = null;
   try {
-    if (monoSynth) monoSynth.triggerRelease();
+    if (monoSynth) { monoSynth.triggerRelease(); monoSynth.dispose(); monoSynth = null; }
   } catch {}
 
   // Stop all individual synths (from playNote)

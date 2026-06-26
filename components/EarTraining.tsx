@@ -38,7 +38,7 @@ export function EarTraining() {
     { type: 'chord-identify',   icon: '🎼', titleKey: 'ear.chordIdentify' },
   ];
 
-  const startQuestion = (type: EarQuestionType) => {
+  const startQuestion = async (type: EarQuestionType) => {
     const seed = Math.random() * 1000;
     const q = makeEarQuestion(type, level, seed, rangeCenterMidi);
     setQuestion(q);
@@ -46,7 +46,7 @@ export function EarTraining() {
     setShowResult(false);
     // play immediately from the gesture handler (best for autoplay policy),
     // scheduling a replay once state is set.
-    void playQuestionSeq(q);
+    try { await playQuestionSeq(q); } catch { /* play error handled internally */ }
   };
 
   // Play a question's audio. Robust: resumes the context, tracks timers so a
@@ -54,7 +54,11 @@ export function EarTraining() {
   const playQuestionSeq = async (q: EarQuestion) => {
     clearTimers();
     stopAll();
-    await ensureAudioStarted();
+    try {
+      await ensureAudioStarted();
+    } catch {
+      return;
+    }
     const seq = q.audioSequence;
     const a4l = a4Ref.current;
     if (q.type === 'interval-harmonic' || q.type === 'chord-identify') {
@@ -65,10 +69,11 @@ export function EarTraining() {
       // play each note in turn — track timers for cleanup
       clearTimers();
       const token = beginPlayback();
+      let accDelay = 0;
       seq.forEach((s, i) => {
-        const delay = i * s.durationMs;
-        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4l); }, delay);
+        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4l); }, accDelay);
         noteTimersRef.current.push(id);
+        accDelay += s.durationMs;
       });
     }
   };
@@ -81,21 +86,23 @@ export function EarTraining() {
     if (!seq || seq.length === 0) return;
     clearTimers();
     stopAll();
-    await ensureAudioStarted();
+    try { await ensureAudioStarted(); } catch { return; }
     const a4l = a4Ref.current;
     if (question.type === 'interval-harmonic' || question.type === 'chord-identify') {
       playChord(seq.map(s => s.midi), seq[0]?.durationMs ?? 1200, a4l);
     } else {
       const token = beginPlayback();
+      let accDelay = 0;
       seq.forEach((s, i) => {
-        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4l); }, i * s.durationMs);
+        const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(s.midi, s.durationMs * 0.9, 0, a4l); }, accDelay);
         noteTimersRef.current.push(id);
+        accDelay += s.durationMs;
       });
     }
   };
 
   // replay button uses the current question
-  const replay = () => { if (question) void playQuestionSeq(question); };
+  const replay = () => { if (question) { try { void playQuestionSeq(question); } catch {} } };
 
   const handleAnswer = (answer: string) => {
     if (!question || showResult) return;

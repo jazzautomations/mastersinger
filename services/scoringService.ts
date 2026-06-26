@@ -98,7 +98,10 @@ export function scoreExercise(
     totalTiming += timing;
 
     // ── Coverage: what fraction of the target duration had voiced frames? ──
-    const coverage = Math.min(1, framesInWindow.length * 16 / duration);
+    const frameSpan = framesInWindow.length > 1
+      ? framesInWindow[framesInWindow.length - 1].timestamp - framesInWindow[0].timestamp
+      : 16;
+    const coverage = Math.min(1, frameSpan / duration);
     totalCoverage += coverage * 100;
   }
 

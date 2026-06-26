@@ -48,9 +48,9 @@ export function Onboarding({ onDone }: OnboardingProps) {
     });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // Stop mic before VoiceRangeTest to avoid AudioContext conflict
-    if (step === 4) pitch.stop();
+    if (step === 4) await pitch.stop();
     if (step < totalSteps - 1) {
       setStep(step + 1);
     } else {
@@ -200,7 +200,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
             <div className="text-center space-y-3">
               <div className="text-6xl">🎙️</div>
             </div>
-            {micOk && pitch.isListening && pitch.currentFrame && (
+            {micOk && pitch.isListening && pitch.currentFrame && pitch.currentFrame.frequency > 0 && (
               <div className="card p-6 text-center space-y-2">
                 <div className="text-4xl font-black neon-text font-mono">{pitch.currentFrame.noteName}</div>
                 <div className="text-xs text-slate-400">{pitch.currentFrame.frequency.toFixed(1)} Hz · {pitch.currentFrame.cents} cents</div>
@@ -214,7 +214,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
               <button
                 onClick={async () => {
                   await pitch.start();
-                  setTimeout(() => setMicOk(true), 500);
+                  if (!pitch.error) setTimeout(() => setMicOk(true), 500);
                 }}
                 className="btn-primary w-full"
               >

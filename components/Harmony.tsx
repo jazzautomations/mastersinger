@@ -112,6 +112,7 @@ function TriadsExplorer({ lang, a4 }: TriadsProps) {
 }
 
 function ProgressionsExplorer({ lang, a4 }: TriadsProps) {
+  const { profile } = useStore();
   const progressions: { name: string; chords: { root: number; type: keyof typeof CHORD_TYPES }[] }[] = [
     { name: 'I - IV - V - I',         chords: [{ root: 0, type: 'major' }, { root: 5, type: 'major' }, { root: 7, type: 'major' }, { root: 0, type: 'major' }] },
     { name: 'I - vi - IV - V',        chords: [{ root: 0, type: 'major' }, { root: 9, type: 'minor' }, { root: 5, type: 'major' }, { root: 7, type: 'major' }] },
@@ -133,8 +134,9 @@ function ProgressionsExplorer({ lang, a4 }: TriadsProps) {
     for (let i = 0; i < prog.chords.length; i++) {
       if (!mountedRef.current || !isPlaybackActive(token)) return;
       const c = prog.chords[i];
-      const midis = CHORD_TYPES[c.type].intervals.map(int => 60 + c.root + int);
-      playChord(midis, 1200, a4);
+              const baseMidi = profile?.settings?.rangeCenterMidi ?? 60;
+              const midis = CHORD_TYPES[c.type].intervals.map(int => baseMidi + c.root + int);
+              playChord(midis, 1200, a4);
       await new Promise(r => setTimeout(r, 1300));
       if (!mountedRef.current || !isPlaybackActive(token)) return;
     }
@@ -230,8 +232,8 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile, micS
     await ensureAudioStarted();
     timersRef.current.forEach(id => clearTimeout(id));
     timersRef.current = [];
-    const token = beginPlayback();
     stopAll();
+    const token = beginPlayback();
     playNote(targetMidi, 1500, 0, a4);
     const id = window.setTimeout(() => { if (isPlaybackActive(token)) playNote(expectedMidi, 800, 0, a4); }, 1600);
     timersRef.current.push(id);
@@ -239,13 +241,14 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile, micS
 
   const checkAnswer = () => {
     if (userMidi === null) return;
-    const correct = userMidi === expectedMidi;
+    const deviation = Math.abs(userMidi - expectedMidi) * 100 + Math.abs(userCents);
+    const correct = deviation < 50;
     const accuracy = correct ? Math.max(0, 100 - Math.abs(userCents) * 2) : 0;
     setScore(accuracy);
     setTries(t => t + 1);
     if (correct && accuracy > 70) {
       addXp(30);
-      if (!profile.badges.includes('first-lesson')) unlockBadge('first-lesson');
+      if (!profile.badges.includes('first-harmony')) unlockBadge('first-harmony');
       const id = window.setTimeout(() => newTarget(), 1500);
       timersRef.current.push(id);
     }
@@ -282,7 +285,7 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile, micS
             {userMidi ? midiToNoteName(userMidi) : '—'}
           </div>
           <div className="relative h-3 rounded-full gauge-bg overflow-hidden max-w-xs mx-auto">
-            <div className="absolute top-0 bottom-0 w-1 bg-white transition-all duration-75" style={{ left: `${Math.max(0, Math.min(100, ((cents + 50) / 100) * 100))}%`, transform: 'translateX(-50%)' }} />
+            <div className="absolute top-0 bottom-0 w-1 bg-white transition-all duration-75" style={{ left: `${Math.max(0, Math.min(100, cents + 50))}%`, transform: 'translateX(-50%)' }} />
           </div>
           {score !== null && (
             <div className={`text-2xl font-black ${score > 70 ? 'text-green-400' : 'text-red-400'}`}>

@@ -131,22 +131,6 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     playNote(midi, 600, 0, a4);
   }, [a4]);
 
-  const advanceToNextNote = useCallback((notes: number[], idx: number, nextIdx: number) => {
-    if (nextIdx >= notes.length) {
-      if (phaseRef.current === 'descending') {
-        setCurrentNoteIdx(0);
-        currentNoteIdxRef.current = 0;
-        setNoteStatuses(new Array(ASC_NOTES.length).fill('pending'));
-        setPhase('ascending');
-      } else {
-        finishTest();
-      }
-    } else {
-      setCurrentNoteIdx(nextIdx);
-      currentNoteIdxRef.current = nextIdx;
-    }
-  }, []);
-
   const startNoteSequence = useCallback((midi: number) => {
     clearTimeouts();
     setDetectionResult(null);
@@ -186,6 +170,24 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     timeoutsRef.current = [t1, t2, t3];
   }, [playNoteForTest, clearTimeouts]);
 
+  const advanceToNextNote = useCallback((notes: number[], idx: number, nextIdx: number) => {
+    if (nextIdx >= notes.length) {
+      if (phaseRef.current === 'descending') {
+        setCurrentNoteIdx(0);
+        currentNoteIdxRef.current = 0;
+        setNoteStatuses(new Array(ASC_NOTES.length).fill('pending'));
+        setPhase('ascending');
+        const t = window.setTimeout(() => startNoteSequence(ASC_NOTES[0]), 600);
+        timeoutsRef.current = [t];
+      } else {
+        finishTest();
+      }
+    } else {
+      setCurrentNoteIdx(nextIdx);
+      currentNoteIdxRef.current = nextIdx;
+    }
+  }, [startNoteSequence]);
+
   const handleStartTest = async () => {
     clearTimeouts();
     detectedNotesRef.current = [];
@@ -196,7 +198,11 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
     stopAll();
     setDetectionResult(null);
 
-    await pitch.start();
+    try {
+      await pitch.start();
+    } catch {
+      // pitch.start captures errors internally; this is a safety net
+    }
 
     const t = window.setTimeout(() => {
       startNoteSequence(DESC_NOTES[0]);
@@ -299,7 +305,7 @@ export function VoiceRangeTest({ mode, onComplete, onSkip }: VoiceRangeTestProps
   };
 
   const handleManualConfirm = () => {
-    if (lowestDetected && highestDetected) {
+    if (lowestDetected != null && highestDetected != null) {
       updateRange(lowestDetected, highestDetected);
       onComplete(lowestDetected, highestDetected);
     }

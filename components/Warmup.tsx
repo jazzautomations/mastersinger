@@ -56,6 +56,9 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
     },
   });
 
+  const pitchRef = useRef(pitch);
+  pitchRef.current = pitch;
+
   // ── Guide playback ──
   const playGuide = useCallback((guide: WarmupGuide | undefined, stepMs: number) => {
     if (!guide) return;
@@ -63,15 +66,14 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
       playDrone(guide.midi, a4);
       guidePlayingRef.current = true;
     } else if (guide.type === 'sequence' && guide.midis && guide.beatMs) {
-      playSequence(guide.midis, guide.beatMs);
+      playSequence(guide.midis, guide.beatMs, 50, a4);
     } else if (guide.type === 'glide' && guide.fromMidi != null && guide.toMidi != null) {
-      const range = Math.abs(guide.toMidi - guide.fromMidi);
       const steps: number[] = [];
       const dir = guide.toMidi > guide.fromMidi ? 1 : -1;
       for (let m = guide.fromMidi; (dir > 0 ? m <= guide.toMidi : m >= guide.toMidi); m += dir) steps.push(m);
       for (let m = guide.toMidi - dir; (dir > 0 ? m >= guide.fromMidi : m <= guide.fromMidi); m -= dir) steps.push(m);
       const beatMs = Math.max(120, (stepMs * 0.85) / Math.max(1, steps.length));
-      playSequence(steps, beatMs);
+      playSequence(steps, beatMs, 50, a4);
     }
   }, [a4]);
 
@@ -80,6 +82,8 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
     stopAll();
     guidePlayingRef.current = false;
   }, []);
+  const stopGuideRef = useRef(stopGuide);
+  stopGuideRef.current = stopGuide;
 
   // ── Step runner ──
   const beginStep = useCallback((idx: number, r: WarmupRoutine) => {
@@ -93,7 +97,7 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
     stepStartRef.current = performance.now();
 
     if (step.guide) playGuide(step.guide, step.durationMs);
-    if (step.tracksPitch && !pitch.isListening) void pitch.start();
+    if (step.tracksPitch && !pitchRef.current.isListening) void pitchRef.current.start();
 
     const tick = () => {
       const el = performance.now() - stepStartRef.current;
@@ -123,7 +127,7 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
   }, [beginStep, stopGuide]);
 
   const finishRoutine = useCallback((r: WarmupRoutine) => {
-    pitch.stop();
+    pitchRef.current.stop();
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     stopGuide();
     const xp = r.totalMinutes * 6;
@@ -131,7 +135,7 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
     touchStreak();
     if (!profile.badges.includes('first-warmup')) unlockBadge('first-warmup');
     setPhase('done');
-  }, [pitch, stopGuide, addXp, touchStreak, unlockBadge, profile.badges]);
+  }, [stopGuide, addXp, touchStreak, unlockBadge, profile.badges]);
 
   // ── Start a routine ──
   const startRoutine = useCallback(async (r: WarmupRoutine) => {
@@ -142,19 +146,21 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
     setVoicedRatio(0);
     // mic warms up on first pitched step; start it now if any step tracks pitch
     if (r.steps.some(s => s.tracksPitch)) {
-      try { await pitch.start(); } catch { /* permission handled in hook error state */ }
+      try { await pitchRef.current.start(); } catch { /* permission handled in hook error state */ }
     }
     beginStep(0, r);
-  }, [pitch, beginStep]);
+  }, [beginStep]);
 
-  // cleanup on unmount
+  // cleanup on unmount — deps stable via refs
   useEffect(() => {
+    const p = pitchRef.current;
+    const sg = stopGuideRef.current;
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      pitch.stop();
-      stopGuide();
+      p.stop();
+      sg();
     };
-  }, [pitch, stopGuide]);
+  }, []);
 
   // deep-link to a routine
   useEffect(() => {
@@ -284,7 +290,7 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
             </span>
             <div className="flex-1">
               <h2 className="text-xl font-black display tracking-tight">{step.title}</h2>
-              <div className="text-[11px] text-slate-500 font-mono">{Math.ceil((step.durationMs - elapsedMs) / 1000)}s {lang === 'pt-BR' ? 'restantes' : 'left'}</div>
+              <div className="text-[11px] text-slate-500 font-mono">{Math.max(0, Math.ceil((step.durationMs - elapsedMs) / 1000))}s {lang === 'pt-BR' ? 'restantes' : 'left'}</div>
             </div>
           </div>
 
@@ -303,7 +309,7 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
               {activeTarget && (
                 <div className="text-center text-xs text-cyan-300 font-mono">
                   {lang === 'pt-BR' ? 'Alvo agora' : 'Target now'}: <span className="font-bold">{midiToNoteName(activeTarget.midi)}</span>
-                  <span className="ml-2 text-slate-500">±{liveCents > 0 ? '+' : ''}{liveCents} cents</span>
+                  {liveNote && <span className="ml-2 text-slate-500">±{liveCents > 0 ? '+' : ''}{liveCents} cents</span>}
                 </div>
               )}
             </div>
@@ -324,7 +330,7 @@ export function Warmup({ routineId, onExit }: WarmupProps) {
         )}
 
         <button
-          onClick={() => { pitch.stop(); stopGuide(); if (rafRef.current) cancelAnimationFrame(rafRef.current); finishRoutine(routine); }}
+          onClick={() => { pitchRef.current.stop(); stopGuide(); if (rafRef.current) cancelAnimationFrame(rafRef.current); finishRoutine(routine); }}
           className="btn-ghost w-full"
         >
           {lang === 'pt-BR' ? 'Encerrar aquecimento' : 'End warmup'}

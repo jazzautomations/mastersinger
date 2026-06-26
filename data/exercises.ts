@@ -203,12 +203,18 @@ export function dailyChallengeExercises(date = new Date()): Exercise[] {
     const x = Math.sin(s) * 10000;
     return x - Math.floor(x);
   };
-  const idx1 = Math.floor(seed(day) * pool.filter(e => e.type === 'scale-runner').length);
-  const idx2 = Math.floor(seed(day + 1) * pool.filter(e => e.type === 'interval-leap').length);
-  const idx3 = Math.floor(seed(day + 2) * pool.filter(e => e.type === 'pitch-hold').length);
+  const scaleRunners = pool.filter(e => e.type === 'scale-runner');
+  const arpeggioDrills = pool.filter(e => e.type === 'arpeggio-drill');
+  const intervalLeaps = pool.filter(e => e.type === 'interval-leap');
+  const pitchHolds = pool.filter(e => e.type === 'pitch-hold');
+  const idx1 = Math.floor(seed(day) * scaleRunners.length);
+  const idx2 = Math.floor(seed(day + 1) * arpeggioDrills.length);
+  const idx3 = Math.floor(seed(day + 2) * intervalLeaps.length);
+  const idx4 = Math.floor(seed(day + 3) * pitchHolds.length);
   return [
-    pool.filter(e => e.type === 'scale-runner')[idx1],
-    pool.filter(e => e.type === 'interval-leap')[idx2],
-    pool.filter(e => e.type === 'pitch-hold')[idx3],
+    scaleRunners[idx1],
+    arpeggioDrills[idx2],
+    intervalLeaps[idx3],
+    pitchHolds[idx4],
   ].filter(Boolean);
 }

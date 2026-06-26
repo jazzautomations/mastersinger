@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { detectPitchYin } from '../audio/yin';
 import { PitchSmoother } from '../audio/pitchSmoothing';
 import { frequencyToMidi, midiToNoteName, midiToCents } from '../services/theoryService';
@@ -397,7 +397,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     };
   }, [stop]);
 
-  return {
+  return useMemo(() => ({
     isListening,
     error,
     start,
@@ -410,5 +410,5 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     recordingUrl,
     recordingDurationMs,
     clearRecording,
-  };
+  }), [isListening, error, start, stop, currentFrame, micLevel, isRecording, recordingUrl, recordingDurationMs, clearRecording]);
 }

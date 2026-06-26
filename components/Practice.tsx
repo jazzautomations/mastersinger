@@ -67,8 +67,9 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const currentNoteIdxRef = useRef(0);
   const hitStreakRef = useRef(0);
   const noteStartTimeRef = useRef(0);
-  // Track real timestamps for scoring
+  // Track real timestamps for scoring — relative to pitch start
   const noteRealStartRef = useRef<number[]>([]);
+  const exerciseStartRef = useRef(0);
   // Ref for noteResults to avoid stale closures in endExercise
   const noteResultsRef = useRef<NoteResult[]>([]);
 
@@ -106,12 +107,10 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         const octaveMatch = roundedDetected === roundedTarget + 12 ||
           roundedDetected === roundedTarget - 12;
 
-        // Primary check: within tolerance by cents (most reliable)
-        // Secondary check: rounded semitone matches (catches wider tolerance)
-        // Tertiary check: same note name in wrong octave
+        // Octave match requires same cents proximity as primary check
         const onTarget = centsDeviation < CENTS_TOLERANCE ||
           roundedDetected === roundedTarget ||
-          octaveMatch;
+          (octaveMatch && centsDeviation < CENTS_TOLERANCE + 1200);
 
         if (onTarget) {
           hitStreakRef.current++;
@@ -152,12 +151,14 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
     // Flash feedback
     setHitFlash(result === 'hit' ? 'hit' : 'miss');
-    setTimeout(() => setHitFlash(null), 400);
+    const flashId = window.setTimeout(() => setHitFlash(null), 400);
+    noteTimersRef.current.push(flashId);
 
     const nextIdx = idx + 1;
     if (nextIdx >= ex.targets.length) {
       // Exercise complete
-      setTimeout(() => endExercise(), 600);
+      const endId = window.setTimeout(() => endExercise(), 600);
+      noteTimersRef.current.push(endId);
       return;
     }
 
@@ -165,7 +166,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     setCurrentNoteIdx(nextIdx);
     currentNoteIdxRef.current = nextIdx;
     noteStartTimeRef.current = performance.now();
-    noteRealStartRef.current[nextIdx] = performance.now();
+    noteRealStartRef.current[nextIdx] = performance.now() - exerciseStartRef.current;
   }, [a4]);
 
   const endExercise = useCallback(() => {
@@ -266,8 +267,6 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     currentNoteIdxRef.current = 0;
     hitStreakRef.current = 0;
     noteStartTimeRef.current = performance.now();
-    noteRealStartRef.current = new Array(ex.targets.length).fill(0);
-    noteRealStartRef.current[0] = performance.now();
     setNoteResults(new Array(ex.targets.length).fill('pending'));
     setPhase('listening');
 
@@ -275,6 +274,9 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     // The playGuide toggle is ignored during singing to prevent mic bleed
 
     await pitch.start();
+    exerciseStartRef.current = performance.now();
+    noteRealStartRef.current = new Array(ex.targets.length).fill(0);
+    noteRealStartRef.current[0] = 0;
   };
   beginRef.current = beginExercise;
 
@@ -297,7 +299,10 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     playScale(midis, beatMs, a4);
   };
 
-  const handleStop = () => endExercise();
+  const handleStop = () => {
+    clearAllTimers();
+    endExercise();
+  };
 
   const handleSkipNote = () => {
     advanceNote('skip');
@@ -574,10 +579,11 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
               <div key={i} className={`px-3 py-2 rounded-lg text-center min-w-[3rem] ${
                 noteResults[i] === 'hit' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
                 noteResults[i] === 'miss' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                noteResults[i] === 'skip' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                'bg-slate-500/20 text-slate-400 border border-slate-500/30'
               }`}>
                 <div className="text-sm font-bold font-mono">{midiToNoteName(tg.midi)}</div>
-                <div className="text-[9px]">{noteResults[i] === 'hit' ? '✓' : noteResults[i] === 'miss' ? '✗' : '→'}</div>
+                <div className="text-[9px]">{noteResults[i] === 'hit' ? '✓' : noteResults[i] === 'miss' ? '✗' : noteResults[i] === 'skip' ? '→' : '?'}</div>
               </div>
             ))}
           </div>

@@ -62,7 +62,7 @@ export function Settings() {
           <>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">
-                {(authUser.email ?? '?')[0].toUpperCase()}
+                {((authUser.email?.trim() || '?')[0] ?? '?').toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-slate-100 truncate">{authUser.email}</div>

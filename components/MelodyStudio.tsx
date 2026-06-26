@@ -247,7 +247,7 @@ export function MelodyStudio() {
     const totalMs = Math.max(...melodyNotes.map(n => n.endTime));
 
     melodyNotes.forEach(note => {
-      playNote(note.midi, Math.max(120, note.endTime - note.startTime), note.startTime, a4);
+      playNote(note.midi, Math.max(MIN_NOTE_MS, note.endTime - note.startTime), note.startTime, a4);
     });
 
     const tick = () => {
@@ -264,7 +264,18 @@ export function MelodyStudio() {
     playTimerRef.current = requestAnimationFrame(tick);
   }, [a4]);
 
-  const handlePlay = () => playMelody(notes);
+  const handlePlay = () => {
+    if (isPlaying) {
+      if (playTimerRef.current) { cancelAnimationFrame(playTimerRef.current); playTimerRef.current = null; }
+      stopAll();
+      setIsPlaying(false);
+      setPlayheadMs(0);
+      return;
+    }
+    stopAll();
+    setPlayingLibId(null);
+    playMelody(notes);
+  };
 
   const handlePlaySaved = (mel: SavedMelody) => {
     if (playingLibId === mel.id) {
@@ -312,7 +323,11 @@ export function MelodyStudio() {
     (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
 
     if (tool === 'erase') {
-      setNotes(prev => prev.filter(n => !(tMs >= n.startTime && tMs <= n.endTime && midi === n.midi)));
+      setNotes(prev => {
+        const next = prev.filter(n => !(tMs >= n.startTime && tMs <= n.endTime && midi === n.midi));
+        if (selectedNote !== null && selectedNote >= next.length) setSelectedNote(null);
+        return next;
+      });
       return;
     }
 
@@ -472,7 +487,7 @@ export function MelodyStudio() {
           <i className="fas fa-bolt mr-1.5"></i>{t(lang, 'studio.quantize')}
         </button>
         <div className="w-px h-6 bg-white/10" />
-        <button onClick={() => { setNotes([]); setSelectedNote(null); }} disabled={notes.length === 0} className="btn-ghost disabled:opacity-40 whitespace-nowrap">
+        <button onClick={() => { setNotes([]); setSelectedNote(null); }} disabled={notes.length === 0 || isPlaying || !!playingLibId} className="btn-ghost disabled:opacity-40 whitespace-nowrap">
           <i className="fas fa-trash mr-1.5"></i>{t(lang, 'studio.clear')}
         </button>
         <button onClick={handleExport} disabled={notes.length === 0} className="btn-primary disabled:opacity-40 whitespace-nowrap">
