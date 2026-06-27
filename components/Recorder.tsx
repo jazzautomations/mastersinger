@@ -27,6 +27,7 @@ export function Recorder() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const videoUrlRef = useRef<string | null>(null);
 
   // ── Start camera ──
   const startCamera = useCallback(async () => {
@@ -206,7 +207,9 @@ export function Recorder() {
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeType });
       setVideoBlob(blob);
-      setVideoUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      videoUrlRef.current = url;
+      setVideoUrl(url);
       setState('done');
     };
 
@@ -243,12 +246,14 @@ export function Recorder() {
 
   // ── Retake ──
   const retake = useCallback(() => {
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    const url = videoUrlRef.current;
+    if (url) URL.revokeObjectURL(url);
+    videoUrlRef.current = null;
     setVideoUrl(null);
     setVideoBlob(null);
     setElapsed(0);
     setState('camera');
-  }, [videoUrl]);
+  }, []);
 
   // ── Cleanup ──
   useEffect(() => {
@@ -258,7 +263,8 @@ export function Recorder() {
       }
       pitch.stop();
       streamRef.current?.getTracks().forEach(t => t.stop());
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      const url = videoUrlRef.current;
+      if (url) URL.revokeObjectURL(url);
     };
   }, []);
 

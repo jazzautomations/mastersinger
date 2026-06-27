@@ -219,7 +219,7 @@ const en: Dict = {
   'warmup.of': 'of',
   'warmup.next': 'Next step',
   'warmup.finish': 'Finish',
-  'warmup.complete': 'Warmup complete!',
+  'warmup.done': 'Warmup complete!',
   'warmup.singNow': 'Sing now — match the guide',
   'warmup.listenThenSing': 'Listen, then sing along',
   'warmup.breathe': 'Breathe',

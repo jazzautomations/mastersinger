@@ -74,6 +74,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const noteResultsRef = useRef<NoteResult[]>([]);
   // Track real cents deviation per note during the streak
   const noteCentsRef = useRef<number[][]>([]);
+  const endExerciseRef = useRef<() => void>(() => {});
 
   useEffect(() => { currentExerciseRef.current = currentExercise; }, [currentExercise]);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
@@ -146,13 +147,11 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     if (!ex) return;
     const idx = currentNoteIdxRef.current;
 
-    // Record result (both state and ref for stale-closure safety)
-    setNoteResults(prev => {
-      const next = [...prev];
-      next[idx] = result;
-      noteResultsRef.current = next;
-      return next;
-    });
+    // Record result (update ref first, then state)
+    const nextResults = [...noteResultsRef.current];
+    nextResults[idx] = result;
+    noteResultsRef.current = nextResults;
+    setNoteResults(nextResults);
 
     // Flash feedback
     setHitFlash(result === 'hit' ? 'hit' : 'miss');
@@ -162,7 +161,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     const nextIdx = idx + 1;
     if (nextIdx >= ex.targets.length) {
       // Exercise complete
-      const endId = window.setTimeout(() => endExercise(), 600);
+      const endId = window.setTimeout(() => endExerciseRef.current(), 600);
       noteTimersRef.current.push(endId);
       return;
     }
@@ -240,6 +239,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     if (newStreak >= 7 && !p.badges.includes('streak-7')) unlockBadge('streak-7');
     if (newStreak >= 30 && !p.badges.includes('streak-30')) unlockBadge('streak-30');
   }, [a4, pitch, recordResult, touchStreak, unlockBadge]);
+  endExerciseRef.current = endExercise;
 
   // ── Daily-challenge queue init ──
   useEffect(() => {
@@ -287,7 +287,13 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
     // NO audio during exercise — user listens before starting or uses headphones
     // The playGuide toggle is ignored during singing to prevent mic bleed
 
-    await pitch.start();
+    try {
+      await pitch.start();
+    } catch {
+      // mic permission denied or hardware error — stay in listening phase
+      // the hook's pitch.error will surface the problem
+      return;
+    }
     exerciseStartRef.current = performance.now();
     noteRealStartRef.current = new Array(ex.targets.length).fill(0);
     noteRealStartRef.current[0] = 0;

@@ -50,19 +50,20 @@ describe('PitchSmoother', () => {
   it('reduces jitter vs raw input (variance of cents is lower)', () => {
     // simulate a 440 Hz tone with ±15 cents noise on every frame
     const raw: { frequency: number; confidence: number }[] = [];
-    for (let i = 0; i < 60; i++) {
+    // use enough frames to make the test deterministic despite Math.random()
+    for (let i = 0; i < 500; i++) {
       const noiseCents = (Math.random() - 0.5) * 30;
       const freq = 440 * Math.pow(2, noiseCents / 1200);
       raw.push({ frequency: freq, confidence: 0.9 });
     }
     const smoothed = smoothPitchSeries(raw);
     // discard warmup
-    const smoothedCents = smoothed.slice(10).map(s => s.cents);
+    const smoothedCents = smoothed.slice(20).map(s => s.cents);
     const mean = smoothedCents.reduce((a, b) => a + b, 0) / smoothedCents.length;
     const variance = smoothedCents.reduce((a, b) => a + (b - mean) ** 2, 0) / smoothedCents.length;
     const stdDev = Math.sqrt(variance);
     // smoothed cents should cluster tightly around 0
-    expect(Math.abs(mean)).toBeLessThan(4);
+    expect(Math.abs(mean)).toBeLessThan(2);
     expect(stdDev).toBeLessThan(6);
   });
 

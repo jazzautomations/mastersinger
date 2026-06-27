@@ -211,15 +211,29 @@ export function Onboarding({ onDone }: OnboardingProps) {
               <div className="text-center text-red-400 text-sm">{pitch.error}</div>
             )}
             {!micOk ? (
-              <button
-                onClick={async () => {
-                  await pitch.start();
-                  if (!pitch.error) setTimeout(() => setMicOk(true), 500);
-                }}
-                className="btn-primary w-full"
-              >
-                {t(lang, 'onb.mic.allow')}
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      await pitch.start();
+                      if (!pitch.error) setTimeout(() => setMicOk(true), 500);
+                    } catch {
+                      // permission denied or hardware error — handled by pitch.error
+                    }
+                  }}
+                  className="btn-primary w-full"
+                >
+                  {t(lang, 'onb.mic.allow')}
+                </button>
+                {pitch.error && (
+                  <button
+                    onClick={() => setMicOk(true)}
+                    className="btn-ghost w-full text-sm"
+                  >
+                    {t(lang, 'onb.skip')}
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="text-center text-sm text-green-400">{t(lang, 'onb.allReady')}</div>
             )}

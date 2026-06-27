@@ -70,11 +70,15 @@ export function scoreExercise(
     const targetMidi = target.midi;
     const deviations = framesInWindow.map(f => {
       const raw = Math.abs(f.midi - targetMidi) * 100;
-      // Check for octave equivalence: within 50 cents of an octave multiple
-      const octaveCents = raw % 1200;
-      if (octaveCents < 50 || octaveCents > 1150) {
-        // Near an octave boundary — treat as ~20 cent error
-        return Math.min(raw, 20);
+      // Octave equivalence: singing the right note in the wrong octave is
+      // penalized softly (~20 cents). Use a smooth blend at the boundaries
+      // to avoid a discontinuity at ±50/1150 cents from multiples of 1200.
+      const octDist = raw % 1200;         // distance from nearest octave multiple
+      const nearOct = Math.min(octDist, 1200 - octDist);  // 0 = exact octave, 600 = tritone
+      if (nearOct < 50) {
+        // Blend linearly: exact octave → 20 cent penalty, 50 cents off → raw value
+        const blend = nearOct / 50;
+        return Math.min(raw, (1 - blend) * 20 + blend * raw);
       }
       return raw;
     });
