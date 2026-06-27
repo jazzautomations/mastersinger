@@ -148,6 +148,19 @@ export interface Course {
   lessons: Lesson[];
 }
 
+// ── Lesson comprehension quiz (bilingual, self-contained) ──
+// Stored in data/lessonQuizzes.ts keyed by lesson id, so it never disturbs the
+// index-based pt translation map in courses.pt.ts.
+export interface LessonQuiz {
+  question: string;
+  questionPt: string;
+  options: string[];
+  optionsPt: string[];
+  answer: number;          // index into options/optionsPt
+  explanation: string;
+  explanationPt: string;
+}
+
 // ── Gamification ──
 export interface Badge {
   id: string;

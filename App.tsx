@@ -283,7 +283,7 @@ function MainApp() {
         {view === 'theory'   && <ProOverlay view={view} viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
         {view === 'harmony'  && <ProOverlay view={view} viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}
         {view === 'rhythm'   && <ProOverlay view={view} viewName={t(lang, 'nav.rhythm')}><Rhythm /></ProOverlay>}
-        {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} />}
+        {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} onNavigate={handleNavigate} />}
         {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
         {view === 'recorder' && <Recorder />}
         {view === 'progress' && <Progress />}

@@ -7,14 +7,18 @@ import {
 } from '../services/courseI18n';
 import { playNote, ensureAudioStarted } from '../services/audioService';
 import { midiToNoteName } from '../services/theoryService';
-import type { Course, Lesson, LessonBlock } from '../types';
+import { exerciseForLesson } from '../data/lessonExercises';
+import { quizForLesson } from '../data/lessonQuizzes';
+import { getExerciseById } from '../data/exercises';
+import type { Course, Lesson, LessonBlock, LessonQuiz, View } from '../types';
 
 interface AcademyProps {
   initialCourseId?: string;
   initialLessonId?: string;
+  onNavigate?: (view: View, opts?: any) => void;
 }
 
-export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
+export function Academy({ initialCourseId, initialLessonId, onNavigate }: AcademyProps) {
   const { profile, completeLesson, unlockBadge, canAccessCourse, openUpgrade } = useStore();
   const lang = profile.settings.language;
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -127,6 +131,7 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
     lesson={selectedLesson}
     course={selectedCourse}
     lang={lang}
+    onNavigate={onNavigate}
     nextLesson={nextLesson}
     onNextLesson={nextLesson ? () => setSelectedLesson(nextLesson) : undefined}
     onBack={() => setSelectedLesson(null)}
@@ -166,15 +171,26 @@ interface LessonViewProps {
   onNextLesson?: () => void;
   onBack: () => void;
   onComplete: () => void;
+  onNavigate?: (view: View, opts?: any) => void;
 }
 
-function LessonView({ lesson, course, lang, nextLesson, onNextLesson, onBack, onComplete }: LessonViewProps) {
+function LessonView({ lesson, course, lang, nextLesson, onNextLesson, onBack, onComplete, onNavigate }: LessonViewProps) {
   const [completed, setCompleted] = useState(false);
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+
+  const quizzes = quizForLesson(lesson.id);
+  const exId = exerciseForLesson(lesson.id, lesson.exerciseId);
+  const exercise = exId ? getExerciseById(exId) : undefined;
+  const quizzesPassed = quizzes.every((q, i) => answers[i] === q.answer);
 
   const handleComplete = useCallback(() => {
     setCompleted(true);
     onComplete();
   }, [onComplete]);
+
+  const goPractice = useCallback(() => {
+    if (exId) onNavigate?.('practice', { exerciseIds: [exId] });
+  }, [exId, onNavigate]);
 
   return (
     <div className="space-y-5 pb-24">
@@ -192,11 +208,34 @@ function LessonView({ lesson, course, lang, nextLesson, onNextLesson, onBack, on
         {lesson.content.map((block, i) => <LessonBlockView key={i} block={block} lang={lang} course={course} lesson={lesson} blockIdx={i} />)}
       </div>
 
+      {quizzes.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-black display text-amber-300 flex items-center gap-2">
+            <i className="fas fa-circle-question"></i>{lang === 'pt-BR' ? 'Teste rápido' : 'Quick quiz'}
+          </h3>
+          {quizzes.map((q, i) => (
+            <QuizBlock key={i} quiz={q} lang={lang} selected={answers[i]} onSelect={(opt) => setAnswers(a => ({ ...a, [i]: opt }))} />
+          ))}
+        </div>
+      )}
+
+      {exercise && (
+        <button onClick={goPractice} className="btn-primary w-full bg-gradient-to-r from-violet-600 to-fuchsia-600">
+          <i className="fas fa-dumbbell mr-2"></i>
+          {lang === 'pt-BR' ? `Praticar agora: ${exercise.title}` : `Practice now: ${exercise.title}`}
+        </button>
+      )}
+
       {completed ? (
         <div className="card p-6 text-center space-y-3 ring-pop">
           <div className="text-5xl">🎉</div>
           <div className="text-xl font-black display">{t(lang, 'academy.lessonComplete')}</div>
           <div className="text-violet-400 text-sm font-mono">+{lesson.xp} XP</div>
+          {exercise && (
+            <button onClick={goPractice} className="btn-primary mx-auto bg-gradient-to-r from-violet-600 to-fuchsia-600">
+              <i className="fas fa-dumbbell mr-2"></i>{lang === 'pt-BR' ? 'Praticar este exercício' : 'Practice this exercise'}
+            </button>
+          )}
           {nextLesson && onNextLesson ? (
             <>
               <button onClick={onNextLesson} className="btn-primary mx-auto">
@@ -214,9 +253,16 @@ function LessonView({ lesson, course, lang, nextLesson, onNextLesson, onBack, on
           )}
         </div>
       ) : (
-        <button onClick={handleComplete} className="btn-primary w-full">
-          <i className="fas fa-check mr-2"></i>{lang === 'pt-BR' ? 'Concluir aula' : 'Complete lesson'}
-        </button>
+        <div className="space-y-2">
+          <button onClick={handleComplete} disabled={!quizzesPassed} className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed">
+            <i className="fas fa-check mr-2"></i>{lang === 'pt-BR' ? 'Concluir aula' : 'Complete lesson'}
+          </button>
+          {!quizzesPassed && quizzes.length > 0 && (
+            <p className="text-xs text-center text-slate-500 font-mono">
+              {lang === 'pt-BR' ? 'Responda o teste corretamente para concluir' : 'Answer the quiz correctly to complete'}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -265,4 +311,39 @@ function LessonBlockView({ block, lang, course, lesson, blockIdx }: { block: Les
     default:
       return null;
   }
+}
+
+function QuizBlock({ quiz, lang, selected, onSelect }: { quiz: LessonQuiz; lang: 'pt-BR' | 'en'; selected: number | undefined; onSelect: (opt: number) => void }) {
+  const answered = selected !== undefined;
+  const correct = selected === quiz.answer;
+  const question = lang === 'pt-BR' ? quiz.questionPt : quiz.question;
+  const options = lang === 'pt-BR' ? quiz.optionsPt : quiz.options;
+  const explanation = lang === 'pt-BR' ? quiz.explanationPt : quiz.explanation;
+  return (
+    <div className="card p-4 space-y-3">
+      <p className="text-sm font-semibold text-slate-100">{question}</p>
+      <div className="space-y-2">
+        {options.map((opt, i) => {
+          const isPicked = selected === i;
+          const isAnswer = i === quiz.answer;
+          let cls = 'border-white/10 hover:border-violet-400/50 text-slate-200';
+          if (answered && isAnswer) cls = 'border-green-500 bg-green-500/10 text-green-200';
+          else if (answered && isPicked && !isAnswer) cls = 'border-red-500 bg-red-500/10 text-red-200';
+          else if (answered) cls = 'border-white/5 text-slate-500';
+          return (
+            <button key={i} onClick={() => onSelect(i)} className={`w-full text-left text-sm px-3 py-2 rounded-lg border transition-all ${cls}`}>
+              <span className="font-mono text-xs mr-2 opacity-60">{String.fromCharCode(65 + i)}</span>{opt}
+              {answered && isAnswer && <i className="fas fa-check ml-2 text-green-400"></i>}
+              {answered && isPicked && !isAnswer && <i className="fas fa-xmark ml-2 text-red-400"></i>}
+            </button>
+          );
+        })}
+      </div>
+      {answered && (
+        <div className={`text-xs leading-relaxed p-2 rounded-lg ${correct ? 'bg-green-500/10 text-green-200' : 'bg-amber-500/10 text-amber-100'}`}>
+          <span className="font-bold">{correct ? (lang === 'pt-BR' ? 'Correto! ' : 'Correct! ') : (lang === 'pt-BR' ? 'Quase! ' : 'Almost! ')}</span>{explanation}
+        </div>
+      )}
+    </div>
+  );
 }
