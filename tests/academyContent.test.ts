@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { COURSES } from '../data/courses';
 import { LESSON_EXERCISE } from '../data/lessonExercises';
 import { LESSON_QUIZ } from '../data/lessonQuizzes';
+import { LESSON_AUDIO } from '../data/lessonAudio';
 import { getExerciseById } from '../data/exercises';
 
 const lessonIds = COURSES.flatMap(c => c.lessons.map(l => l.id));
@@ -44,6 +45,30 @@ describe('Academy lesson quizzes', () => {
         for (const field of [q.question, q.questionPt, q.explanation, q.explanationPt]) {
           expect(field.length, `${lesson}: empty bilingual field`).toBeGreaterThan(0);
         }
+      }
+    }
+  });
+});
+
+describe('Academy lesson audio examples', () => {
+  it('every lesson has at least one audio example', () => {
+    for (const id of lessonIds) {
+      expect((LESSON_AUDIO[id] ?? []).length, `lesson ${id} has no audio`).toBeGreaterThan(0);
+    }
+  });
+
+  it('every audio example is well-formed', () => {
+    for (const [lesson, examples] of Object.entries(LESSON_AUDIO)) {
+      expect(lessonIds, `audio references unknown lesson ${lesson}`).toContain(lesson);
+      for (const ex of examples) {
+        expect(ex.midis.length, `${lesson}: empty midis`).toBeGreaterThan(0);
+        expect(['note', 'sequence', 'chord'], `${lesson}: bad mode`).toContain(ex.mode);
+        for (const m of ex.midis) {
+          expect(m, `${lesson}: midi out of range`).toBeGreaterThanOrEqual(36);
+          expect(m).toBeLessThanOrEqual(84);
+        }
+        expect(ex.label.length).toBeGreaterThan(0);
+        expect(ex.labelPt.length).toBeGreaterThan(0);
       }
     }
   });

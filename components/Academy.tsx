@@ -5,12 +5,14 @@ import { COURSES, getCourseById } from '../data/courses';
 import {
   courseTitle, courseDesc, lessonTitle, lessonSummary, blockText,
 } from '../services/courseI18n';
-import { playNote, ensureAudioStarted } from '../services/audioService';
+import { playNote, playChord, playSequence, ensureAudioStarted } from '../services/audioService';
 import { midiToNoteName } from '../services/theoryService';
 import { exerciseForLesson } from '../data/lessonExercises';
 import { quizForLesson } from '../data/lessonQuizzes';
+import { audioForLesson } from '../data/lessonAudio';
 import { getExerciseById } from '../data/exercises';
 import type { Course, Lesson, LessonBlock, LessonQuiz, View } from '../types';
+import type { LessonAudio } from '../data/lessonAudio';
 
 interface AcademyProps {
   initialCourseId?: string;
@@ -208,6 +210,8 @@ function LessonView({ lesson, course, lang, nextLesson, onNextLesson, onBack, on
         {lesson.content.map((block, i) => <LessonBlockView key={i} block={block} lang={lang} course={course} lesson={lesson} blockIdx={i} />)}
       </div>
 
+      <LessonAudioSection lessonId={lesson.id} lang={lang} />
+
       {quizzes.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-black display text-amber-300 flex items-center gap-2">
@@ -345,5 +349,40 @@ function QuizBlock({ quiz, lang, selected, onSelect }: { quiz: LessonQuiz; lang:
         </div>
       )}
     </div>
+  );
+}
+
+function LessonAudioSection({ lessonId, lang }: { lessonId: string; lang: 'pt-BR' | 'en' }) {
+  const { profile } = useStore();
+  const examples = audioForLesson(lessonId);
+  if (examples.length === 0) return null;
+  const a4 = profile.settings.a4;
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-black display text-cyan-300 flex items-center gap-2">
+        <i className="fas fa-volume-high"></i>{lang === 'pt-BR' ? 'Ouça' : 'Listen'}
+      </h3>
+      <div className="card p-4 grid gap-2 sm:grid-cols-2">
+        {examples.map((ex, i) => <AudioExample key={i} ex={ex} lang={lang} a4={a4} />)}
+      </div>
+    </div>
+  );
+}
+
+function AudioExample({ ex, lang, a4 }: { ex: LessonAudio; lang: 'pt-BR' | 'en'; a4: number }) {
+  const label = lang === 'pt-BR' ? ex.labelPt : ex.label;
+  const play = async () => {
+    await ensureAudioStarted();
+    if (ex.mode === 'chord') playChord(ex.midis, ex.noteMs ?? 1600, a4);
+    else if (ex.mode === 'note') playNote(ex.midis[0], ex.noteMs ?? 1600, 0, a4);
+    else playSequence(ex.midis, ex.noteMs ?? 360, 60, a4);
+  };
+  return (
+    <button onClick={play} className="flex items-center gap-3 text-left px-3 py-2 rounded-lg border border-white/10 hover:border-cyan-400/50 hover:bg-cyan-500/5 transition-all">
+      <span className="shrink-0 w-8 h-8 rounded-full bg-cyan-500/15 text-cyan-300 flex items-center justify-center">
+        <i className="fas fa-play text-xs"></i>
+      </span>
+      <span className="text-sm text-slate-200">{label}</span>
+    </button>
   );
 }
