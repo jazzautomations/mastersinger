@@ -355,8 +355,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // We only need to: (a) read the initial session, (b) listen for auth
     // state changes, and (c) clean up stale URL params.
 
-    console.log('[Auth] init, hash:', window.location.hash, 'query:', window.location.search || 'none');
-
     supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
       const sessionUser = data.session?.user;
@@ -374,7 +372,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           try { localStorage.removeItem('mastersinger:onboarded'); } catch {}
           return;
         }
-        console.log('[Auth] setting supabaseUser:', { id: userData.user.id, email: userData.user.email });
         const authUserData = { id: userData.user.id, email: userData.user.email };
         setSupabaseUser(authUserData);
         setSyncEnabled(loadSyncEnabled());

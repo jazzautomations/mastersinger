@@ -284,7 +284,7 @@ export function UpgradeModal() {
                       {plan.pricePerMonth != null && (
                         <div className="text-[10px] text-violet-300 font-mono">≈ {formatBRL(plan.pricePerMonth)}/mês {plan.discountPct ? `· ${plan.discountPct}% OFF` : ''}</div>
                       )}
-                      <div className="text-[10px] text-green-400 font-mono mt-1">✓ Cartão de crédito · Renovação automática · Cancele quando quiser</div>
+                      <div className="text-[10px] text-green-400 font-mono mt-1">✓ Pix, cartão ou boleto · Renovação automática · Cancele quando quiser</div>
                     </div>
                     <button
                       onClick={() => checkout(plan.id as 'pro-monthly' | 'pro-yearly')}
@@ -299,7 +299,7 @@ export function UpgradeModal() {
 
               <div className="flex items-center justify-center gap-2 text-[10px] text-slate-500 font-mono">
                 <span>🔒</span>
-                <span>Assinatura recorrente · Cartão de crédito · Renovação automática · Cancele quando quiser</span>
+                <span>Pagamento seguro via Asaas · Pix, cartão ou boleto · Cancele quando quiser</span>
               </div>
 
               <button onClick={closeUpgrade} className="w-full text-xs text-slate-500 hover:text-slate-300 transition-all py-2">

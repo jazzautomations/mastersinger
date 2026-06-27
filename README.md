@@ -2,10 +2,10 @@
 
 > Sing in tune. Master your voice.
 
-The coolest free web app to learn singing — real-time pitch detection, an editable MIDI melody studio, gamified practice for scales/arpeggios/intervals, ear training, theory, harmony, and a full vocal academy. Works fully in the browser, and now optionally syncs profile + melodies to Supabase when connected.
+Vocal training app with real-time pitch detection, MIDI studio, gamified practice, ear training, theory, harmony, and a full vocal academy. Free tier + Pro subscription (R$54,90/mês or R$347/ano). Auth + payments via Supabase + Asaas.
 
-🌐 **Live:** Coming soon on Vercel
-🏗️ **Architecture:** Vite 6 + React 19 + TypeScript + Tailwind CSS 4 — static SPA with optional Supabase sync
+🌐 **Live:** https://mastersinger.vercel.app
+🏗️ **Architecture:** Vite 6 + React 19 + TypeScript + Tailwind CSS 4 — SPA with Supabase auth + Asaas payments
 🔒 **Privacy-first:** Microphone audio is analyzed locally and never recorded or sent anywhere
 🎓 **Levels:** Beginner → Intermediate → Advanced (defaults to Intermediate)
 

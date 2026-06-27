@@ -517,7 +517,7 @@ export function Landing({ onEnterApp, onUpgrade, onLogin }: { onEnterApp: () => 
           </div>
           <div className="text-[11px] text-slate-600 font-mono border-t border-white/5 pt-4">
             <p>© {new Date().getFullYear()} MasterSinger. Feito pra cantores brasileiros.</p>
-            <p className="mt-1">CNPJ: [inserir] · Responsável: Felipe Salvego · Detecção de pitch via algoritmo YIN.</p>
+            <p className="mt-1">Responsável: Felipe Salvego · Detecção de pitch via algoritmo YIN.</p>
           </div>
         </div>
       </footer>
