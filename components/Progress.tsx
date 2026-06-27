@@ -3,7 +3,16 @@ import { t } from '../i18n/strings';
 import { BADGES, getEarnedBadges } from '../data/badges';
 import { midiToNoteName, weekStartISO } from '../services/theoryService';
 import { getExerciseById } from '../data/exercises';
-import type { VoiceType } from '../types';
+import { COURSES } from '../data/courses';
+import { courseTitle } from '../services/courseI18n';
+import type { VoiceType, ExerciseType } from '../types';
+
+const SKILL_LABELS: Partial<Record<ExerciseType, { pt: string; en: string }>> = {
+  'scale-runner': { pt: 'Escalas', en: 'Scales' },
+  'arpeggio-drill': { pt: 'Arpejos', en: 'Arpeggios' },
+  'interval-leap': { pt: 'Intervalos', en: 'Intervals' },
+  'pitch-hold': { pt: 'Sustentação', en: 'Sustain' },
+};
 
 // Friendly labels for the classified voice type — shown in the range card.
 const VOICE_LABELS: Record<VoiceType, { pt: string; en: string; icon: string }> = {
@@ -28,6 +37,28 @@ export function Progress() {
 
   const earnedBadges = getEarnedBadges(profile.badges);
   const recentResults = profile.results.slice(0, 10);
+
+  // ── Per-course mastery ──
+  const courseProgress = COURSES.map(c => {
+    const done = c.lessons.filter(l => profile.completedLessons.includes(l.id)).length;
+    return { id: c.id, icon: c.icon, title: courseTitle(c, lang), done, total: c.lessons.length, pct: Math.round((done / c.lessons.length) * 100) };
+  });
+
+  // ── Accuracy by skill (exercise type) ──
+  const byType = new Map<ExerciseType, number[]>();
+  for (const r of profile.results) {
+    const ex = getExerciseById(r.exerciseId);
+    if (!ex) continue;
+    const arr = byType.get(ex.type) ?? [];
+    arr.push(r.accuracyPct);
+    byType.set(ex.type, arr);
+  }
+  const skills = [...byType.entries()].map(([type, arr]) => ({
+    type,
+    label: SKILL_LABELS[type] ? (lang === 'pt-BR' ? SKILL_LABELS[type]!.pt : SKILL_LABELS[type]!.en) : type,
+    avg: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+    n: arr.length,
+  })).sort((a, b) => b.avg - a.avg);
 
   // ── Range display ──
   const lowMidi = profile.range.lowestMidi;
@@ -115,6 +146,44 @@ export function Progress() {
           <div className="text-center text-sm text-slate-400 py-4">{t(lang, 'progress.rangeUnknown')}</div>
         )}
       </div>
+
+      {/* Course progress */}
+      <div className="space-y-3">
+        <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Progresso nos cursos' : 'Course progress'}</div>
+        <div className="card p-4 space-y-3">
+          {courseProgress.map(c => (
+            <div key={c.id}>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-300 truncate mr-2">{c.icon} {c.title}</span>
+                <span className="font-mono text-slate-400 shrink-0">{c.done}/{c.total}</span>
+              </div>
+              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-400 rounded-full transition-all" style={{ width: `${c.pct}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Accuracy by skill */}
+      {skills.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Precisão por habilidade' : 'Accuracy by skill'}</div>
+          <div className="card p-4 space-y-3">
+            {skills.map(sk => (
+              <div key={sk.type}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-300">{sk.label}</span>
+                  <span className="font-mono text-slate-400">{sk.avg}% · {sk.n}</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${sk.avg >= 85 ? 'bg-green-400' : sk.avg >= 70 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${sk.avg}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recent results */}
       <div className="space-y-3">
