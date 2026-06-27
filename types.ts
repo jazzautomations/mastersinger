@@ -11,6 +11,7 @@ export type View =
   | 'home'
   | 'tuner'
   | 'practice'
+  | 'performance' // karaoke-style note highway game
   | 'studio'      // MIDI melody editor
   | 'ear'
   | 'theory'

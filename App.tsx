@@ -6,6 +6,7 @@ import { Landing } from './components/Landing';
 import { Home } from './components/Home';
 import { Tuner } from './components/Tuner';
 import { Practice } from './components/Practice';
+import { Performance } from './components/Performance';
 import { MelodyStudio } from './components/MelodyStudio';
 import { EarTraining } from './components/EarTraining';
 import { Theory } from './components/Theory';
@@ -161,7 +162,7 @@ function MainApp() {
   };
 
   // 404 for unknown views
-  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','rhythm','academy','progress','settings','warmup','recorder','teacher'];
+  const validViews: View[] = ['home','tuner','practice','performance','studio','ear','theory','harmony','rhythm','academy','progress','settings','warmup','recorder','teacher'];
   const is404 = !validViews.includes(view);
 
   if (!showApp) {
@@ -278,6 +279,7 @@ function MainApp() {
                                   customExercise={viewOpts?.customExercise}
                                   onComplete={() => handleNavigate('home')}
                                 />}
+        {view === 'performance' && <Performance onComplete={() => handleNavigate('home')} />}
         {view === 'studio'   && <ProOverlay view={view} viewName={t(lang, 'nav.studio')}><MelodyStudio onNavigate={handleNavigate} /></ProOverlay>}
         {view === 'ear'      && <ProOverlay view={view} viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
         {view === 'theory'   && <ProOverlay view={view} viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}

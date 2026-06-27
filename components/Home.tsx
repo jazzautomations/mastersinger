@@ -121,6 +121,23 @@ export function Home({ onNavigate }: HomeProps) {
         </div>
       </button>
 
+      {/* ── Performance mode (note highway) ── */}
+      <button
+        onClick={() => onNavigate('performance')}
+        className="card p-6 w-full text-left space-y-2 transition-all border-fuchsia-500/30 bg-gradient-to-r from-fuchsia-500/10 via-violet-500/10 to-cyan-500/10 hover:border-fuchsia-500/50"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🎯</span>
+            <div>
+              <div className="text-xs text-fuchsia-300 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Modo Performance' : 'Performance Mode'}</div>
+              <div className="text-lg font-bold">{lang === 'pt-BR' ? 'Cante a pista — afinação ao vivo' : 'Sing the highway — live pitch'}</div>
+            </div>
+          </div>
+          <span className="text-fuchsia-400"><i className="fas fa-chevron-right"></i></span>
+        </div>
+      </button>
+
       {/* ── Guided warmup ── */}
       <button
         onClick={() => onNavigate('warmup')}
