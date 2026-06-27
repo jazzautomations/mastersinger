@@ -4,19 +4,20 @@ import { usePitchDetection } from '../audio/usePitchDetection';
 import { scoreExercise } from '../services/scoringService';
 import { getExercisesByLevel } from '../data/exercises';
 import { transposeExercise, centerOfMidis, transposeOffset } from '../services/theoryService';
-import { ensureAudioStarted } from '../services/audioService';
+import { ensureAudioStarted, playNote, stopAll } from '../services/audioService';
 import { PitchHighway } from './PitchHighway';
-import type { Exercise, ExerciseResult, PitchFrame } from '../types';
+import type { Exercise, ExerciseResult, ExerciseTarget, PitchFrame } from '../types';
 
 interface PerformanceProps {
   onComplete: () => void;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Performance — the game mode. Pick an exercise, then sing it as a scrolling
-// "note highway" (PitchHighway) with live pitch tracking, and get scored. It
-// reuses the existing timed exercises and the same scoreExercise engine as
-// Practice, so scores are consistent across the app.
+// Performance — the game mode. Preview the melody (tap notes to hear them),
+// then sing it as a scrolling "note highway" with live pitch tracking, and get
+// scored. Your voice is recorded so you can play it back together with the
+// reference notes. Reuses the existing timed exercises and the same
+// scoreExercise engine as Practice.
 // ──────────────────────────────────────────────────────────────────────────
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -32,16 +33,18 @@ export function Performance({ onComplete }: PerformanceProps) {
   const collectingRef = useRef(false);
   const framesRef = useRef<PitchFrame[]>([]);
   const finishedRef = useRef(false);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const pitch = usePitchDetection({
     a4,
+    record: true,
     micSensitivity: profile.settings.micSensitivity,
     noiseGate: profile.settings.noiseGate,
     smoothing: true,
     onFrame: (f) => { if (collectingRef.current && f.frequency > 0) framesRef.current.push(f); },
   });
 
-  const [phase, setPhase] = useState<'setup' | 'playing' | 'done'>('setup');
+  const [phase, setPhase] = useState<'setup' | 'preview' | 'playing' | 'done'>('setup');
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [startTime, setStartTime] = useState(0);
   const [result, setResult] = useState<Omit<ExerciseResult, 'exerciseId' | 'completedAt'> | null>(null);
@@ -54,26 +57,61 @@ export function Performance({ onComplete }: PerformanceProps) {
     });
   }, [profile.settings.level, center]);
 
-  const stopAll = useCallback(() => { collectingRef.current = false; pitch.stop(); }, [pitch]);
-  useEffect(() => () => { stopAll(); }, [stopAll]);
+  const stopVoice = useCallback(() => {
+    if (voiceAudioRef.current) { voiceAudioRef.current.pause(); voiceAudioRef.current = null; }
+  }, []);
+  const stopEverything = useCallback(() => { collectingRef.current = false; pitch.stop(); stopAll(); stopVoice(); }, [pitch, stopVoice]);
+  useEffect(() => () => { stopEverything(); }, [stopEverything]);
 
-  const begin = useCallback(async (ex: Exercise, sourceId: string) => {
-    if (!canAccessExercise(sourceId)) { openUpgrade(); return; }
+  // ── Play the reference melody (notes only) ──
+  const playReference = useCallback(async (targets: ExerciseTarget[], removeLead: boolean) => {
+    await ensureAudioStarted();
+    stopAll(); stopVoice();
+    const lead = removeLead ? (targets[0]?.startMs ?? 0) : 0;
+    targets.forEach(t => playNote(t.midi, Math.min(t.durationMs * 0.9, 900), t.startMs - lead, a4));
+  }, [a4, stopVoice]);
+
+  // ── Play your recorded voice together with the reference notes ──
+  const playVoiceWithReference = useCallback(async () => {
+    if (!exercise) return;
+    await ensureAudioStarted();
+    stopAll(); stopVoice();
+    const url = pitch.recordingUrl;
+    if (url) {
+      const audio = new Audio(url);
+      voiceAudioRef.current = audio;
+      audio.play().catch(() => {});
+    }
+    // Reference notes keep their lead so they line up with the recording.
+    exercise.targets.forEach(t => playNote(t.midi, Math.min(t.durationMs * 0.9, 900), t.startMs, a4));
+  }, [exercise, a4, pitch.recordingUrl, stopVoice]);
+
+  const openPreview = useCallback((ex: Exercise) => {
+    if (!canAccessExercise(ex.id)) { openUpgrade(); return; }
+    stopEverything();
+    setExercise(ex);
+    setResult(null);
+    setPhase('preview');
+  }, [canAccessExercise, openUpgrade, stopEverything]);
+
+  const begin = useCallback(async (ex: Exercise) => {
     setExercise(ex);
     setResult(null);
     framesRef.current = [];
     finishedRef.current = false;
+    stopAll(); stopVoice();
     await ensureAudioStarted();
     await pitch.start();
     collectingRef.current = true;
     setStartTime(performance.now());
     setPhase('playing');
-  }, [canAccessExercise, openUpgrade, pitch]);
+  }, [pitch, stopVoice]);
 
   const finish = useCallback(() => {
     if (finishedRef.current || !exercise) return;
     finishedRef.current = true;
-    stopAll();
+    collectingRef.current = false;
+    pitch.stop();
     const sc = scoreExercise(exercise, framesRef.current, a4);
     setResult(sc);
     const full: ExerciseResult = { ...sc, exerciseId: exercise.id, completedAt: Date.now() };
@@ -82,9 +120,9 @@ export function Performance({ onComplete }: PerformanceProps) {
     if (!profile.badges.includes('first-practice')) unlockBadge('first-practice');
     if (sc.score >= 100 && !profile.badges.includes('perfect-score')) unlockBadge('perfect-score');
     setPhase('done');
-  }, [exercise, a4, recordResult, touchStreak, unlockBadge, profile.badges, stopAll]);
+  }, [exercise, a4, recordResult, touchStreak, unlockBadge, profile.badges, pitch]);
 
-  // ── Setup ──
+  // ── Setup: choose an exercise ──
   if (phase === 'setup') {
     return (
       <div className="space-y-5 pb-24">
@@ -99,7 +137,7 @@ export function Performance({ onComplete }: PerformanceProps) {
           {options.map((ex, i) => {
             const locked = !canAccessExercise(ex.id);
             return (
-              <button key={ex.id + i} onClick={() => begin(ex, ex.id)} className="card p-4 w-full text-left flex items-center justify-between hover:border-violet-500/40 transition-all">
+              <button key={ex.id + i} onClick={() => openPreview(ex)} className="card p-4 w-full text-left flex items-center justify-between hover:border-violet-500/40 transition-all">
                 <div className="flex items-center gap-3">
                   <span className="text-xl">{TYPE_EMOJI[ex.type] ?? '🎵'}</span>
                   <div>
@@ -107,7 +145,7 @@ export function Performance({ onComplete }: PerformanceProps) {
                     <div className="text-[11px] text-slate-500 font-mono">{ex.targets.length} {L('notas', 'notes')} · {ex.tempoBpm ?? 60} BPM</div>
                   </div>
                 </div>
-                <span className="text-xs font-mono text-violet-400">{locked ? '🔒' : L('Cantar →', 'Sing →')}</span>
+                <span className="text-xs font-mono text-violet-400">{locked ? '🔒' : L('Abrir →', 'Open →')}</span>
               </button>
             );
           })}
@@ -116,7 +154,25 @@ export function Performance({ onComplete }: PerformanceProps) {
     );
   }
 
-  // ── Playing ──
+  // ── Preview: hear/tap the notes before singing ──
+  if (phase === 'preview' && exercise) {
+    return (
+      <div className="space-y-4 pb-24">
+        <div className="space-y-1">
+          <button onClick={() => { stopEverything(); setPhase('setup'); }} className="btn-ghost text-xs"><i className="fas fa-arrow-left mr-2"></i>{L('Voltar', 'Back')}</button>
+          <h1 className="text-xl font-black display">{exercise.title}</h1>
+          <p className="text-slate-400 text-xs">{L('Toque numa nota pra ouvi-la, ou ouça a melodia inteira. Depois é só cantar.', 'Tap a note to hear it, or play the whole melody. Then sing it.')}</p>
+        </div>
+        <PitchHighway targets={exercise.targets} a4={a4} preview />
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => playReference(exercise.targets, true)} className="btn-ghost"><i className="fas fa-play mr-2"></i>{L('Ouvir melodia', 'Play melody')}</button>
+          <button onClick={() => begin(exercise)} className="btn-primary bg-gradient-to-r from-fuchsia-600 to-violet-600"><i className="fas fa-microphone mr-2"></i>{L('Cantar', 'Sing')}</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Playing: the live highway ──
   if (phase === 'playing' && exercise) {
     const f = pitch.currentFrame;
     return (
@@ -136,7 +192,7 @@ export function Performance({ onComplete }: PerformanceProps) {
     );
   }
 
-  // ── Done ──
+  // ── Done: score + playback ──
   if (phase === 'done' && result && exercise) {
     const grade = result.score >= 90 ? 'text-green-400' : result.score >= 70 ? 'text-amber-400' : 'text-red-400';
     const msg = result.score >= 90 ? L('Incrível! 🔥', 'Amazing! 🔥')
@@ -161,11 +217,24 @@ export function Performance({ onComplete }: PerformanceProps) {
           <Bar label={L('Tempo', 'Timing')} pct={result.timingPct} />
           <Bar label={L('Estabilidade', 'Stability')} pct={result.stabilityPct} />
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => begin(exercise, exercise.id)} className="btn-primary">{L('De novo', 'Again')}</button>
-          <button onClick={() => { setPhase('setup'); setExercise(null); }} className="btn-ghost">{L('Outro exercício', 'Another')}</button>
+        <div className="card p-4 space-y-2">
+          <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{L('Reescute', 'Play back')}</div>
+          {pitch.recordingUrl ? (
+            <button onClick={playVoiceWithReference} className="btn-primary w-full bg-gradient-to-r from-cyan-600 to-violet-600">
+              <i className="fas fa-headphones mr-2"></i>{L('Sua voz + notas de referência', 'Your voice + reference notes')}
+            </button>
+          ) : (
+            <div className="text-[11px] text-slate-500">{L('Gravação indisponível (permissão de microfone).', 'Recording unavailable (mic permission).')}</div>
+          )}
+          <button onClick={() => playReference(exercise.targets, true)} className="btn-ghost w-full text-sm">
+            <i className="fas fa-music mr-2"></i>{L('Só as notas de referência', 'Reference notes only')}
+          </button>
         </div>
-        <button onClick={onComplete} className="btn-ghost w-full text-xs">{L('Voltar ao início', 'Back home')}</button>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => begin(exercise)} className="btn-primary">{L('De novo', 'Again')}</button>
+          <button onClick={() => { stopEverything(); setPhase('setup'); setExercise(null); }} className="btn-ghost">{L('Outro exercício', 'Another')}</button>
+        </div>
+        <button onClick={() => { stopEverything(); onComplete(); }} className="btn-ghost w-full text-xs">{L('Voltar ao início', 'Back home')}</button>
       </div>
     );
   }
