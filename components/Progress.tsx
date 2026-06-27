@@ -2,6 +2,7 @@ import { useStore, getLevelTitle, getLeague, xpForLevel } from '../store/store';
 import { t } from '../i18n/strings';
 import { BADGES, getEarnedBadges } from '../data/badges';
 import { midiToNoteName, weekStartISO } from '../services/theoryService';
+import { getExerciseById } from '../data/exercises';
 import type { VoiceType } from '../types';
 
 // Friendly labels for the classified voice type — shown in the range card.
@@ -124,7 +125,7 @@ export function Progress() {
           <div className="space-y-2">
             {recentResults.map((r, i) => (
               <div key={i} className="card p-3 flex items-center justify-between">
-                <div className="text-sm font-mono text-slate-300">{r.exerciseId}</div>
+                <div className="text-sm font-medium text-slate-300 truncate mr-3">{getExerciseById(r.exerciseId)?.title ?? r.exerciseId}</div>
                 <div className="flex items-center gap-3 text-xs font-mono">
                   <span className="text-green-400">{r.accuracyPct}%</span>
                   <span className="text-violet-400">{r.stabilityPct}%</span>

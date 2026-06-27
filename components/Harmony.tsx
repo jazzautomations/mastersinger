@@ -131,12 +131,17 @@ function ProgressionsExplorer({ lang, a4 }: TriadsProps) {
     await ensureAudioStarted();
     const token = beginPlayback();
     const prog = progressions[selected];
+    // Shift the whole progression by WHOLE OCTAVES toward the singer's range
+    // center. Octave-only shifts preserve every chord's pitch class, so the
+    // displayed chord names (C, F, G…) always match what's actually played.
+    const center = profile?.settings?.rangeCenterMidi;
+    const octaveShift = center != null ? Math.round((center - 60) / 12) * 12 : 0;
+    const baseMidi = 60 + octaveShift;
     for (let i = 0; i < prog.chords.length; i++) {
       if (!mountedRef.current || !isPlaybackActive(token)) return;
       const c = prog.chords[i];
-              const baseMidi = profile?.settings?.rangeCenterMidi ?? 60;
-              const midis = CHORD_TYPES[c.type].intervals.map(int => baseMidi + c.root + int);
-              playChord(midis, 1200, a4);
+      const midis = CHORD_TYPES[c.type].intervals.map(int => baseMidi + c.root + int);
+      playChord(midis, 1200, a4);
       await new Promise(r => setTimeout(r, 1300));
       if (!mountedRef.current || !isPlaybackActive(token)) return;
     }
@@ -217,7 +222,17 @@ function SingHarmonyPart({ lang, a4, interval, addXp, unlockBadge, profile, micS
   const expectedMidi = targetMidi + semitones;
 
   const newTarget = () => {
-    setTargetMidi(60 + Math.floor(Math.random() * 12));
+    // Pick a root so the note the user must SING (root + semitones) lands near
+    // their detected range center, with a little wiggle. Falls back to C4–B4.
+    const center = profile?.settings?.rangeCenterMidi;
+    let root: number;
+    if (center != null) {
+      root = Math.round(center) - semitones + (Math.floor(Math.random() * 5) - 2);
+      root = Math.max(48, Math.min(72, root));
+    } else {
+      root = 60 + Math.floor(Math.random() * 12);
+    }
+    setTargetMidi(root);
     setUserMidi(null);
     setUserCents(0);
     setScore(null);

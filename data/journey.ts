@@ -674,6 +674,3 @@ export function isDayComplete(day: JourneyDay, completedLessons: string[], resul
   });
   return lessonDone && practiceDone;
 }
-
-// Legacy — kept for any callers that import getPhase
-export const getPhase = getMonth;

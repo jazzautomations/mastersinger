@@ -114,7 +114,7 @@ export function Home({ onNavigate }: HomeProps) {
             <span className="text-3xl">⚡</span>
             <div>
               <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'home.dailyChallenge')}</div>
-              <div className="text-lg font-bold">{dailyDone ? (lang === 'pt-BR' ? 'Concluído hoje!' : 'Done today!') : (lang === 'pt-BR' ? '3 exercícios · bônus XP' : '3 exercises · bonus XP')}</div>
+              <div className="text-lg font-bold">{dailyDone ? (lang === 'pt-BR' ? 'Concluído hoje!' : 'Done today!') : (lang === 'pt-BR' ? `${dailyExercises.length} exercícios · bônus XP` : `${dailyExercises.length} exercises · bonus XP`)}</div>
             </div>
           </div>
           {dailyDone ? <span className="text-green-400 text-xl">✓</span> : <span className="text-violet-400"><i className="fas fa-chevron-right"></i></span>}

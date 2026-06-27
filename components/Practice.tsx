@@ -403,11 +403,13 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
                 const byLevel = getExercisesByType(type).filter(e => e.level === userLevel);
                 const pool = byLevel.length > 0 ? byLevel : getExercisesByType(type);
                 if (pool.length > 0) {
-                  const fitted = pool.map(fitExercise);
+                  // Store RAW exercises in the queue; fitExercise is applied at
+                  // display time here and in goNext (applying it to the queue too
+                  // would double-transpose).
                   setSelectedType(type);
-                  setExerciseQueue(fitted);
+                  setExerciseQueue(pool);
                   setCurrentIdx(0);
-                  setCurrentExercise(fitted[0]);
+                  setCurrentExercise(fitExercise(pool[0]));
                   setPhase('ready');
                 }
               }}
@@ -434,8 +436,9 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
                   key={ex.id}
                   onClick={() => {
                     if (locked) return openUpgrade();
-                    const pool = getExercisesByLevel(userLevel).filter(e => e.type === ex.type).map(fitExercise);
-                    const idx = pool.findIndex(e => e.id === fitExercise(ex).id);
+                    // RAW pool in the queue; fit only the displayed exercise.
+                    const pool = getExercisesByLevel(userLevel).filter(e => e.type === ex.type);
+                    const idx = pool.findIndex(e => e.id === ex.id);
                     setSelectedType(ex.type);
                     setExerciseQueue(pool);
                     setCurrentIdx(Math.max(0, idx));
