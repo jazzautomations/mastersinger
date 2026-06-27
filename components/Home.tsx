@@ -24,8 +24,9 @@ export function Home({ onNavigate }: HomeProps) {
   const levelProgress = Math.round((xpIntoLevel / xpForNext) * 100);
   const levelTitle = getLevelTitle(profile.level);
 
-  const dailyExercises = dailyChallengeExercises();
+  const dailyExercises = dailyChallengeExercises(undefined, profile.settings.level);
   const dailyDone = profile.dailyChallenge?.date === today && profile.dailyChallenge.completed;
+  const hasRange = !!profile.settings.rangeCenterMidi || (profile.range?.voiceType && profile.range.voiceType !== 'unknown');
 
   // Suggest next lesson from in-progress course
   const nextCourse = COURSES.find(c => c.lessons.some(l => !profile.completedLessons.includes(l.id))) ?? COURSES[0];
@@ -82,6 +83,20 @@ export function Home({ onNavigate }: HomeProps) {
               <div className="text-[11px] text-slate-400">30+ exercícios, 8 cursos, estúdio MIDI e mais. Teste grátis por 7 dias.</div>
             </div>
             <span className="text-amber-400 text-xs font-mono font-bold">PRO →</span>
+          </div>
+        </button>
+      )}
+
+      {/* ── Voice range nudge ── */}
+      {!hasRange && (
+        <button onClick={() => onNavigate('settings')} className="card p-4 w-full text-left hover:border-cyan-500/40 transition-all border-cyan-500/10 bg-gradient-to-r from-cyan-500/5 to-violet-500/5">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎤</span>
+            <div className="flex-1">
+              <div className="text-sm font-bold text-cyan-200">{lang === 'pt-BR' ? 'Descubra sua tessitura vocal' : 'Discover your vocal range'}</div>
+              <div className="text-[11px] text-slate-400">{lang === 'pt-BR' ? 'Os exercícios se ajustam ao seu range. Leva 1 minuto.' : 'Exercises adapt to your range. Takes 1 minute.'}</div>
+            </div>
+            <span className="text-cyan-400 text-xs font-mono">{lang === 'pt-BR' ? 'FAZER →' : 'DO IT →'}</span>
           </div>
         </button>
       )}

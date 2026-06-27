@@ -191,13 +191,13 @@ export function getExercisesByLevel(level: Exercise['level']): Exercise[] {
 }
 
 // ── Daily challenge generator — deterministic by date ──
-export function dailyChallengeExercises(date = new Date()): Exercise[] {
+export function dailyChallengeExercises(date = new Date(), level: Exercise['level'] = 'intermediate'): Exercise[] {
   const day = Math.floor(date.getTime() / 86400000);
   const pool = [
-    ...getExercisesByType('scale-runner').filter(e => e.level === 'intermediate'),
-    ...getExercisesByType('arpeggio-drill').filter(e => e.level === 'intermediate'),
-    ...getExercisesByType('interval-leap').filter(e => e.level === 'intermediate'),
-    ...getExercisesByType('pitch-hold').filter(e => e.level === 'intermediate'),
+    ...getExercisesByType('scale-runner').filter(e => e.level === level),
+    ...getExercisesByType('arpeggio-drill').filter(e => e.level === level),
+    ...getExercisesByType('interval-leap').filter(e => e.level === level),
+    ...getExercisesByType('pitch-hold').filter(e => e.level === level),
   ];
   const seed = (s: number) => {
     const x = Math.sin(s) * 10000;

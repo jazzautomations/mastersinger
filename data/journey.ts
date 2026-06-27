@@ -38,8 +38,10 @@ function allLessons() {
   return COURSES.flatMap(c => c.lessons.map(l => ({ course: c, lesson: l })));
 }
 
-function begExercise() { return getExercisesByLevel('beginner')[0] ?? EXERCISES[0]; }
-function intExercise() { return getExercisesByLevel('intermediate')[0] ?? EXERCISES[5]; }
+function pickExercise(level: 'beginner' | 'intermediate' | 'advanced', n: number) {
+  const pool = getExercisesByLevel(level);
+  return pool[n % pool.length] ?? EXERCISES[0];
+}
 
 // Deterministic pick so day N always maps to the same lesson/exercise.
 function pick<T>(arr: T[], n: number): T {
@@ -80,8 +82,8 @@ export function buildJourney(): JourneyDay[] {
       xp: lessonPair.lesson.xp,
     });
 
-    // 3) Practice — beginner early, intermediate later
-    const ex = d <= 12 ? begExercise() : intExercise();
+    // 3) Practice — beginner early, intermediate later; rotate across days
+    const ex = d <= 12 ? pickExercise('beginner', d - 1) : pickExercise('intermediate', d - 13);
     steps.push({
       kind: 'practice',
       title: ex.title,

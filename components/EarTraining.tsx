@@ -222,6 +222,11 @@ export function EarTraining() {
           {selectedAnswer === question.answer && (
             <div className="text-sm text-violet-400">+{question.xp} XP</div>
           )}
+          {question.hint && (
+            <div className="text-xs text-slate-300 bg-white/5 rounded-lg px-3 py-2 text-left leading-relaxed">
+              💡 {question.hint}
+            </div>
+          )}
           {selectedAnswer !== question.answer && (
             <div className="text-xs text-slate-400">{t(lang, 'ear.tapToLearn')}</div>
           )}

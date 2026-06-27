@@ -113,6 +113,7 @@ export interface EarQuestion {
   rootMidi?: number;       // root the question was built on (for transposition)
   options: string[];
   answer: string;
+  hint?: string;           // pedagogical explanation shown after answering
   level: StudentLevel;
   xp: number;
 }
