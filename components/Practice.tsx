@@ -20,8 +20,15 @@ type NoteResult = 'hit' | 'miss' | 'skip' | 'pending';
 
 // How many consecutive voiced frames within tolerance to count as "hit"
 const HIT_STREAK_NEEDED = 8; // ~500ms of sustained singing on target
-// Max cents deviation to count as on-target
-const CENTS_TOLERANCE = 40;
+// Max cents deviation to count as on-target — adaptive to the student's level
+// so the bar actually rises as they improve. 40 cents (old fixed value) is
+// almost a quarter-tone: fine for a beginner finding the note, far too loose
+// for a tool a teacher would trust with an advanced singer.
+const CENTS_TOLERANCE_BY_LEVEL: Record<string, number> = {
+  beginner: 45,      // generous — reward getting close
+  intermediate: 32,  // must be clearly in the right pitch zone
+  advanced: 22,      // near-professional: ±22 cents or it doesn't count
+};
 
 export function Practice({ preselectedExerciseIds, isDaily, onComplete }: PracticeProps) {
   const { profile, recordResult, touchStreak, unlockBadge, canAccessExercise, openUpgrade } = useStore();
@@ -31,6 +38,7 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
   const rangeCenterMidi = profile.settings.rangeCenterMidi;
   const micSensitivity = profile.settings.micSensitivity ?? 0.5;
   const noiseGate = profile.settings.noiseGate ?? 0.02;
+  const centsTolerance = CENTS_TOLERANCE_BY_LEVEL[userLevel] ?? 32;
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -103,17 +111,15 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         const centsDeviation = Math.abs((frame.midi - target.midi) * 100);
         setNoteCents(Math.round((frame.midi - target.midi) * 100));
 
-        const roundedDetected = Math.round(frame.midi);
-        const roundedTarget = Math.round(target.midi);
-
-        // Octave fallback: singer may be +/– one octave off
-        const octaveMatch = roundedDetected === roundedTarget + 12 ||
-          roundedDetected === roundedTarget - 12;
-
-        // Octave match requires same cents proximity as primary check
-        const onTarget = centsDeviation < CENTS_TOLERANCE ||
-          roundedDetected === roundedTarget ||
-          (octaveMatch && centsDeviation < CENTS_TOLERANCE + 1200);
+        // Fold the deviation onto the nearest octave so singing the right note
+        // in the wrong octave still counts, but a tritone/wrong note never does.
+        // Then gate on the LEVEL-ADAPTIVE tolerance — the old code's
+        // `round(detected) === round(target)` shortcut meant the real tolerance
+        // was always ±50 cents (a full half-step), so the configured value did
+        // nothing. Now ±tolerance actually bites: 45/32/22 by level.
+        const octDist = centsDeviation % 1200;
+        const foldedDev = Math.min(octDist, 1200 - octDist);
+        const onTarget = foldedDev < centsTolerance;
 
         if (onTarget) {
           hitStreakRef.current++;

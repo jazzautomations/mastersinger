@@ -62,12 +62,32 @@ export function Recorder() {
     const H = canvas.height;
 
     const draw = () => {
-      // Camera feed (mirrored)
-      ctx.save();
-      ctx.translate(W, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, W, H);
-      ctx.restore();
+      // Camera feed (mirrored). Guard on readyState: drawing a video with no
+      // decoded frame yet (or one a mobile browser paused) paints nothing and
+      // the recording comes out black. Cover-fit the landscape camera into the
+      // portrait canvas instead of stretching it.
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        const vAR = video.videoWidth / video.videoHeight;
+        const cAR = W / H;
+        let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
+        if (vAR > cAR) {
+          // video wider than canvas → crop sides
+          sw = video.videoHeight * cAR;
+          sx = (video.videoWidth - sw) / 2;
+        } else {
+          // video taller → crop top/bottom
+          sh = video.videoWidth / cAR;
+          sy = (video.videoHeight - sh) / 2;
+        }
+        ctx.save();
+        ctx.translate(W, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#0a0a14';
+        ctx.fillRect(0, 0, W, H);
+      }
 
       // Dark overlay top/bottom
       const grad = ctx.createLinearGradient(0, 0, 0, H);
@@ -207,11 +227,20 @@ export function Recorder() {
 
   const recordStream = (stream: MediaStream) => {
     chunksRef.current = [];
-    // Prefer mp4/h264 (Safari 14.1+), fall back to webm (Chrome/Firefox)
-    const mimeType =
-      MediaRecorder.isTypeSupported('video/mp4; codecs="avc1.42E01E"') ? 'video/mp4; codecs="avc1.42E01E"' :
-      MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' :
-      'video/webm';
+    // Prefer webm/VP-family (Chrome + Firefox — the bulk of users, and the
+    // combo that records canvas+mic reliably). Only fall back to mp4/h264 on
+    // Safari, which doesn't support webm in MediaRecorder. Picking mp4 first
+    // risked Chrome paths where it claims support but muxes canvas streams
+    // badly → empty/black files.
+    const candidates = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=vp9',
+      'video/webm',
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4',
+    ];
+    const mimeType = candidates.find(c => MediaRecorder.isTypeSupported(c)) ?? 'video/webm';
     const recorder = new MediaRecorder(stream, { mimeType });
     recorderRef.current = recorder;
 
@@ -332,7 +361,16 @@ export function Recorder() {
   // ── CAMERA / RECORDING: canvas + video ──
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-0">
-      <video ref={videoRef} className="hidden" playsInline muted />
+      {/* Source video kept in the render tree but visually hidden — a
+          `display:none` (Tailwind `hidden`) video stops decoding frames on
+          several mobile browsers, so drawImage would capture black. */}
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        autoPlay
+        style={{ position: 'fixed', width: 1, height: 1, opacity: 0.01, pointerEvents: 'none', top: 0, left: 0, zIndex: -1 }}
+      />
       <canvas
         ref={canvasRef}
         width={720}

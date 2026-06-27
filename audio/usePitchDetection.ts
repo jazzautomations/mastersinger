@@ -133,11 +133,17 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       return;
     }
 
-    // Apply sensitivity: scale the buffer by micSensitivity
-    const sensitivity = sensitivityRef.current;
-    if (sensitivity !== 1.0) {
+    // Apply sensitivity as a GAIN centered so the default (0.5) is neutral
+    // (1.0×). Higher boosts weak/quiet voices; lower attenuates. The old code
+    // multiplied the buffer by micSensitivity directly, so the default 0.5
+    // silently HALVED every signal before pitch detection AND made the mic-
+    // level readout show half of reality — the core "afinador impreciso/não
+    // detecta minha voz" complaint. Mapping ×2 keeps the slider meaningful:
+    //   0.5 → 1.0× (neutral) · 1.0 → 2.0× (boost) · 0.1 → 0.2× (attenuate).
+    const gain = sensitivityRef.current * 2;
+    if (gain !== 1.0) {
       for (let i = 0; i < bufferRef.current.length; i++) {
-        bufferRef.current[i] *= sensitivity;
+        bufferRef.current[i] *= gain;
       }
     }
 
