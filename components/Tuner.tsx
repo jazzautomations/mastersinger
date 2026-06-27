@@ -50,6 +50,8 @@ export function Tuner() {
   const lastVoicedRef = useRef<{ note: string; cents: number; freq: number; conf: number; midi: number } | null>(null);
   const voicedStreakRef = useRef(0);
   const silentStreakRef = useRef(0);
+  const perfectStartRef = useRef<number | null>(null);
+  const perfectNoteRef = useRef<string>('');
 
   const toggleRef = async () => {
     if (refPlaying) {
@@ -82,7 +84,17 @@ export function Tuner() {
   useEffect(() => {
     const f = pitch.currentFrame;
     lastFrameRef.current = f;
-    if (!f || f.frequency <= 0 || f.confidence < 0.30) return;
+    if (!f || f.frequency <= 0 || f.confidence < 0.30) { perfectStartRef.current = null; return; }
+    // ── perfect-tuner badge: hold within ±2 cents on one note for 3s (time-based,
+    //    so it's frame-rate independent). ──
+    const nowMs = performance.now();
+    if (Math.abs(f.cents) <= 2 && perfectNoteRef.current === f.noteName) {
+      if (perfectStartRef.current == null) perfectStartRef.current = nowMs;
+      else if (nowMs - perfectStartRef.current >= 3000) unlock('perfect-tuner');
+    } else {
+      perfectStartRef.current = Math.abs(f.cents) <= 2 ? nowMs : null;
+    }
+    perfectNoteRef.current = f.noteName;
     const m = Math.round(f.midi);
     if (rangeLowRef.current == null || m < rangeLowRef.current) rangeLowRef.current = m;
     if (rangeHighRef.current == null || m > rangeHighRef.current) rangeHighRef.current = m;

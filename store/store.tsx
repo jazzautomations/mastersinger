@@ -455,7 +455,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         weeklyXp.push({ weekStart, xp });
         if (weeklyXp.length > 12) weeklyXp.shift();
       }
-      return { ...prev, xp: newXp, level: newLevel, weeklyXp };
+      // ── Award milestone badges (level + weekly league) ──
+      const curEntry = weeklyXp.find(w => w.weekStart === weekStart);
+      const badges = [
+        ...prev.badges,
+        ...levelBadges(newLevel, prev.badges),
+        ...leagueBadges(curEntry ? curEntry.xp : xp, prev.badges),
+      ];
+      return { ...prev, xp: newXp, level: newLevel, weeklyXp, badges };
     });
   }, []);
 
@@ -494,8 +501,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const range = prev.range ?? {};
       const newLow = Math.min(range.lowestMidi ?? 127, low);
       const newHigh = Math.max(range.highestMidi ?? 0, high);
+      const badges = [...prev.badges, ...rangeBadges(newHigh - newLow, prev.badges)];
       return {
         ...prev,
+        badges,
         range: { lowestMidi: newLow, highestMidi: newHigh, detectedAt: Date.now(), voiceType: classifyVoiceType(newLow, newHigh) },
         settings: { ...prev.settings, rangeCenterMidi: Math.round((newLow + newHigh) / 2) },
       };
@@ -726,6 +735,28 @@ export function getLeague(weeklyXp: number): League {
   if (weeklyXp >= 500) return 'Gold';
   if (weeklyXp >= 200) return 'Silver';
   return 'Bronze';
+}
+
+export const LEVEL_BADGES: ReadonlyArray<readonly [number, string]> = [
+  [5, 'level-5'], [12, 'level-12'], [22, 'level-22'], [35, 'level-35'],
+];
+
+// ── Pure milestone-badge helpers (unit-tested in tests/badges.test.ts) ──
+export function levelBadges(level: number, owned: readonly string[]): string[] {
+  return LEVEL_BADGES.filter(([lvl, id]) => level >= lvl && !owned.includes(id)).map(([, id]) => id);
+}
+export function leagueBadges(weekXp: number, owned: readonly string[]): string[] {
+  const lg = getLeague(weekXp);
+  const out: string[] = [];
+  if ((lg === 'Gold' || lg === 'Platinum' || lg === 'Diamond') && !owned.includes('league-gold')) out.push('league-gold');
+  if (lg === 'Diamond' && !owned.includes('league-diamond')) out.push('league-diamond');
+  return out;
+}
+export function rangeBadges(spanSemitones: number, owned: readonly string[]): string[] {
+  const out: string[] = [];
+  if (spanSemitones >= 24 && !owned.includes('range-2oct')) out.push('range-2oct');
+  if (spanSemitones >= 36 && !owned.includes('range-3oct')) out.push('range-3oct');
+  return out;
 }
 
 export function xpForLevel(level: number): number {
