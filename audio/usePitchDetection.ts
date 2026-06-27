@@ -50,7 +50,7 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
     record = false,
     onFrame,
     micSensitivity = 0.5, // default balanced sensitivity
-    noiseGate = 0.02,     // default low noise gate
+    noiseGate = 0.012,   // default low noise gate (lowered: 0.02 over-gated quiet mics)
   } = options;
 
   const [isListening, setIsListening] = useState(false);
@@ -115,13 +115,25 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
 
     analyserRef.current.getFloatTimeDomainData(bufferRef.current);
 
-    // Apply noise gate: if RMS is below threshold, treat as silence
+    // Apply sensitivity as a GAIN *first*, BEFORE the noise gate, so raising
+    // the slider can lift a quiet mic above the gate. (Bug: the gate used to
+    // run on the raw signal, so on a quiet mic the voice was thrown away as
+    // "silence" and the sensitivity slider could never rescue it.) Mapping ×2
+    // keeps 0.5 neutral: 0.5 → 1.0× · 1.0 → 2.0× boost · 0.1 → 0.2× attenuate.
+    const gain = sensitivityRef.current * 2;
+    if (gain !== 1.0) {
+      for (let i = 0; i < bufferRef.current.length; i++) bufferRef.current[i] *= gain;
+    }
+
+    // Noise gate on the (boosted) signal. Surface the real level always, so the
+    // meter shows there IS input even when it's below the gate — that tells the
+    // singer to raise sensitivity instead of guessing.
     let sum = 0;
     for (let i = 0; i < bufferRef.current.length; i++) sum += bufferRef.current[i] * bufferRef.current[i];
     const rms = Math.sqrt(sum / bufferRef.current.length);
-    
+    setMicLevel(rms);
+
     if (rms < noiseGateRef.current) {
-      setMicLevel(0);
       silentStreakRef.current += 1;
       voicedStreakRef.current = 0;
       if (lastVoicedRef.current && silentStreakRef.current <= 2 && (performance.now() - startTimeRef.current - lastEmitTsRef.current) < 120) {
@@ -133,20 +145,6 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       return;
     }
 
-    // Apply sensitivity as a GAIN centered so the default (0.5) is neutral
-    // (1.0×). Higher boosts weak/quiet voices; lower attenuates. The old code
-    // multiplied the buffer by micSensitivity directly, so the default 0.5
-    // silently HALVED every signal before pitch detection AND made the mic-
-    // level readout show half of reality — the core "afinador impreciso/não
-    // detecta minha voz" complaint. Mapping ×2 keeps the slider meaningful:
-    //   0.5 → 1.0× (neutral) · 1.0 → 2.0× (boost) · 0.1 → 0.2× (attenuate).
-    const gain = sensitivityRef.current * 2;
-    if (gain !== 1.0) {
-      for (let i = 0; i < bufferRef.current.length; i++) {
-        bufferRef.current[i] *= gain;
-      }
-    }
-
     const result = detectPitch(
       bufferRef.current,
       audioContextRef.current?.sampleRate ?? 44100,
@@ -154,8 +152,6 @@ export function usePitchDetection(options: UsePitchDetectionOptions = {}): UsePi
       minFreqRef.current,
       maxFreqRef.current,
     );
-
-    setMicLevel(result.rms);
 
     const ts = performance.now() - startTimeRef.current;
     const a4 = a4Ref.current;

@@ -39,7 +39,7 @@ export function Performance({ onComplete }: PerformanceProps) {
     a4,
     record: true,
     micSensitivity: profile.settings.micSensitivity,
-    noiseGate: profile.settings.noiseGate,
+    noiseGate: Math.min(profile.settings.noiseGate, 0.012), // game mode: be sensitive
     smoothing: true,
     onFrame: (f) => { if (collectingRef.current && f.frequency > 0) framesRef.current.push(f); },
   });
