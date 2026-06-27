@@ -29,6 +29,13 @@ interface PitchHighwayProps {
 }
 
 type Status = 'pending' | 'hit' | 'miss';
+
+// Octave-equivalent match: singing the right pitch class in ANY comfortable
+// octave counts as on-note (mirrors the scoring engine's octave equivalence).
+function onPitch(userMidi: number, targetMidi: number): boolean {
+  const semis = Math.abs(userMidi - targetMidi) % 12;
+  return Math.min(semis, 12 - semis) <= HIT_TOLERANCE;
+}
 type BarRect = { x0: number; x1: number; yTop: number; yBot: number; midi: number };
 const HIT_TOLERANCE = 0.6;       // semitones counted as "on the note"
 const WINDOW_MS = 4000;          // how far ahead is visible (live mode)
@@ -123,7 +130,7 @@ export function PitchHighway({ targets, frame = null, startTime = 0, running = f
       const pxPerMs = (W - playheadX) / WINDOW_MS;
       const elapsed = performance.now() - startRef.current;
       const userMidi = frameRef.current && frameRef.current.frequency > 0 ? frameRef.current.midi : null;
-      const voiced = userMidi != null && (frameRef.current?.confidence ?? 0) > 0.3;
+      const voiced = userMidi != null && (frameRef.current?.confidence ?? 0) > 0.2;
 
       targets.forEach((tg, i) => {
         const x0 = playheadX + (tg.startMs - elapsed) * pxPerMs;
@@ -133,7 +140,7 @@ export function PitchHighway({ targets, frame = null, startTime = 0, running = f
           return;
         }
         const active = elapsed >= tg.startMs && elapsed <= tg.startMs + tg.durationMs;
-        if (active && voiced && Math.abs(userMidi! - tg.midi) <= HIT_TOLERANCE) statusRef.current[i] = 'hit';
+        if (active && voiced && onPitch(userMidi!, tg.midi)) statusRef.current[i] = 'hit';
         else if (elapsed > tg.startMs + tg.durationMs && statusRef.current[i] === 'pending') statusRef.current[i] = 'miss';
 
         const status = statusRef.current[i];
@@ -165,7 +172,7 @@ export function PitchHighway({ targets, frame = null, startTime = 0, running = f
       // live pitch dot
       if (voiced) {
         const y = yFor(userMidi!);
-        const onNote = targets.some(tg => elapsed >= tg.startMs && elapsed <= tg.startMs + tg.durationMs && Math.abs(userMidi! - tg.midi) <= HIT_TOLERANCE);
+        const onNote = targets.some(tg => elapsed >= tg.startMs && elapsed <= tg.startMs + tg.durationMs && onPitch(userMidi!, tg.midi));
         ctx.beginPath();
         ctx.arc(playheadX, y, onNote ? 9 : 6, 0, Math.PI * 2);
         ctx.fillStyle = onNote ? '#22c55e' : '#22d3ee';

@@ -25,7 +25,7 @@ const TYPE_EMOJI: Record<string, string> = {
 };
 
 export function Performance({ onComplete }: PerformanceProps) {
-  const { profile, recordResult, touchStreak, unlockBadge, canAccessExercise, openUpgrade } = useStore();
+  const { profile, recordResult, touchStreak, unlockBadge, canAccessExercise, openUpgrade, updateSettings } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
   const L = (pt: string, en: string) => (lang === 'pt-BR' ? pt : en);
@@ -187,6 +187,19 @@ export function Performance({ onComplete }: PerformanceProps) {
           <span className={`font-black font-mono ${f && f.frequency > 0 ? 'text-cyan-300' : 'text-slate-600'}`}>
             {f && f.frequency > 0 ? f.noteName : '—'}
           </span>
+        </div>
+        <div className="card p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <i className="fas fa-microphone text-xs text-slate-400"></i>
+            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-green-400 to-cyan-400 transition-all duration-75" style={{ width: `${Math.min(100, Math.round(pitch.micLevel * 400))}%` }} />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-500 font-mono w-12">{L('Sensib.', 'Sens.')}</span>
+            <input type="range" min={0.2} max={1} step={0.05} value={profile.settings.micSensitivity} onChange={(e) => updateSettings({ micSensitivity: +e.target.value })} className="flex-1 accent-cyan-400" />
+          </div>
+          <div className="text-[10px] text-slate-500">{L('Se a barra mal mexe ao cantar, aumente a sensibilidade.', 'If the bar barely moves while you sing, raise the sensitivity.')}</div>
         </div>
       </div>
     );
