@@ -102,6 +102,7 @@ export function Performance({ onComplete }: PerformanceProps) {
     stopAll(); stopVoice();
     await ensureAudioStarted();
     await pitch.start();
+    await ensureAudioStarted(); // iOS: getUserMedia can suspend the playback context — re-resume
     collectingRef.current = true;
     setStartTime(performance.now());
     setPhase('playing');

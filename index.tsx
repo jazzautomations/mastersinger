@@ -2,6 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { warmAudioOnUserGesture } from './services/audioService';
+
+// Unlock Web Audio on the very first user interaction (critical for iOS Safari).
+warmAudioOnUserGesture();
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };

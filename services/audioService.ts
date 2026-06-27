@@ -18,6 +18,9 @@ let warmed = false;
 
 let playbackGen = 0;
 let droneFreq = 0;
+let unlocked = false;
+let silentEl: HTMLAudioElement | null = null;
+const SILENT_WAV = 'data:audio/wav;base64,UklGRqQMAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYAMAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 
 const scheduledTimeouts = new Set<number>();
 
@@ -66,58 +69,95 @@ function ensureMonoSynth(): Tone.Synth {
   return monoSynth;
 }
 
-async function resumeIfSuspended(): Promise<void> {
-  const ctx = Tone.getContext();
-  if (ctx.state !== 'running') {
-    try {
-      await Tone.start();
-    } catch {
-      console.warn('[AudioService] Could not resume audio context. Try interacting with the page first.');
-    }
+function getRawContext(): AudioContext | null {
+  try { return Tone.getContext().rawContext as unknown as AudioContext; } catch { return null; }
+}
+
+// iOS requires the first sound to originate from a user gesture: play a
+// 1-sample silent buffer to satisfy that unlock.
+function playSilentBuffer(): void {
+  const ctx = getRawContext();
+  if (!ctx) return;
+  try {
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {}
+}
+
+// A silent, looping <audio> element. Playing an HTMLMediaElement switches the
+// iOS audio session to the "playback" category, which makes Web Audio audible
+// even when the ring/silent switch is SILENT — the #1 cause of "no sound on
+// iPhone" — and keeps playback alive while the mic is recording.
+function ensureSilentElement(): void {
+  if (silentEl || typeof document === 'undefined') return;
+  try {
+    const el = document.createElement('audio');
+    el.setAttribute('playsinline', 'true');
+    el.loop = true;
+    el.preload = 'auto';
+    el.src = SILENT_WAV;
+    el.volume = 0;
+    silentEl = el;
+  } catch {}
+}
+
+// Full iOS-safe unlock: resume Tone + the raw AudioContext, play a silent
+// buffer, and claim the media session via the silent element. Idempotent.
+export async function unlockAudio(): Promise<void> {
+  try {
+    const ctx = Tone.getContext();
+    if (ctx.state !== 'running') { try { await Tone.start(); } catch {} }
+    const raw = getRawContext();
+    if (raw && raw.state !== 'running') { try { await raw.resume(); } catch {} }
+    playSilentBuffer();
+    ensureSilentElement();
+    if (silentEl && silentEl.paused) { try { await silentEl.play(); } catch {} }
+    ensureSynth();
+    ensureMonoSynth();
+    if (master) master.gain.rampTo(1.6, 0.02);
+    unlocked = true;
+    warmed = true;
+  } catch (err) {
+    console.warn('[AudioService] unlockAudio failed:', err);
   }
 }
 
+async function resumeIfSuspended(): Promise<void> {
+  await unlockAudio();
+}
+
 export async function ensureAudioStarted(): Promise<void> {
-  try {
-    const ctx = Tone.getContext();
-    if (ctx.state !== 'running') {
-      await Tone.start();
-    }
-    ensureSynth();
-    ensureMonoSynth();
-    // Restore master gain if it was muted by stopAll
-    if (master) master.gain.rampTo(1.6, 0.02);
-    warmed = true;
-  } catch (err) {
-    console.error('[AudioService] Failed to start audio context:', err);
-    await new Promise(resolve => setTimeout(resolve, 100));
-    try {
-      await Tone.start();
-      ensureSynth();
-      ensureMonoSynth();
-      if (master) master.gain.rampTo(1.6, 0.02);
-      warmed = true;
-    } catch (retryErr) {
-      console.error('[AudioService] Retry also failed:', retryErr);
-      throw new Error('Could not start audio. Please interact with the page (click/tap) and try again.');
-    }
+  await unlockAudio();
+  if (Tone.getContext().state !== 'running') {
+    await new Promise(resolve => setTimeout(resolve, 60));
+    await unlockAudio();
+  }
+  if (Tone.getContext().state !== 'running') {
+    console.warn('[AudioService] Audio context not running after unlock attempts.');
   }
 }
 
 export function warmAudioOnUserGesture(): void {
-  if (warmed) return;
   const unlock = () => {
-    Tone.start().catch(() => {});
-    ensureSynth();
-    ensureMonoSynth();
-    warmed = true;
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
-    window.removeEventListener('touchstart', unlock);
+    const raw = getRawContext();
+    if (!unlocked || (raw && raw.state !== 'running') || (silentEl && silentEl.paused)) {
+      unlockAudio();
+    }
   };
-  window.addEventListener('pointerdown', unlock, { once: true });
-  window.addEventListener('keydown', unlock, { once: true });
-  window.addEventListener('touchstart', unlock, { once: true });
+  window.addEventListener('pointerdown', unlock, { passive: true });
+  window.addEventListener('touchstart', unlock, { passive: true });
+  window.addEventListener('keydown', unlock, { passive: true });
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      const raw = getRawContext();
+      if (raw && raw.state !== 'running') raw.resume().catch(() => {});
+      if (silentEl && silentEl.paused) silentEl.play().catch(() => {});
+    });
+  }
 }
 
 export function beginPlayback(): number {
