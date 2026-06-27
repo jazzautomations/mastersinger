@@ -180,8 +180,21 @@ export function Recorder() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Canvas video stream
-    const canvasStream = canvas.captureStream(30);
+    // captureStream is unavailable on iOS Safari < 17.2
+    if (typeof (canvas as any).captureStream !== 'function') {
+      setCameraError(lang === 'pt-BR'
+        ? 'Gravação não suportada neste navegador. Use Chrome no Android ou Safari 17.2+ no iOS.'
+        : 'Recording not supported here. Use Chrome on Android or Safari 17.2+ on iOS.');
+      return;
+    }
+
+    let canvasStream: MediaStream;
+    try {
+      canvasStream = (canvas as any).captureStream(30) as MediaStream;
+    } catch (e: any) {
+      setCameraError(e?.message ?? 'captureStream failed');
+      return;
+    }
 
     // Reuse mic stream from usePitchDetection (no second getUserMedia)
     const micStream = pitch.micStream;
@@ -194,9 +207,11 @@ export function Recorder() {
 
   const recordStream = (stream: MediaStream) => {
     chunksRef.current = [];
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
+    // Prefer mp4/h264 (Safari 14.1+), fall back to webm (Chrome/Firefox)
+    const mimeType =
+      MediaRecorder.isTypeSupported('video/mp4; codecs="avc1.42E01E"') ? 'video/mp4; codecs="avc1.42E01E"' :
+      MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' :
+      'video/webm';
     const recorder = new MediaRecorder(stream, { mimeType });
     recorderRef.current = recorder;
 
@@ -228,7 +243,8 @@ export function Recorder() {
   // ── Share / Download ──
   const share = useCallback(async () => {
     if (!videoBlob) return;
-    const file = new File([videoBlob], 'mastersinger-video.webm', { type: 'video/webm' });
+    const ext = videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
+    const file = new File([videoBlob], `mastersinger-video.${ext}`, { type: videoBlob.type });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], title: 'MasterSinger' });
     } else {
@@ -237,10 +253,11 @@ export function Recorder() {
   }, [videoBlob]);
 
   const download = useCallback(() => {
-    if (!videoUrl) return;
+    if (!videoUrl || !videoBlob) return;
+    const ext = videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
     const a = document.createElement('a');
     a.href = videoUrl;
-    a.download = 'mastersinger-video.webm';
+    a.download = `mastersinger-video.${ext}`;
     a.click();
   }, [videoUrl]);
 
@@ -326,8 +343,8 @@ export function Recorder() {
            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         {state === 'camera' ? (
           <button onClick={startRecording}
-                  className="w-20 h-20 rounded-full bg-red-500 border-4 border-white shadow-lg shadow-red-500/30 active:scale-95 transition-transform">
-            <div className="w-16 h-16 rounded-full bg-red-500 mx-auto" />
+                  className="w-20 h-20 rounded-full bg-white border-4 border-white shadow-lg shadow-red-500/40 active:scale-95 transition-transform flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-red-500" />
           </button>
         ) : (
           <button onClick={stopRecording}

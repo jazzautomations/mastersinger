@@ -120,10 +120,15 @@ export function Academy({ initialCourseId, initialLessonId }: AcademyProps) {
   }
 
   // ── Lesson view ──
+  const lessonIdx = selectedCourse.lessons.indexOf(selectedLesson);
+  const nextLesson = selectedCourse.lessons[lessonIdx + 1] ?? null;
+
   return <LessonView
     lesson={selectedLesson}
     course={selectedCourse}
     lang={lang}
+    nextLesson={nextLesson}
+    onNextLesson={nextLesson ? () => setSelectedLesson(nextLesson) : undefined}
     onBack={() => setSelectedLesson(null)}
     onComplete={() => {
       completeLesson(selectedLesson.id, selectedLesson.xp);
@@ -157,11 +162,13 @@ interface LessonViewProps {
   lesson: Lesson;
   course: Course;
   lang: 'pt-BR' | 'en';
+  nextLesson?: Lesson | null;
+  onNextLesson?: () => void;
   onBack: () => void;
   onComplete: () => void;
 }
 
-function LessonView({ lesson, course, lang, onBack, onComplete }: LessonViewProps) {
+function LessonView({ lesson, course, lang, nextLesson, onNextLesson, onBack, onComplete }: LessonViewProps) {
   const [completed, setCompleted] = useState(false);
 
   const handleComplete = useCallback(() => {
@@ -190,9 +197,21 @@ function LessonView({ lesson, course, lang, onBack, onComplete }: LessonViewProp
           <div className="text-5xl">🎉</div>
           <div className="text-xl font-black display">{t(lang, 'academy.lessonComplete')}</div>
           <div className="text-violet-400 text-sm font-mono">+{lesson.xp} XP</div>
-          <button onClick={onBack} className="btn-primary mx-auto">
-            {lang === 'pt-BR' ? 'Voltar para o curso' : 'Back to course'}
-          </button>
+          {nextLesson && onNextLesson ? (
+            <>
+              <button onClick={onNextLesson} className="btn-primary mx-auto">
+                {lang === 'pt-BR' ? 'Próxima aula' : 'Next lesson'}
+                <i className="fas fa-arrow-right ml-2"></i>
+              </button>
+              <button onClick={onBack} className="btn-ghost mx-auto text-xs">
+                {lang === 'pt-BR' ? 'Voltar ao curso' : 'Back to course'}
+              </button>
+            </>
+          ) : (
+            <button onClick={onBack} className="btn-primary mx-auto">
+              {lang === 'pt-BR' ? 'Voltar para o curso' : 'Back to course'}
+            </button>
+          )}
         </div>
       ) : (
         <button onClick={handleComplete} className="btn-primary w-full">

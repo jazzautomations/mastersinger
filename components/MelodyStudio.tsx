@@ -43,6 +43,7 @@ export function MelodyStudio() {
   const [savingName, setSavingName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [playingLibId, setPlayingLibId] = useState<string | null>(null);
+  const [recElapsed, setRecElapsed] = useState(0);
   const [drag, setDrag] = useState<null | {
     kind: 'move' | 'resize' | 'create';
     noteIdx: number;
@@ -100,7 +101,7 @@ export function MelodyStudio() {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const tMs = (x / PX_PER_SEC) * 1000;
+    const tMs = Math.max(0, (x - PIANO_W) / PX_PER_SEC) * 1000;
     const midi = highMidi - Math.floor(y / ROW_HEIGHT);
     return { tMs, midi, x, y };
   };
@@ -311,6 +312,14 @@ export function MelodyStudio() {
     if (!profile.badges.includes('first-studio')) unlockBadge('first-studio');
   };
 
+  // Live recording timer
+  useEffect(() => {
+    if (!isRecording) { setRecElapsed(0); return; }
+    const start = performance.now();
+    const id = window.setInterval(() => setRecElapsed(Math.round((performance.now() - start) / 100) / 10), 100);
+    return () => clearInterval(id);
+  }, [isRecording]);
+
   useEffect(() => () => {
     if (playTimerRef.current) cancelAnimationFrame(playTimerRef.current);
     stopAll();
@@ -502,7 +511,7 @@ export function MelodyStudio() {
       <div className="flex items-center justify-between text-xs text-slate-400 font-mono gap-3">
         <div className="min-w-0 truncate">
           {isRecording ? (
-            <span className="text-red-400 pulse-soft">● {t(lang, 'studio.recording')} ({(duration / 1000).toFixed(1)}s)</span>
+            <span className="text-red-400 pulse-soft">● {lang === 'pt-BR' ? 'Gravando' : 'Recording'} {recElapsed.toFixed(1)}s</span>
           ) : notes.length > 0 ? (
             <span>{notes.length} {lang === 'pt-BR' ? 'notas' : 'notes'} · {totalSec.toFixed(1)}s</span>
           ) : (

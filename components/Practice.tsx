@@ -399,7 +399,18 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
           {types.map(({ type, icon, titleKey, descKey }) => (
             <button
               key={type}
-              onClick={() => { const exercises = getExercisesByType(type); if (exercises.length > 0) { setSelectedType(type); setCurrentExercise(fitExercise(exercises[0])); setPhase('ready'); } }}
+              onClick={() => {
+                const byLevel = getExercisesByType(type).filter(e => e.level === userLevel);
+                const pool = byLevel.length > 0 ? byLevel : getExercisesByType(type);
+                if (pool.length > 0) {
+                  const fitted = pool.map(fitExercise);
+                  setSelectedType(type);
+                  setExerciseQueue(fitted);
+                  setCurrentIdx(0);
+                  setCurrentExercise(fitted[0]);
+                  setPhase('ready');
+                }
+              }}
               className="card p-5 text-left hover:border-violet-500/40 transition-all"
             >
               <div className="flex items-center gap-4">
@@ -416,14 +427,18 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         <div className="space-y-3">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{L('Sugerido para o seu nível', 'Suggested for your level')}</div>
           <div className="grid gap-2">
-            {getExercisesByLevel(userLevel).slice(0, 6).map(ex => {
+            {getExercisesByLevel(userLevel).map(ex => {
               const locked = !canAccessExercise(ex.id);
               return (
                 <button
                   key={ex.id}
                   onClick={() => {
                     if (locked) return openUpgrade();
+                    const pool = getExercisesByLevel(userLevel).filter(e => e.type === ex.type).map(fitExercise);
+                    const idx = pool.findIndex(e => e.id === fitExercise(ex).id);
                     setSelectedType(ex.type);
+                    setExerciseQueue(pool);
+                    setCurrentIdx(Math.max(0, idx));
                     setCurrentExercise(fitExercise(ex));
                     setPhase('ready');
                   }}
@@ -575,11 +590,22 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
 
   // ── Result phase ──
   if (phase === 'result' && currentExercise && result) {
-    const isLast = isDaily && currentIdx + 1 >= exerciseQueue.length;
+    const hasNext = currentIdx + 1 < exerciseQueue.length;
     const totalScore = allResults.length > 0 ? Math.round(allResults.reduce((s, r) => s + r.score, 0) / allResults.length) : result.score;
     const hitCount = noteResults.filter(r => r === 'hit').length;
+    const missedNotes = currentExercise.targets.filter((_, i) => noteResults[i] === 'miss');
+
+    // Coaching hint based on result
+    const coachHint = (() => {
+      if (result.score >= 90) return L('Excelente! Continue com o próximo exercício.', 'Excellent! Move to the next exercise.');
+      if (result.accuracyPct < 60) return L('Foque na afinação: ouça cada nota antes de cantar.', 'Focus on pitch: listen to each note before singing.');
+      if (result.stabilityPct < 60) return L('Sustente a nota sem oscilar — apoio de diafragma constante.', 'Sustain without wavering — keep diaphragm support steady.');
+      if (hitCount < currentExercise.targets.length / 2) return L('Metade das notas ok. Tente mais devagar.', 'Half the notes ok. Try slower.');
+      return L('Bom progresso! Tente de novo para melhorar a estabilidade.', 'Good progress! Try again to improve stability.');
+    })();
+
     return (
-      <div className="space-y-6 pb-24">
+      <div className="space-y-5 pb-24">
         <div className="card p-8 text-center space-y-3">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{t(lang, 'practice.score')}</div>
           <div className="text-7xl font-black neon-text font-mono ring-pop">{result.score}%</div>
@@ -589,9 +615,24 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.accuracy')}</div><div className="text-2xl font-black font-mono text-green-400">{result.accuracyPct}%</div></div>
-          <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.timing')}</div><div className="text-2xl font-black font-mono text-violet-400">{result.timingPct}%</div></div>
-          <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.stability')}</div><div className="text-2xl font-black font-mono text-cyan-400">{result.stabilityPct}%</div></div>
+          <div className="card p-4 text-center">
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.accuracy')}</div>
+            <div className="text-2xl font-black font-mono text-green-400">{result.accuracyPct}%</div>
+          </div>
+          <div className="card p-4 text-center">
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.timing')}</div>
+            <div className="text-2xl font-black font-mono text-violet-400">{result.timingPct}%</div>
+          </div>
+          <div className="card p-4 text-center">
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">{t(lang, 'practice.stability')}</div>
+            <div className="text-2xl font-black font-mono text-cyan-400">{result.stabilityPct}%</div>
+          </div>
+        </div>
+
+        {/* Coach feedback */}
+        <div className="card p-4 flex gap-3 items-start">
+          <span className="text-xl mt-0.5">🎯</span>
+          <p className="text-sm text-slate-300 leading-relaxed">{coachHint}</p>
         </div>
 
         {/* Note-by-note breakdown */}
@@ -610,25 +651,40 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
               </div>
             ))}
           </div>
+          {missedNotes.length > 0 && (
+            <div className="text-[10px] text-red-400 font-mono mt-2">
+              {L('Praticar: ', 'Focus on: ')}
+              {missedNotes.map(tg => midiToNoteName(tg.midi)).join(' · ')}
+            </div>
+          )}
         </div>
 
         {pitch.recordingUrl && (
           <div className="card p-5 space-y-3">
             <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Sua gravação' : 'Your take'}</div>
             <audio controls src={pitch.recordingUrl} className="w-full" />
-            <div className="text-[11px] text-slate-500 font-mono">
-              {lang === 'pt-BR' ? 'Ouça sua última tentativa antes de refazer o exercício.' : 'Listen to your last take before trying again.'}
-            </div>
           </div>
         )}
 
-        {isDaily && exerciseQueue.length > 1 && (
-          <div className="card p-4 text-center"><div className="text-xs text-slate-400 uppercase tracking-wider font-mono mb-1">{L('Média parcial', 'Partial average')}</div><div className="text-2xl font-black font-mono">{totalScore}%</div><div className="text-xs text-slate-500">{currentIdx + 1} / {exerciseQueue.length}</div></div>
+        {exerciseQueue.length > 1 && (
+          <div className="card p-4 text-center">
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">
+              {isDaily ? L('Progresso', 'Progress') : L('Exercícios no conjunto', 'Exercises in set')}
+            </div>
+            <div className="text-2xl font-black font-mono">{currentIdx + 1} / {exerciseQueue.length}</div>
+            {isDaily && <div className="text-xs text-slate-500 font-mono mt-0.5">{L('Média', 'Avg')} {totalScore}%</div>}
+          </div>
         )}
 
         <div className="grid gap-3">
-          {!isLast && exerciseQueue.length > 0 ? (
-            <button onClick={goNext} className="btn-primary">{L('Próximo exercício', 'Next exercise')} <i className="fas fa-arrow-right ml-2"></i></button>
+          {hasNext ? (
+            <>
+              <button onClick={goNext} className="btn-primary">
+                {isDaily ? L('Próximo exercício', 'Next exercise') : L('Próxima variação', 'Next variation')}
+                <i className="fas fa-arrow-right ml-2"></i>
+              </button>
+              <button onClick={tryAgain} className="btn-ghost"><i className="fas fa-redo mr-2"></i>{L('Tentar de novo', 'Try again')}</button>
+            </>
           ) : (
             <>
               <button onClick={tryAgain} className="btn-primary"><i className="fas fa-redo mr-2"></i>{L('Tentar de novo', 'Try again')}</button>
