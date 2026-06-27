@@ -35,6 +35,7 @@ export const BADGES: Badge[] = [
   { id: 'course-health',   name: 'Voice Guardian',     description: 'Completed the Vocal Health course.',          icon: '💧' },
   { id: 'course-technique',name: 'Vocal Technique',    description: 'Completed the Singing Technique course.',     icon: '🎤' },
   { id: 'first-warmup',    name: 'Warmed Up',          description: 'Completed a guided vocal warmup.',            icon: '🔥' },
+  { id: 'first-rhythm',    name: 'In the Pocket',      description: 'Completed your first rhythm exercise.',       icon: '🥁' },
   { id: 'all-courses',     name: 'Polymath',           description: 'Completed every Academy course.',             icon: '👑' },
 
   // ── Levels ──

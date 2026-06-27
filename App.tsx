@@ -10,6 +10,7 @@ import { MelodyStudio } from './components/MelodyStudio';
 import { EarTraining } from './components/EarTraining';
 import { Theory } from './components/Theory';
 import { Harmony } from './components/Harmony';
+import { Rhythm } from './components/Rhythm';
 import { Academy } from './components/Academy';
 import { Warmup } from './components/Warmup';
 import { Recorder } from './components/Recorder';
@@ -160,7 +161,7 @@ function MainApp() {
   };
 
   // 404 for unknown views
-  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','academy','progress','settings','warmup','recorder','teacher'];
+  const validViews: View[] = ['home','tuner','practice','studio','ear','theory','harmony','rhythm','academy','progress','settings','warmup','recorder','teacher'];
   const is404 = !validViews.includes(view);
 
   if (!showApp) {
@@ -222,6 +223,9 @@ function MainApp() {
             <button onClick={() => handleNavigate('harmony')} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${!canAccessView('harmony') ? 'text-slate-500 hover:text-amber-300 hover:bg-amber-500/10' : 'text-slate-400 hover:text-violet-300 hover:bg-white/5'}`}>
               {t(lang, 'nav.harmony')} {!canAccessView('harmony') && '🔒'}
             </button>
+            <button onClick={() => handleNavigate('rhythm')} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${!canAccessView('rhythm') ? 'text-slate-500 hover:text-amber-300 hover:bg-amber-500/10' : 'text-slate-400 hover:text-violet-300 hover:bg-white/5'}`}>
+              {t(lang, 'nav.rhythm')} {!canAccessView('rhythm') && '🔒'}
+            </button>
             {isTeacher && (
               <button onClick={() => handleNavigate('teacher')} className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${view === 'teacher' ? 'text-cyan-300 bg-cyan-500/10' : 'text-cyan-400 hover:text-cyan-300 hover:bg-white/5'}`}>
                 🎓 Professor
@@ -278,6 +282,7 @@ function MainApp() {
         {view === 'ear'      && <ProOverlay view={view} viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
         {view === 'theory'   && <ProOverlay view={view} viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
         {view === 'harmony'  && <ProOverlay view={view} viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}
+        {view === 'rhythm'   && <ProOverlay view={view} viewName={t(lang, 'nav.rhythm')}><Rhythm /></ProOverlay>}
         {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} />}
         {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
         {view === 'recorder' && <Recorder />}

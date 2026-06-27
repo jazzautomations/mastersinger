@@ -30,7 +30,7 @@ export const FREE_EXERCISE_IDS = ['sc-beg-cmajor', 'ar-beg-cmajor', 'iv-beg-p5',
 
 // Views fully gated behind Pro / active trial. Anything not listed is free
 // (possibly with in-component depth limits, e.g. Academy/Practice).
-const PRO_VIEWS: View[] = ['studio', 'ear', 'harmony', 'theory', 'progress'];
+const PRO_VIEWS: View[] = ['studio', 'ear', 'harmony', 'rhythm', 'theory', 'progress'];
 
 export function isProView(view: View): boolean {
   return PRO_VIEWS.includes(view);

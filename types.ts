@@ -15,6 +15,7 @@ export type View =
   | 'ear'
   | 'theory'
   | 'harmony'
+  | 'rhythm'      // rhythm trainer (metronome + tap-on-beat)
   | 'academy'
   | 'progress'
   | 'settings'

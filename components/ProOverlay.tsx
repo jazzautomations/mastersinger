@@ -39,6 +39,16 @@ const FEATURE_PITCH: Record<string, { icon: string; headline: string; payoff: st
       'Construa a orelha pra harmonizar qualquer música',
     ],
   },
+  rhythm: {
+    icon: '🥁',
+    headline: 'Treino de Ritmo',
+    payoff: 'Metrônomo + bater no tempo com pontuação por batida. Ritmo é metade do canto — e é o que separa quem "canta certo" de quem soa profissional.',
+    bullets: [
+      'Padrões do básico à síncope e tresillo',
+      'Pontuação por timing: veja se adiantou ou atrasou, em ms',
+      'Suba o BPM conforme melhora — precisão antes de velocidade',
+    ],
+  },
   theory: {
     icon: '📚',
     headline: 'Teoria Musical',
