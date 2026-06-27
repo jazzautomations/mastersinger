@@ -3,6 +3,7 @@ import { COURSES } from '../data/courses';
 import { LESSON_EXERCISE } from '../data/lessonExercises';
 import { LESSON_QUIZ } from '../data/lessonQuizzes';
 import { LESSON_AUDIO } from '../data/lessonAudio';
+import { LESSON_DEEP_DIVE } from '../data/lessonDeepDive';
 import { getExerciseById } from '../data/exercises';
 
 const lessonIds = COURSES.flatMap(c => c.lessons.map(l => l.id));
@@ -70,6 +71,27 @@ describe('Academy lesson audio examples', () => {
         expect(ex.label.length).toBeGreaterThan(0);
         expect(ex.labelPt.length).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+describe('Academy lesson deep dives', () => {
+  it('every lesson has a deep dive', () => {
+    for (const id of lessonIds) {
+      expect(LESSON_DEEP_DIVE[id], `lesson ${id} missing deep dive`).toBeDefined();
+    }
+  });
+
+  it('every deep dive is complete and bilingual', () => {
+    for (const [lesson, dd] of Object.entries(LESSON_DEEP_DIVE)) {
+      expect(lessonIds, `deep dive references unknown lesson ${lesson}`).toContain(lesson);
+      const bis = [dd.why, dd.checkpoint, ...dd.mistakes, ...dd.practice];
+      for (const b of bis) {
+        expect(b.en.length, `${lesson}: empty en`).toBeGreaterThan(0);
+        expect(b.pt.length, `${lesson}: empty pt`).toBeGreaterThan(0);
+      }
+      expect(dd.mistakes.length, `${lesson}: needs mistakes`).toBeGreaterThan(0);
+      expect(dd.practice.length, `${lesson}: needs practice steps`).toBeGreaterThan(0);
     }
   });
 });

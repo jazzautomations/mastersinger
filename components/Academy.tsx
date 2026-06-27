@@ -10,9 +10,11 @@ import { midiToNoteName } from '../services/theoryService';
 import { exerciseForLesson } from '../data/lessonExercises';
 import { quizForLesson } from '../data/lessonQuizzes';
 import { audioForLesson } from '../data/lessonAudio';
+import { deepDiveForLesson } from '../data/lessonDeepDive';
 import { getExerciseById } from '../data/exercises';
 import type { Course, Lesson, LessonBlock, LessonQuiz, View } from '../types';
 import type { LessonAudio } from '../data/lessonAudio';
+import type { LessonDeepDive as DeepDiveData } from '../data/lessonDeepDive';
 
 interface AcademyProps {
   initialCourseId?: string;
@@ -210,6 +212,8 @@ function LessonView({ lesson, course, lang, nextLesson, onNextLesson, onBack, on
         {lesson.content.map((block, i) => <LessonBlockView key={i} block={block} lang={lang} course={course} lesson={lesson} blockIdx={i} />)}
       </div>
 
+      <DeepDivePanel lessonId={lesson.id} lang={lang} />
+
       <LessonAudioSection lessonId={lesson.id} lang={lang} />
 
       {quizzes.length > 0 && (
@@ -384,5 +388,54 @@ function AudioExample({ ex, lang, a4 }: { ex: LessonAudio; lang: 'pt-BR' | 'en';
       </span>
       <span className="text-sm text-slate-200">{label}</span>
     </button>
+  );
+}
+
+
+function DeepDivePanel({ lessonId, lang }: { lessonId: string; lang: 'pt-BR' | 'en' }) {
+  const [open, setOpen] = useState(false);
+  const dd: DeepDiveData | undefined = deepDiveForLesson(lessonId);
+  if (!dd) return null;
+  const pick = (b: { en: string; pt: string }) => (lang === 'pt-BR' ? b.pt : b.en);
+  return (
+    <div className="card overflow-hidden">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between p-4 text-left">
+        <span className="text-sm font-black display text-fuchsia-300 flex items-center gap-2">
+          <i className="fas fa-flask"></i>{lang === 'pt-BR' ? 'Aprofundar' : 'Deep dive'}
+        </span>
+        <i className={`fas fa-chevron-${open ? 'up' : 'down'} text-slate-500 text-xs`}></i>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-4 border-t border-white/5 pt-4">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-mono mb-1">{lang === 'pt-BR' ? 'A ciência' : 'The science'}</div>
+            <p className="text-sm text-slate-200 leading-relaxed">{pick(dd.why)}</p>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-red-400/80 font-mono mb-1">{lang === 'pt-BR' ? 'Erros comuns' : 'Common mistakes'}</div>
+            <ul className="space-y-1.5">
+              {dd.mistakes.map((m, i) => (
+                <li key={i} className="text-sm text-slate-300 flex gap-2"><span className="text-red-400">✗</span><span>{pick(m)}</span></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-violet-400/80 font-mono mb-1">{lang === 'pt-BR' ? 'Como praticar' : 'How to practice'}</div>
+            <ol className="space-y-1.5">
+              {dd.practice.map((p, i) => (
+                <li key={i} className="text-sm text-slate-300 flex gap-2">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-violet-500/15 text-violet-300 text-[11px] font-mono flex items-center justify-center">{i + 1}</span>
+                  <span>{pick(p)}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div className="bg-green-500/10 border-l-2 border-green-500 p-3 rounded-r-lg">
+            <div className="text-[11px] uppercase tracking-wider text-green-400/90 font-mono mb-1">{lang === 'pt-BR' ? 'Você dominou quando' : 'You\'ve got it when'}</div>
+            <p className="text-sm text-green-100 leading-relaxed">{pick(dd.checkpoint)}</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
