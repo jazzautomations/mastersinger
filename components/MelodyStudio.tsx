@@ -5,7 +5,8 @@ import { t } from '../i18n/strings';
 import { framesToNotes, notesToMidiBlob, downloadBlob } from '../services/midiService';
 import { melodyToExercise } from '../data/exercises';
 import { playNote, ensureAudioStarted, stopAll } from '../services/audioService';
-import { midiToNoteName } from '../services/theoryService';
+import { midiToNoteName, midiToFrequency } from '../services/theoryService';
+import { PianoKeyboard } from './PianoKeyboard';
 import type { Note, PitchFrame, SavedMelody, View } from '../types';
 
 type Tool = 'select' | 'draw' | 'erase';
@@ -468,6 +469,40 @@ export function MelodyStudio({ onNavigate }: MelodyStudioProps) {
 
   const liveColor = Math.abs(liveCents) < 10 ? 'text-green-400' : Math.abs(liveCents) < 25 ? 'text-amber-400' : 'text-red-400';
 
+  // ── Playable piano (Studio): hear notes, and record them as MIDI ──
+  const [pianoOpen, setPianoOpen] = useState(false);
+  const [pianoRec, setPianoRec] = useState(false);
+  const pianoStartRef = useRef<number | null>(null);
+  const activeKeyRef = useRef<Map<number, number>>(new Map());
+  const notesRef = useRef<Note[]>(notes);
+  notesRef.current = notes;
+
+  const pianoNoteOn = useCallback((midi: number) => {
+    ensureAudioStarted().then(() => playNote(midi, 1600, 0, a4));
+    if (!pianoRec) return;
+    if (pianoStartRef.current == null) {
+      const base = notesRef.current.reduce((m, n) => Math.max(m, n.endTime), 0);
+      pianoStartRef.current = performance.now() - base;
+    }
+    activeKeyRef.current.set(midi, performance.now() - pianoStartRef.current);
+  }, [a4, pianoRec]);
+
+  const pianoNoteOff = useCallback((midi: number) => {
+    if (!pianoRec || pianoStartRef.current == null) return;
+    const start = activeKeyRef.current.get(midi);
+    if (start == null) return;
+    activeKeyRef.current.delete(midi);
+    const end = Math.max(performance.now() - pianoStartRef.current, start + MIN_NOTE_MS);
+    const note: Note = { startTime: Math.round(start), endTime: Math.round(end), frequency: midiToFrequency(midi, a4), midi, cents: 0, velocity: 92, confidence: 1 };
+    setNotes(prev => [...prev, note].sort((a, b) => a.startTime - b.startTime));
+  }, [a4, pianoRec]);
+
+  const togglePianoRec = useCallback(() => {
+    pianoStartRef.current = null;
+    activeKeyRef.current.clear();
+    setPianoRec(r => !r);
+  }, []);
+
   return (
     <div className="space-y-4 pb-24">
       <div>
@@ -517,6 +552,9 @@ export function MelodyStudio({ onNavigate }: MelodyStudioProps) {
           <i className="fas fa-bolt mr-1.5"></i>{t(lang, 'studio.quantize')}
         </button>
         <div className="w-px h-6 bg-white/10" />
+        <button onClick={() => setPianoOpen(p => !p)} className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap ${pianoOpen ? 'bg-fuchsia-500 text-white' : 'bg-white/5 text-slate-300'}`}>
+          <i className="fas fa-music mr-1.5"></i>Piano
+        </button>
         <button onClick={() => { setNotes([]); setSelectedNote(null); }} disabled={notes.length === 0 || isPlaying || !!playingLibId} className="btn-ghost disabled:opacity-40 whitespace-nowrap">
           <i className="fas fa-trash mr-1.5"></i>{t(lang, 'studio.clear')}
         </button>
@@ -595,6 +633,20 @@ export function MelodyStudio({ onNavigate }: MelodyStudioProps) {
             <button onClick={handleSave} className="btn-primary flex-1"><i className="fas fa-check mr-1.5"></i>{t(lang, 'common.save')}</button>
             <button onClick={() => { setShowSaveForm(false); setSavingName(''); }} className="btn-ghost">{t(lang, 'common.cancel')}</button>
           </div>
+        </div>
+      )}
+
+      {/* Playable piano */}
+      {pianoOpen && (
+        <div className="card p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-mono">🎹 Piano</div>
+            <button onClick={togglePianoRec} className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider ${pianoRec ? 'bg-red-500 text-white pulse-soft' : 'bg-white/5 text-slate-300'}`}>
+              <i className={`fas ${pianoRec ? 'fa-stop' : 'fa-circle'} mr-1.5`}></i>{pianoRec ? (lang === 'pt-BR' ? 'Gravando' : 'Recording') : (lang === 'pt-BR' ? 'Gravar tocando' : 'Record play')}
+            </button>
+          </div>
+          <PianoKeyboard a4={a4} onNoteOn={pianoNoteOn} onNoteOff={pianoNoteOff} />
+          <div className="text-[10px] text-slate-500">{pianoRec ? (lang === 'pt-BR' ? 'Toque as teclas — as notas entram no editor em tempo real, continuando após a melodia atual.' : 'Play the keys — notes record in real time, appended after the current melody.') : (lang === 'pt-BR' ? 'Toque pra ouvir. Ative "Gravar tocando" pra registrar como MIDI.' : 'Tap to hear. Enable "Record play" to capture MIDI.')}</div>
         </div>
       )}
 
