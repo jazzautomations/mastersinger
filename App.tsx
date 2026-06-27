@@ -271,9 +271,10 @@ function MainApp() {
         {view === 'practice' && <Practice
                                   preselectedExerciseIds={viewOpts?.exerciseIds}
                                   isDaily={viewOpts?.isDaily}
+                                  customExercise={viewOpts?.customExercise}
                                   onComplete={() => handleNavigate('home')}
                                 />}
-        {view === 'studio'   && <ProOverlay view={view} viewName={t(lang, 'nav.studio')}><MelodyStudio /></ProOverlay>}
+        {view === 'studio'   && <ProOverlay view={view} viewName={t(lang, 'nav.studio')}><MelodyStudio onNavigate={handleNavigate} /></ProOverlay>}
         {view === 'ear'      && <ProOverlay view={view} viewName={t(lang, 'nav.ear')}><EarTraining /></ProOverlay>}
         {view === 'theory'   && <ProOverlay view={view} viewName={t(lang, 'nav.theory')}><Theory /></ProOverlay>}
         {view === 'harmony'  && <ProOverlay view={view} viewName={t(lang, 'nav.harmony')}><Harmony /></ProOverlay>}

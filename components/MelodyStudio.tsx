@@ -3,11 +3,16 @@ import { useStore } from '../store/store';
 import { usePitchDetection } from '../audio/usePitchDetection';
 import { t } from '../i18n/strings';
 import { framesToNotes, notesToMidiBlob, downloadBlob } from '../services/midiService';
+import { melodyToExercise } from '../data/exercises';
 import { playNote, ensureAudioStarted, stopAll } from '../services/audioService';
 import { midiToNoteName } from '../services/theoryService';
-import type { Note, PitchFrame, SavedMelody } from '../types';
+import type { Note, PitchFrame, SavedMelody, View } from '../types';
 
 type Tool = 'select' | 'draw' | 'erase';
+
+interface MelodyStudioProps {
+  onNavigate?: (view: View, opts?: any) => void;
+}
 
 // ── Piano roll geometry (mobile-first) ──
 const ROW_HEIGHT = 40;       // px per semitone — fat enough to tap/drag on a phone
@@ -23,7 +28,7 @@ const SNAP_MS = 50;          // free-edit grid
 const QUANT_MS = 250;        // quantize grid (1/4 @ 60bpm)
 const MIN_NOTE_MS = 80;
 
-export function MelodyStudio() {
+export function MelodyStudio({ onNavigate }: MelodyStudioProps) {
   const { profile, unlockBadge, melodies, saveMelody, deleteMelody } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
@@ -312,6 +317,22 @@ export function MelodyStudio() {
     if (!profile.badges.includes('first-studio')) unlockBadge('first-studio');
   };
 
+  // ── Sing a melody back as a scored practice exercise ──
+  const practiceMelody = (mel: SavedMelody) => {
+    if (mel.notes.length === 0 || !onNavigate) return;
+    stopAll();
+    onNavigate('practice', { customExercise: melodyToExercise(mel) });
+  };
+  const practiceCurrent = () => {
+    if (notes.length === 0 || !onNavigate) return;
+    const dur = Math.max(...notes.map(n => n.endTime));
+    practiceMelody({
+      id: `draft-${Date.now()}`,
+      name: lang === 'pt-BR' ? 'Melodia atual' : 'Current melody',
+      notes, durationMs: dur, noteCount: notes.length, createdAt: Date.now(),
+    });
+  };
+
   // Live recording timer
   useEffect(() => {
     if (!isRecording) { setRecElapsed(0); return; }
@@ -505,6 +526,11 @@ export function MelodyStudio() {
         <button onClick={() => setShowSaveForm(s => !s)} disabled={notes.length === 0} className="btn-primary disabled:opacity-40 whitespace-nowrap">
           <i className="fas fa-bookmark mr-1.5"></i>{t(lang, 'studio.save')}
         </button>
+        {onNavigate && (
+          <button onClick={practiceCurrent} disabled={notes.length === 0} className="px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider whitespace-nowrap bg-gradient-to-r from-green-500 to-emerald-500 text-white disabled:opacity-40">
+            <i className="fas fa-microphone mr-1.5"></i>{lang === 'pt-BR' ? 'Cantar' : 'Sing'}
+          </button>
+        )}
       </div>
 
       {/* Status bar */}
@@ -591,6 +617,11 @@ export function MelodyStudio() {
                 <button onClick={() => handlePlaySaved(mel)} className={`w-9 h-9 rounded-lg flex items-center justify-center active:scale-95 ${playingLibId === mel.id ? 'bg-red-500 text-white' : 'bg-violet-500 text-white'}`} title={lang === 'pt-BR' ? 'Ouvir' : 'Play'}>
                   <i className={`fas ${playingLibId === mel.id ? 'fa-stop' : 'fa-play'}`}></i>
                 </button>
+                {onNavigate && (
+                  <button onClick={() => practiceMelody(mel)} className="w-9 h-9 bg-green-500 text-white rounded-lg flex items-center justify-center active:scale-95" title={lang === 'pt-BR' ? 'Cantar de volta' : 'Sing it back'}>
+                    <i className="fas fa-microphone"></i>
+                  </button>
+                )}
                 <button onClick={() => handleLoadSaved(mel)} disabled={isRecording || isPlaying || !!playingLibId} className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center active:bg-white/20 disabled:opacity-30" title={lang === 'pt-BR' ? 'Carregar no editor' : 'Load into editor'}>
                   <i className="fas fa-pen"></i>
                 </button>

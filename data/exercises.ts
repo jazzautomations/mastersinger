@@ -1,5 +1,29 @@
-import type { Exercise } from '../types';
+import type { Exercise, SavedMelody } from '../types';
 import { SCALES, ARPEGGIO_TYPES, INTERVALS, buildScale, buildArpeggio, NOTE_NAMES_SHARP } from '../services/theoryService';
+
+// ── Turn a melody captured/edited in the Studio into a singable practice
+//    exercise: sing your OWN melody back, note by note, with live scoring.
+//    Reuses the entire Practice engine. transposeSemitones lets the caller
+//    shift it before fitExercise re-centers it on the singer's range. ──
+export function melodyToExercise(melody: SavedMelody, transposeSemitones = 0): Exercise {
+  const sorted = [...melody.notes].sort((a, b) => a.startTime - b.startTime);
+  const t0 = sorted.length > 0 ? sorted[0].startTime : 0;
+  const targets = sorted.map(n => ({
+    midi: n.midi + transposeSemitones,
+    startMs: Math.max(0, n.startTime - t0) + 1000, // 1s lead-in
+    durationMs: Math.max(350, n.endTime - n.startTime),
+  }));
+  return {
+    id: `melody-${melody.id}`,
+    type: 'scale-runner',
+    title: melody.name,
+    description: `Sing back your melody "${melody.name}".`,
+    descriptionPt: `Cante de volta a sua melodia "${melody.name}".`,
+    level: 'intermediate',
+    targets,
+    xp: Math.min(90, 15 + sorted.length * 2),
+  };
+}
 
 // ── Helper: build a scale-runner exercise ──
 // Tempos are deliberately SLOW so a singer has time to land each note and

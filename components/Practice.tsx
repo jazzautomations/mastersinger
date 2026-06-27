@@ -12,6 +12,7 @@ import type { Exercise, ExerciseType, PitchFrame, ExerciseResult } from '../type
 interface PracticeProps {
   preselectedExerciseIds?: string[];
   isDaily?: boolean;
+  customExercise?: Exercise;   // e.g. a Studio melody to sing back
   onComplete?: () => void;
 }
 
@@ -30,7 +31,7 @@ const CENTS_TOLERANCE_BY_LEVEL: Record<string, number> = {
   advanced: 22,      // near-professional: ±22 cents or it doesn't count
 };
 
-export function Practice({ preselectedExerciseIds, isDaily, onComplete }: PracticeProps) {
+export function Practice({ preselectedExerciseIds, isDaily, customExercise, onComplete }: PracticeProps) {
   const { profile, recordResult, touchStreak, unlockBadge, canAccessExercise, openUpgrade } = useStore();
   const lang = profile.settings.language;
   const a4 = profile.settings.a4;
@@ -261,6 +262,21 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
       }
     }
   }, [preselectedExerciseIds]);
+
+  // ── Custom exercise init (e.g. a Studio melody to sing back) ──
+  useEffect(() => {
+    if (customExercise && customExercise.targets.length > 0) {
+      setExerciseQueue([customExercise]);
+      setCurrentIdx(0);
+      setCurrentExercise(fitExercise(customExercise));
+      setPhase('ready');
+    }
+  }, [customExercise]);
+
+  // Transpose the exercise currently shown in the ready screen (custom or not).
+  const transposeCurrent = (semi: number) => {
+    setCurrentExercise(prev => (prev ? transposeExercise(prev, semi) : prev));
+  };
 
   // ── Countdown ──
   useEffect(() => {
@@ -493,6 +509,16 @@ export function Practice({ preselectedExerciseIds, isDaily, onComplete }: Practi
             ))}
           </div>
           <div className="text-[11px] text-slate-500">{L('Cante cada nota — avança quando acertar. Pule se quiser.', 'Sing each note — advances when you hit it. Skip if you want.')}</div>
+          {/* Transpose — shift the whole exercise to fit your voice today */}
+          <div className="flex items-center justify-between pt-1 border-t border-white/5">
+            <span className="text-[11px] text-slate-400 font-mono">{L('Transpor', 'Transpose')}</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => transposeCurrent(-1)} className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 font-mono text-sm active:scale-95" title={L('Meio tom abaixo', 'Down a semitone')}>−</button>
+              <button onClick={() => transposeCurrent(-12)} className="px-2 h-9 rounded-lg bg-white/5 hover:bg-white/10 font-mono text-[11px] active:scale-95" title={L('Uma oitava abaixo', 'Down an octave')}>−8va</button>
+              <button onClick={() => transposeCurrent(12)} className="px-2 h-9 rounded-lg bg-white/5 hover:bg-white/10 font-mono text-[11px] active:scale-95" title={L('Uma oitava acima', 'Up an octave')}>+8va</button>
+              <button onClick={() => transposeCurrent(1)} className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 font-mono text-sm active:scale-95" title={L('Meio tom acima', 'Up a semitone')}>+</button>
+            </div>
+          </div>
         </div>
         <button onClick={() => setPlayGuide(g => !g)} className={`card p-4 w-full text-left flex items-center gap-3 transition-all ${playGuide ? 'border-cyan-500/40' : ''}`}>
           <span className="text-xl">{playGuide ? '🔊' : '🔇'}</span>
