@@ -21,6 +21,7 @@ import { UpgradeModal } from './components/UpgradeModal';
 import { ProOverlay } from './components/ProOverlay';
 import { Tutorial, hasTutorialBeenSeen } from './components/Tutorial';
 import { TeacherDashboard } from './components/TeacherDashboard';
+import { GamesHub } from './components/games/GamesHub';
 import { t } from './i18n/strings';
 import { warmAudioOnUserGesture } from './services/audioService';
 import type { View } from './types';
@@ -162,7 +163,7 @@ function MainApp() {
   };
 
   // 404 for unknown views
-  const validViews: View[] = ['home','tuner','practice','performance','studio','ear','theory','harmony','rhythm','academy','progress','settings','warmup','recorder','teacher'];
+  const validViews: View[] = ['home','tuner','practice','performance','studio','ear','theory','harmony','rhythm','academy','progress','settings','warmup','recorder','games','teacher'];
   const is404 = !validViews.includes(view);
 
   if (!showApp) {
@@ -288,6 +289,7 @@ function MainApp() {
         {view === 'academy'  && <Academy initialCourseId={viewOpts?.courseId} initialLessonId={viewOpts?.lessonId} onNavigate={handleNavigate} />}
         {view === 'warmup'   && <Warmup routineId={viewOpts?.routineId} onExit={() => handleNavigate('home')} />}
         {view === 'recorder' && <Recorder />}
+        {view === 'games'    && <GamesHub />}
         {view === 'progress' && <Progress />}
         {view === 'settings' && <Settings />}
         {view === 'teacher'  && <TeacherDashboard />}

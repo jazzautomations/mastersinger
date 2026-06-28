@@ -138,6 +138,23 @@ export function Home({ onNavigate }: HomeProps) {
         </div>
       </button>
 
+      {/* ── Games hub ── */}
+      <button
+        onClick={() => onNavigate('games')}
+        className="card p-6 w-full text-left space-y-2 transition-all border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-violet-500/10 hover:border-emerald-500/50"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🎮</span>
+            <div>
+              <div className="text-xs text-emerald-300 uppercase tracking-wider font-mono">{lang === 'pt-BR' ? 'Jogos' : 'Games'}</div>
+              <div className="text-lg font-bold">{lang === 'pt-BR' ? 'Vocal Match, solfejo, leitura & ouvido' : 'Vocal Match, solfège, sight-singing & ear'}</div>
+            </div>
+          </div>
+          <span className="text-emerald-400"><i className="fas fa-chevron-right"></i></span>
+        </div>
+      </button>
+
       {/* ── Guided warmup ── */}
       <button
         onClick={() => onNavigate('warmup')}

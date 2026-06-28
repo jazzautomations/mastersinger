@@ -22,6 +22,7 @@ export type View =
   | 'settings'
   | 'warmup'      // guided interactive vocal warmup
   | 'recorder'   // video recording with tuner overlay
+  | 'games'      // mini-games hub (vocal match, scale degrees, sight-singing, ear blitz)
   | 'teacher';    // teacher dashboard
 
 export type Language = 'pt-BR' | 'en';
